@@ -4,11 +4,19 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import type { Novel, ReaderLineHeight, ReaderTheme } from "@/types";
+import type { Novel, ReaderTheme } from "@/types";
 
+import { useSettingsModal } from "@/components/settings/settings-modal-context";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
+  getBookmarksState,
+  getServerBookmarksState,
+  saveNovelBookmark,
+  subscribeToBookmarks,
+} from "@/lib/bookmark-storage";
+import {
+  DEFAULT_FONT_FAMILY,
   DEFAULT_FONT_SIZE,
   DEFAULT_LINE_HEIGHT,
   DEFAULT_READER_THEME,
@@ -16,7 +24,6 @@ import {
   getServerReadingState,
   saveChapterScrollPosition,
   saveNovelReadingProgress,
-  saveReaderSettings,
   subscribeToReadingState,
 } from "@/lib/reader-storage";
 import { clampChapterIndex, cn, getReadingProgress, isBrowser } from "@/lib/utils";
@@ -26,11 +33,6 @@ type ReaderShellProps = {
   chapterIndex: number;
 };
 
-const fontSizeOptions = [16, 18, 20, 22];
-const minFontSize = fontSizeOptions[0];
-const maxFontSize = fontSizeOptions[fontSizeOptions.length - 1];
-const lineHeightOptions: ReaderLineHeight[] = [1.6, 1.8, 2];
-
 export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const hasMountedRef = useRef(false);
@@ -38,29 +40,39 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
   const saveScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isChaptersOpen, setIsChaptersOpen] = useState(false);
   const [isImmersiveMode, setIsImmersiveMode] = useState(false);
   const [readingProgress, setReadingProgress] = useState(0);
+  const [bookmarkMessage, setBookmarkMessage] = useState<{
+    chapterIndex: number;
+    text: string;
+  } | null>(null);
   const router = useRouter();
+  const { isOpen: isSettingsOpen, open: openSettings } = useSettingsModal();
   const readingState = useSyncExternalStore(
     subscribeToReadingState,
     getReadingState,
     getServerReadingState,
   );
+  const bookmarksState = useSyncExternalStore(
+    subscribeToBookmarks,
+    getBookmarksState,
+    getServerBookmarksState,
+  );
 
   const savedProgress = readingState.progressByNovel[novel.id];
   const activeChapterIndex = clampChapterIndex(chapterIndex, novel.chapters.length);
+  const fontFamily = readingState.fontFamily ?? DEFAULT_FONT_FAMILY;
   const fontSize = savedProgress?.fontSize ?? readingState.fontSize ?? DEFAULT_FONT_SIZE;
   const lineHeight = readingState.lineHeight ?? DEFAULT_LINE_HEIGHT;
   const theme = readingState.theme ?? DEFAULT_READER_THEME;
-
   const chapter = novel.chapters[activeChapterIndex];
   const progressLabel = getReadingProgress(activeChapterIndex + 1, novel.chapters.length);
-  const estimatedReadMinutes = Math.max(
-    1,
-    Math.ceil(getWordCount(chapter.content) / 200),
-  );
+  const estimatedReadMinutes = Math.max(1, Math.ceil(getWordCount(chapter.content) / 200));
   const savedScrollTop = savedProgress?.chapterScrollPositions?.[String(activeChapterIndex)] ?? 0;
+  const isBookmarked = (bookmarksState[novel.id] ?? []).some(
+    (bookmark) => bookmark.chapterIndex === activeChapterIndex,
+  );
 
   useEffect(() => {
     saveNovelReadingProgress(novel.id, activeChapterIndex, fontSize);
@@ -72,7 +84,6 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
     }
 
     const behavior = hasMountedRef.current && savedScrollTop === 0 ? "smooth" : "auto";
-
     window.scrollTo({ top: savedScrollTop, behavior });
     hasMountedRef.current = true;
   }, [activeChapterIndex, savedScrollTop]);
@@ -87,10 +98,7 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
         { opacity: 0, transform: "translateY(10px)" },
         { opacity: 1, transform: "translateY(0px)" },
       ],
-      {
-        duration: 240,
-        easing: "ease-out",
-      },
+      { duration: 240, easing: "ease-out" },
     );
   }, [chapter.id]);
 
@@ -100,19 +108,27 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
     }
 
     const updateProgress = () => {
-      const scrollTop = window.scrollY;
-      const scrollHeight = document.documentElement.scrollHeight;
-      const clientHeight = window.innerHeight;
-      const scrollableHeight = scrollHeight - clientHeight;
+      const contentElement = contentRef.current;
 
-      if (scrollableHeight <= 0) {
+      if (!contentElement) {
         setReadingProgress(0);
         return;
       }
 
-      const nextProgress = Math.min((scrollTop / scrollableHeight) * 100, 100);
+      const contentTop = contentElement.offsetTop;
+      const scrollTop = window.scrollY;
+      const scrollHeight = contentElement.scrollHeight;
+      const clientHeight = window.innerHeight;
+      const scrollableHeight = Math.max(scrollHeight - clientHeight, 0);
 
-      setReadingProgress(nextProgress);
+      if (scrollableHeight <= 0) {
+        setReadingProgress(scrollTop >= contentTop ? 100 : 0);
+        return;
+      }
+
+      setReadingProgress(
+        Math.min(Math.max(((scrollTop - contentTop) / scrollableHeight) * 100, 0), 100),
+      );
     };
 
     const handleScroll = () => {
@@ -173,18 +189,23 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
     activeChapterIndex < novel.chapters.length - 1
       ? `/novel/${novel.id}/${activeChapterIndex + 2}`
       : undefined;
-  const decreaseFontSize = () => {
-    const nextFontSize = Math.max(fontSize - 2, minFontSize);
 
-    saveReaderSettings({ fontSize: nextFontSize });
-    saveNovelReadingProgress(novel.id, activeChapterIndex, nextFontSize);
-  };
-  const increaseFontSize = () => {
-    const nextFontSize = Math.min(fontSize + 2, maxFontSize);
+  const handleBookmark = () => {
+    const result = saveNovelBookmark(novel.id, activeChapterIndex, chapter.title);
 
-    saveReaderSettings({ fontSize: nextFontSize });
-    saveNovelReadingProgress(novel.id, activeChapterIndex, nextFontSize);
+    setBookmarkMessage({
+      chapterIndex: activeChapterIndex,
+      text: result.added
+        ? "Bookmark saved for this chapter."
+        : "This chapter is already bookmarked.",
+    });
   };
+
+  const handleChapterSelect = (targetChapterIndex: number) => {
+    setIsChaptersOpen(false);
+    router.push(`/novel/${novel.id}/${targetChapterIndex + 1}`);
+  };
+
   const handleReaderKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     if (event.key === "ArrowLeft" && previousChapterHref) {
       event.preventDefault();
@@ -196,26 +217,21 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
       router.push(nextChapterHref);
     }
   };
+
   const handleTouchStart = (event: React.TouchEvent<HTMLElement>) => {
     const touch = event.touches[0];
+    pointerStartRef.current = { x: touch.clientX, y: touch.clientY };
 
-    pointerStartRef.current = {
-      x: touch.clientX,
-      y: touch.clientY,
-    };
-
-    if (!isBrowser() || window.innerWidth >= 768 || isSettingsOpen) {
+    if (!isBrowser() || window.innerWidth >= 768 || isSettingsOpen || isChaptersOpen) {
       touchStartRef.current = null;
       return;
     }
 
-    touchStartRef.current = {
-      x: touch.clientX,
-      y: touch.clientY,
-    };
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
   };
+
   const handleTouchEnd = (event: React.TouchEvent<HTMLElement>) => {
-    if (!isBrowser() || window.innerWidth >= 768 || isSettingsOpen) {
+    if (!isBrowser() || window.innerWidth >= 768 || isSettingsOpen || isChaptersOpen) {
       touchStartRef.current = null;
       return;
     }
@@ -231,7 +247,6 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
     const deltaY = touch.clientY - touchStart.y;
     const absDeltaX = Math.abs(deltaX);
     const absDeltaY = Math.abs(deltaY);
-
     touchStartRef.current = null;
 
     if (absDeltaX < 70 || absDeltaX < absDeltaY * 1.4) {
@@ -246,8 +261,9 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
       router.push(previousChapterHref);
     }
   };
+
   const handleReaderClick = (event: React.MouseEvent<HTMLElement>) => {
-    if (isSettingsOpen) {
+    if (isSettingsOpen || isChaptersOpen) {
       return;
     }
 
@@ -272,6 +288,7 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
     pointerStartRef.current = null;
     setIsImmersiveMode((current) => !current);
   };
+
   const themeStyles = getThemeStyles(theme);
 
   return (
@@ -282,17 +299,18 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 py-1 pb-28 outline-none sm:gap-6 sm:py-2 sm:pb-32"
+      style={{ backgroundColor: "#121212" }}
     >
-      <div className="sticky top-0 z-30 h-1 overflow-hidden rounded-full bg-white/6">
+      <div className="fixed left-0 right-0 top-0 z-40 h-1 overflow-hidden bg-white/6">
         <div
-          className="h-full rounded-full bg-accent transition-[width] duration-150 ease-out"
+          className="h-full bg-accent/85 transition-[width] duration-150 ease-out"
           style={{ width: `${readingProgress}%` }}
         />
       </div>
 
       <div
         className={cn(
-          "flex flex-col gap-4 rounded-[1.6rem] border border-border bg-panel/75 p-4 shadow-[var(--shadow)] backdrop-blur transition-all duration-300 sm:rounded-[2rem] sm:p-5 sm:flex-row sm:items-center sm:justify-between",
+          "flex flex-col gap-4 rounded-[1.6rem] border border-white/8 bg-black/30 p-4 shadow-[var(--shadow-soft)] backdrop-blur transition-all duration-300 sm:rounded-[2rem] sm:p-5 sm:flex-row sm:items-center sm:justify-between",
           isImmersiveMode && "pointer-events-none -translate-y-3 opacity-0",
         )}
       >
@@ -312,34 +330,48 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
         <div className="flex items-center gap-2 self-start sm:self-auto">
           <Button
             type="button"
-            onClick={decreaseFontSize}
-            disabled={fontSize <= minFontSize}
-            className="size-10 rounded-full px-0"
+            onClick={() => setIsChaptersOpen((current) => !current)}
+            className="rounded-full px-3 sm:px-4"
+            aria-label="Open chapters panel"
           >
-            -
-          </Button>
-          <div className="min-w-14 text-center text-sm text-muted-strong">{fontSize}px</div>
-          <Button
-            type="button"
-            onClick={increaseFontSize}
-            disabled={fontSize >= maxFontSize}
-            className="size-10 rounded-full px-0"
-          >
-            +
+            Chapters
           </Button>
           <Button
             type="button"
-            onClick={() => setIsSettingsOpen((current) => !current)}
+            onClick={handleBookmark}
+            className={cn(
+              "gap-2 rounded-full px-3 sm:px-4",
+              isBookmarked && "border-accent bg-accent-soft text-accent",
+            )}
+            aria-label={isBookmarked ? "Chapter bookmarked" : "Bookmark this chapter"}
+          >
+            <span aria-hidden="true" className="text-base leading-none">
+              {isBookmarked ? "?" : "?"}
+            </span>
+            <span className="hidden sm:inline">Bookmark</span>
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              setIsChaptersOpen(false);
+              openSettings();
+            }}
             className="size-10 rounded-full px-0 text-base"
             aria-label="Open reader settings"
           >
-            ⚙
+            ?
           </Button>
         </div>
       </div>
 
+      {bookmarkMessage?.chapterIndex === activeChapterIndex ? (
+        <p className="self-start rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-sm text-emerald-200">
+          {bookmarkMessage.text}
+        </p>
+      ) : null}
+
       <Card
-        className="rounded-[1.6rem] px-4 py-6 sm:rounded-[2rem] sm:px-8 sm:py-10"
+        className="rounded-[1.6rem] border-white/6 px-4 py-6 sm:rounded-[2rem] sm:px-8 sm:py-10"
         style={{
           backgroundColor: themeStyles.cardBackground,
           color: themeStyles.textColor,
@@ -369,6 +401,7 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
           <article
             className="space-y-5 text-left sm:space-y-6"
             style={{
+              fontFamily,
               fontSize: `${fontSize}px`,
               lineHeight,
               color: themeStyles.bodyColor,
@@ -381,107 +414,77 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
         </div>
       </Card>
 
+      {isChaptersOpen ? (
+        <button
+          type="button"
+          aria-label="Close chapter list"
+          onClick={() => setIsChaptersOpen(false)}
+          className="fixed inset-0 z-20 bg-black/35 backdrop-blur-[2px]"
+        />
+      ) : null}
+
       <aside
         className={cn(
-          "fixed right-0 top-0 z-30 flex h-full w-[18rem] max-w-[88vw] flex-col gap-5 border-l px-4 py-5 shadow-[var(--shadow)] transition-transform duration-300",
-          isSettingsOpen ? "translate-x-0" : "translate-x-full",
+          "fixed inset-x-0 bottom-0 z-30 flex max-h-[70vh] flex-col gap-4 rounded-t-[1.75rem] border-t px-4 py-5 shadow-[var(--shadow)] transition-transform duration-300 sm:inset-x-auto sm:right-0 sm:top-0 sm:h-full sm:w-[22rem] sm:max-h-none sm:max-w-[88vw] sm:rounded-none sm:rounded-l-[1.75rem] sm:border-l sm:border-t-0",
+          isChaptersOpen
+            ? "translate-y-0 sm:translate-x-0"
+            : "translate-y-full sm:translate-x-full sm:translate-y-0",
         )}
         style={{
-          backgroundColor: themeStyles.drawerBackground,
+          backgroundColor: "#121212",
           borderColor: themeStyles.dividerColor,
           color: themeStyles.textColor,
         }}
       >
-        <div className="flex items-center justify-between">
-          <h3 className="font-heading text-xl">Reader settings</h3>
+        <div className="mx-auto h-1.5 w-12 rounded-full bg-white/10 sm:hidden" />
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="font-heading text-xl">Chapters</h3>
+            <p className="mt-1 text-sm" style={{ color: themeStyles.bodyColor }}>
+              Jump to any chapter instantly.
+            </p>
+          </div>
           <Button
             type="button"
-            onClick={() => setIsSettingsOpen(false)}
-            className="size-10 rounded-full px-0"
-            aria-label="Close reader settings"
+            onClick={() => setIsChaptersOpen(false)}
+            className="rounded-full px-4"
+            aria-label="Close chapters panel"
           >
-            ×
+            Close
           </Button>
         </div>
 
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.28em]" style={{ color: themeStyles.accentColor }}>
-            Font size
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              onClick={decreaseFontSize}
-              disabled={fontSize <= minFontSize}
-              className="size-10 rounded-full px-0"
-            >
-              -
-            </Button>
-            <input
-              type="range"
-              min={minFontSize}
-              max={maxFontSize}
-              step={2}
-              value={fontSize}
-              onChange={(event) => {
-                const nextFontSize = Number(event.target.value);
-
-                saveReaderSettings({ fontSize: nextFontSize });
-                saveNovelReadingProgress(novel.id, activeChapterIndex, nextFontSize);
-              }}
-              className="w-full accent-[var(--reader-accent)]"
-              style={{ ["--reader-accent" as string]: themeStyles.accentColor }}
-            />
-            <Button
-              type="button"
-              onClick={increaseFontSize}
-              disabled={fontSize >= maxFontSize}
-              className="size-10 rounded-full px-0"
-            >
-              +
-            </Button>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.28em]" style={{ color: themeStyles.accentColor }}>
-            Line height
-          </p>
-          <div className="flex gap-2">
-            {lineHeightOptions.map((option) => (
-              <Button
-                key={option}
-                type="button"
-                onClick={() => saveReaderSettings({ lineHeight: option })}
-                className={cn(
-                  "flex-1",
-                  option === lineHeight && "border-accent bg-accent-soft text-accent",
-                )}
-              >
-                {option.toFixed(1)}
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.28em]" style={{ color: themeStyles.accentColor }}>
-            Theme
-          </p>
+        <div className="overflow-y-auto pr-1">
           <div className="space-y-2">
-            {(["dark", "light", "sepia"] as ReaderTheme[]).map((option) => (
-              <Button
-                key={option}
-                type="button"
-                onClick={() => saveReaderSettings({ theme: option })}
-                className={cn(
-                  "w-full justify-start capitalize",
-                  option === theme && "border-accent bg-accent-soft text-accent",
-                )}
-              >
-                {option}
-              </Button>
-            ))}
+            {novel.chapters.map((item, index) => {
+              const isActive = index === activeChapterIndex;
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleChapterSelect(index)}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-4 rounded-[1.25rem] border px-4 py-3 text-left transition duration-200",
+                    isActive
+                      ? "border-accent bg-accent-soft text-accent"
+                      : "border-white/8 bg-white/4 hover:border-accent/45 hover:bg-white/8",
+                  )}
+                >
+                  <div className="min-w-0 space-y-1">
+                    <p className="text-[11px] uppercase tracking-[0.28em] opacity-80">
+                      Chapter {index + 1}
+                    </p>
+                    <p className={cn("truncate text-sm sm:text-base", isActive && "text-accent")}>
+                      {item.title}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs uppercase tracking-[0.2em] opacity-70">
+                    {isActive ? "Current" : "Open"}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </aside>
@@ -492,7 +495,7 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
           isImmersiveMode && "pointer-events-none translate-y-4 opacity-0",
         )}
       >
-        <div className="mx-auto flex w-full max-w-[700px] items-center gap-3 rounded-full border border-white/10 bg-panel-strong/92 p-3 shadow-[var(--shadow)] backdrop-blur">
+        <div className="mx-auto flex w-full max-w-[700px] items-center gap-3 rounded-full border border-white/10 bg-black/45 p-3 shadow-[var(--shadow)] backdrop-blur">
           {previousChapterHref ? (
             <Button href={previousChapterHref} className="flex-1">
               Prev
@@ -521,21 +524,9 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
 }
 
 function getThemeStyles(theme: ReaderTheme) {
-  if (theme === "light") {
-    return {
-      cardBackground: "#f5f1e8",
-      drawerBackground: "rgba(245, 241, 232, 0.98)",
-      textColor: "#1f1d19",
-      bodyColor: "#38342d",
-      dividerColor: "rgba(31, 29, 25, 0.12)",
-      accentColor: "#8a6428",
-    };
-  }
-
   if (theme === "sepia") {
     return {
       cardBackground: "#2b2218",
-      drawerBackground: "rgba(43, 34, 24, 0.98)",
       textColor: "#f0e4cf",
       bodyColor: "#dbcdb6",
       dividerColor: "rgba(240, 228, 207, 0.12)",
@@ -544,12 +535,11 @@ function getThemeStyles(theme: ReaderTheme) {
   }
 
   return {
-    cardBackground: "rgba(25, 28, 38, 0.92)",
-    drawerBackground: "rgba(17, 19, 26, 0.98)",
-    textColor: "#f5f7fa",
-    bodyColor: "#c6ceda",
-    dividerColor: "rgba(255, 255, 255, 0.08)",
-    accentColor: "#d4b16a",
+    cardBackground: "#1a1814",
+    textColor: "#f5ecd9",
+    bodyColor: "#f5ecd9",
+    dividerColor: "rgba(245, 236, 217, 0.12)",
+    accentColor: "#e0bc52",
   };
 }
 

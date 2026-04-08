@@ -1,6 +1,7 @@
 import type {
   LibraryReadingState,
   NovelReadingProgress,
+  ReaderFontFamily,
   ReaderLineHeight,
   ReaderTheme,
 } from "@/types";
@@ -9,11 +10,13 @@ import { isBrowser } from "@/lib/utils";
 
 const STORAGE_KEY = "krvt-library-reading-state";
 const STORAGE_EVENT = "krvt-library-reading-state-change";
+export const DEFAULT_FONT_FAMILY: ReaderFontFamily = "Times New Roman";
 export const DEFAULT_FONT_SIZE = 18;
-export const DEFAULT_LINE_HEIGHT: ReaderLineHeight = 1.8;
+export const DEFAULT_LINE_HEIGHT: ReaderLineHeight = 1.9;
 export const DEFAULT_READER_THEME: ReaderTheme = "dark";
 
 const defaultState: LibraryReadingState = {
+  fontFamily: DEFAULT_FONT_FAMILY,
   fontSize: DEFAULT_FONT_SIZE,
   lineHeight: DEFAULT_LINE_HEIGHT,
   theme: DEFAULT_READER_THEME,
@@ -164,6 +167,7 @@ export function saveChapterScrollPosition(
 }
 
 export function saveReaderSettings(settings: {
+  fontFamily?: ReaderFontFamily;
   fontSize?: number;
   lineHeight?: ReaderLineHeight;
   theme?: ReaderTheme;
@@ -175,12 +179,14 @@ export function saveReaderSettings(settings: {
   const currentState = getReadingState();
   const nextState: LibraryReadingState = {
     ...currentState,
+    fontFamily: settings.fontFamily ?? currentState.fontFamily,
     fontSize: settings.fontSize ?? currentState.fontSize,
     lineHeight: settings.lineHeight ?? currentState.lineHeight,
     theme: settings.theme ?? currentState.theme,
   };
 
   if (
+    nextState.fontFamily === currentState.fontFamily &&
     nextState.fontSize === currentState.fontSize &&
     nextState.lineHeight === currentState.lineHeight &&
     nextState.theme === currentState.theme
@@ -206,6 +212,9 @@ function normalizeReadingState(
         : defaultState.progressByNovel;
 
     return {
+      fontFamily: isValidFontFamily(parsedValue.fontFamily)
+        ? parsedValue.fontFamily
+        : DEFAULT_FONT_FAMILY,
       fontSize:
         typeof parsedValue.fontSize === "number" ? parsedValue.fontSize : DEFAULT_FONT_SIZE,
       lineHeight: isValidLineHeight(parsedValue.lineHeight)
@@ -250,6 +259,10 @@ function isValidTheme(value: unknown): value is ReaderTheme {
   return value === "dark" || value === "light" || value === "sepia";
 }
 
+function isValidFontFamily(value: unknown): value is ReaderFontFamily {
+  return value === "Times New Roman" || value === "Georgia" || value === "Iowan Old Style";
+}
+
 function isValidLineHeight(value: unknown): value is ReaderLineHeight {
-  return value === 1.6 || value === 1.8 || value === 2;
+  return value === 1.6 || value === 1.8 || value === 1.9 || value === 2;
 }

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@config "../tailwind.config.ts";
 
 :root {
   --font-heading:
@@ -17,7 +18,13 @@
   --panel-strong: rgba(25, 28, 38, 0.96);
   --accent: #d4b16a;
   --accent-soft: rgba(212, 177, 106, 0.14);
+  --royal-purple: #6c3baa;
+  --royal-gold: #d4af37;
+  --royal-black: #0b0b0f;
+  --royal-crimson: #dc143c;
   --shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+  --shadow-soft: 0 18px 48px rgba(0, 0, 0, 0.22);
+  --transition-base: 200ms ease;
 }
 
 @theme inline {
@@ -31,12 +38,27 @@
   --color-panel-strong: var(--panel-strong);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
+  --color-royal-purple: var(--royal-purple);
+  --color-royal-gold: var(--royal-gold);
+  --color-royal-black: var(--royal-black);
+  --color-royal-crimson: var(--royal-crimson);
   --font-heading: var(--font-heading);
   --font-body: var(--font-body);
 }
 
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 * {
   border-color: var(--border);
+  transition-duration: var(--transition-base);
+  transition-timing-function: ease;
 }
 
 html {
@@ -46,11 +68,26 @@ html {
   color: var(--foreground);
 }
 
+html[data-app-theme-mode="dark"] {
+  background:
+    radial-gradient(circle at top, rgba(212, 177, 106, 0.14), transparent 30%),
+    linear-gradient(180deg, #121317 0%, #0d0e12 48%, #09090b 100%);
+}
+
+html[data-app-theme-mode="black"] {
+  background:
+    radial-gradient(circle at top, rgba(212, 177, 106, 0.1), transparent 28%),
+    linear-gradient(180deg, #0b0b0f 0%, #08080a 48%, #050507 100%);
+}
+
 body {
   min-height: 100vh;
   background: transparent;
   color: var(--foreground);
   font-family: var(--font-body), serif;
+  line-height: 1.6;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
@@ -62,7 +99,54 @@ button {
   cursor: pointer;
 }
 
+button,
+a,
+input,
+select,
+textarea {
+  transition:
+    color var(--transition-base),
+    background-color var(--transition-base),
+    border-color var(--transition-base),
+    box-shadow var(--transition-base),
+    transform var(--transition-base),
+    opacity var(--transition-base);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(212, 177, 106, 0.18);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+p,
+li {
+  line-height: 1.75;
+}
+
 ::selection {
   background: rgba(212, 177, 106, 0.28);
   color: var(--foreground);
+}
+
+.skeleton-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s linear infinite;
 }

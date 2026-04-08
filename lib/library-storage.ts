@@ -77,9 +77,14 @@ export async function saveUploadedNovelFromFile(file: File) {
   validateTxtFile(file);
 
   const rawText = await file.text();
+  return saveUploadedNovelFromText(rawText, file.name);
+}
+
+export async function saveUploadedNovelFromText(rawText: string, sourceName = "Pasted Novel") {
   validateNovelText(rawText);
+
   const parsedNovel = parseTxtNovel(rawText);
-  const parsedLocalNovel = buildNovelFromParsedText(parsedNovel, file.name);
+  const parsedLocalNovel = buildNovelFromParsedText(parsedNovel, sourceName);
   const currentState = getUploadedLibraryState();
 
   if (
@@ -111,7 +116,7 @@ export async function saveUploadedNovelFromFile(file: File) {
   }
 
   const nextRecord: UploadedNovelRecord = {
-    fileName: file.name,
+    fileName: sourceName,
     novel: persistedNovel,
     uploadedAt: new Date().toISOString(),
   };
@@ -129,6 +134,20 @@ export async function saveUploadedNovelFromFile(file: File) {
     record: nextRecord,
     persistence,
   } satisfies UploadedNovelSaveResult;
+}
+
+export function previewParsedNovelText(rawText: string, sourceName = "Pasted Novel") {
+  validateNovelText(rawText);
+
+  const parsedNovel = parseTxtNovel(rawText);
+  const novel = buildNovelFromParsedText(parsedNovel, sourceName);
+  const previewParagraphs = novel.chapters[0]?.content.slice(0, 3) ?? [];
+
+  return {
+    parsedNovel,
+    novel,
+    previewParagraphs,
+  };
 }
 
 export function buildNovelFromParsedText(
@@ -177,11 +196,11 @@ function validateNovelText(rawText: string) {
   const normalizedText = rawText.trim();
 
   if (!normalizedText) {
-    throw new Error("This TXT file is empty.");
+    throw new Error("Please paste some novel content.");
   }
 
-  if (normalizedText.length < 100) {
-    throw new Error("This TXT file is too small. Please upload at least 100 characters.");
+  if (normalizedText.length < 200) {
+    throw new Error("Please paste at least 200 characters of novel content.");
   }
 }
 

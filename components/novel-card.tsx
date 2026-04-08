@@ -29,7 +29,7 @@ export function NovelCard({ novel }: NovelCardProps) {
 
   return (
     <Link href={href} className="group">
-      <Card className="h-full p-5 transition duration-300 group-hover:-translate-y-1 group-hover:border-accent/50 group-hover:bg-panel-strong sm:p-6">
+      <Card className="h-full p-5 group-hover:-translate-y-1.5 group-hover:border-accent/50 group-hover:bg-panel-strong group-hover:shadow-[var(--shadow)] sm:p-6">
         <div className="flex h-full flex-col justify-between gap-6 sm:gap-8">
           <div className="space-y-3">
             <p className="text-xs uppercase tracking-[0.3em] text-accent">Novel</p>

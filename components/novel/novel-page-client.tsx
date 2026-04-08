@@ -8,6 +8,11 @@ import type { Chapter, Novel } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
+  getBookmarksState,
+  getServerBookmarksState,
+  subscribeToBookmarks,
+} from "@/lib/bookmark-storage";
+import {
   getServerUploadedLibraryState,
   getUploadedLibraryState,
   subscribeToUploadedLibrary,
@@ -38,6 +43,11 @@ export function NovelPageClient({ initialNovel, novelId }: NovelPageClientProps)
     subscribeToReadingState,
     getReadingState,
     getServerReadingState,
+  );
+  const bookmarksState = useSyncExternalStore(
+    subscribeToBookmarks,
+    getBookmarksState,
+    getServerBookmarksState,
   );
 
   const uploadedNovel =
@@ -115,6 +125,7 @@ export function NovelPageClient({ initialNovel, novelId }: NovelPageClientProps)
     novel && novel.chapters.length > 0 && readingState.lastOpenedNovelId === novel.id,
   );
   const synopsis = novel ? buildSynopsis(novel) : "";
+  const bookmarks = novel ? bookmarksState[novel.id] ?? [] : [];
 
   if (isLoadingRemoteNovel && !novel) {
     return (
@@ -154,7 +165,7 @@ export function NovelPageClient({ initialNovel, novelId }: NovelPageClientProps)
       ) : null}
 
       <Card className="rounded-[2rem] bg-panel-strong/90 p-5 sm:p-8">
-        <div className="mb-5">
+        <div className="mb-6">
           <Link href="/" className="text-sm text-muted transition hover:text-accent">
             Back to library
           </Link>
@@ -182,7 +193,7 @@ export function NovelPageClient({ initialNovel, novelId }: NovelPageClientProps)
               <h1 className="font-heading text-3xl text-foreground sm:text-5xl">
                 {novel.title}
               </h1>
-              <p className="text-base text-muted sm:text-lg">by {novel.author}</p>
+              <p className="text-base leading-8 text-muted sm:text-lg">by {novel.author}</p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
@@ -234,6 +245,51 @@ export function NovelPageClient({ initialNovel, novelId }: NovelPageClientProps)
       <Card className="rounded-[2rem] bg-panel/80 p-5 sm:p-8">
         <div className="space-y-5">
           <div className="space-y-2">
+            <p className="text-xs uppercase tracking-[0.32em] text-accent">Bookmarks</p>
+            <h2 className="font-heading text-2xl text-foreground sm:text-3xl">
+              Saved chapters
+            </h2>
+          </div>
+
+          {bookmarks.length === 0 ? (
+            <p className="text-sm text-muted">
+              No bookmarks yet. Save a chapter from the reader to jump back here later.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {bookmarks.map((bookmark) => {
+                const chapter = novel.chapters[bookmark.chapterIndex];
+                const chapterNumber = bookmark.chapterIndex + 1;
+                const chapterLabel = chapter?.title || bookmark.title;
+
+                return (
+                  <Link
+                    key={`${bookmark.chapterIndex}-${bookmark.createdAt}`}
+                    href={`/novel/${novel.id}/${chapterNumber}`}
+                    className="group flex flex-col gap-3 rounded-[1.5rem] border border-border bg-panel-strong/72 px-4 py-4 shadow-[0_12px_36px_rgba(0,0,0,0.18)] transition-[transform,border-color,background-color,box-shadow] duration-200 ease-out hover:-translate-y-1 hover:border-accent/45 hover:bg-panel-strong hover:shadow-[var(--shadow-soft)] sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-5"
+                  >
+                    <div className="min-w-0 space-y-2">
+                      <p className="text-[11px] uppercase tracking-[0.32em] text-accent">
+                        Bookmark
+                      </p>
+                      <h3 className="font-heading text-lg leading-snug text-foreground transition group-hover:text-accent sm:text-xl">
+                        {`Chapter ${chapterNumber}: ${chapterLabel}`}
+                      </h3>
+                    </div>
+                    <span className="shrink-0 text-sm text-muted-strong transition group-hover:text-accent">
+                      Open
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Card className="rounded-[2rem] bg-panel/80 p-5 sm:p-8">
+        <div className="space-y-5">
+          <div className="space-y-2">
             <p className="text-xs uppercase tracking-[0.32em] text-accent">Chapters</p>
             <h2 className="font-heading text-2xl text-foreground sm:text-3xl">
               Chapter list
@@ -270,7 +326,7 @@ function ChapterListItem({ novelId, chapter, chapterNumber }: ChapterListItemPro
   return (
     <Link
       href={`/novel/${novelId}/${chapterNumber}`}
-      className="group block rounded-[1.5rem] border border-border bg-panel-strong/72 px-4 py-4 shadow-[0_12px_36px_rgba(0,0,0,0.18)] transition duration-300 hover:-translate-y-1 hover:border-accent/45 hover:bg-panel-strong sm:px-5 sm:py-5"
+      className="group block rounded-[1.5rem] border border-border bg-panel-strong/72 px-4 py-4 shadow-[0_12px_36px_rgba(0,0,0,0.18)] transition-[transform,border-color,background-color,box-shadow] duration-200 ease-out hover:-translate-y-1 hover:border-accent/45 hover:bg-panel-strong hover:shadow-[var(--shadow-soft)] sm:px-5 sm:py-5"
     >
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 space-y-2">
@@ -296,7 +352,7 @@ type MetaBlockProps = {
 
 function MetaBlock({ label, value }: MetaBlockProps) {
   return (
-    <div className="rounded-[1.25rem] border border-white/8 bg-white/4 px-4 py-4">
+    <div className="rounded-[1.25rem] border border-white/8 bg-white/4 px-4 py-4 transition-[border-color,background-color,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-accent/30 hover:bg-white/6">
       <p className="text-xs uppercase tracking-[0.28em] text-accent">{label}</p>
       <p className="mt-2 text-sm text-muted-strong sm:text-base">{value}</p>
     </div>

@@ -5,6 +5,8 @@ export type Chapter = {
   content: string[];
 };
 
+export type ReaderFontFamily = "Times New Roman" | "Georgia" | "Iowan Old Style";
+
 export type ParsedChapter = {
   title: string;
   content: string;
@@ -34,16 +36,34 @@ export type NovelReadingProgress = {
   updatedAt: string;
 };
 
+export type NovelBookmark = {
+  chapterIndex: number;
+  title: string;
+  createdAt: string;
+};
+
+export type LibraryBookmarksState = Record<string, NovelBookmark[]>;
+
 export type ReaderTheme = "dark" | "light" | "sepia";
 
-export type ReaderLineHeight = 1.6 | 1.8 | 2;
+export type ReaderLineHeight = 1.6 | 1.8 | 1.9 | 2;
 
 export type LibraryReadingState = {
+  fontFamily: ReaderFontFamily;
   fontSize: number;
   lineHeight: ReaderLineHeight;
   theme: ReaderTheme;
   lastOpenedNovelId: string | null;
   progressByNovel: Record<string, NovelReadingProgress>;
+};
+
+export type AppAccentColor = "gold" | "purple" | "crimson";
+
+export type AppThemeMode = "dark" | "black";
+
+export type AppSettingsState = {
+  accentColor: AppAccentColor;
+  themeMode: AppThemeMode;
 };
 
 export type UploadedNovelRecord = {

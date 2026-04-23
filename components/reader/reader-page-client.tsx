@@ -1,163 +1,277 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 
-import type { Novel } from "@/types";
-
-import { ReaderShell } from "@/components/reader/reader-shell";
-import { Button } from "@/components/ui/button";
+import { BottomNav } from "@/components/reader/bottom-nav";
+import ReaderControls from "@/components/reader/reader-controls";
+import { SettingsModal } from "@/components/reader/settings-modal";
 import {
-  getServerUploadedLibraryState,
-  getUploadedLibraryState,
-  subscribeToUploadedLibrary,
-} from "@/lib/library-storage";
+  saveSettings,
+  useReaderSettings,
+  type ReaderSettings,
+} from "@/lib/settings";
+import { getNovel } from "@/lib/storage/indexeddb";
 import {
-  getChapters as getSupabaseChapters,
-  getNovelById as getSupabaseNovelById,
-} from "@/lib/supabase-service";
+  isPaused,
+  isSpeaking,
+  pause,
+  resume,
+  speak,
+  stop,
+} from "@/lib/tts";
+import {
+  isChapterBookmarked,
+  saveNovelBookmark,
+  getNovelBookmarks,
+  subscribeToBookmarks,
+} from "@/lib/storage/bookmarks";
 
-type ReaderPageClientProps = {
-  initialNovel: Novel | null;
+type ReaderNovel = {
+  id: string;
+  title: string;
+  author?: string;
+  chapters: Array<{
+    id?: string;
+    title: string;
+    content: string[] | string;
+  }>;
+};
+
+type Props = {
   novelId: string;
   chapterParam: string;
 };
 
-export function ReaderPageClient({
-  initialNovel,
-  novelId,
-  chapterParam,
-}: ReaderPageClientProps) {
-  const uploadedLibrary = useSyncExternalStore(
-    subscribeToUploadedLibrary,
-    getUploadedLibraryState,
-    getServerUploadedLibraryState,
-  );
+export function ReaderPageClient({ novelId, chapterParam }: Props) {
+  const settings = useReaderSettings();
 
-  const uploadedNovel =
-    uploadedLibrary.novels.find((entry) => entry.novel.id === novelId)?.novel ?? null;
-  const [remoteNovel, setRemoteNovel] = useState<Novel | null>(null);
-  const [isLoadingRemoteNovel, setIsLoadingRemoteNovel] = useState(
-    !initialNovel && !uploadedNovel,
-  );
-  const [remoteError, setRemoteError] = useState<string | null>(null);
+  const [novel, setNovel] = useState<ReaderNovel | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [ttsState, setTtsState] = useState<"idle" | "playing" | "paused">("idle");
+  const [statusMessage, setStatusMessage] = useState("");
+  const [bookmarked, setBookmarked] = useState(false);
 
+  const progressKey = `progress_${novelId}`;
+
+  // ✅ SAFE chapterIndex (before hooks)
+  let chapterIndex = Number(chapterParam) - 1;
+  if (isNaN(chapterIndex) || chapterIndex < 0) chapterIndex = 0;
+
+  // 🔥 LOAD NOVEL + RESTORE SCROLL
   useEffect(() => {
-    if (initialNovel || uploadedNovel) {
-      setIsLoadingRemoteNovel(false);
-      return;
-    }
+    let isCancelled = false;
 
-    let isActive = true;
+    async function load() {
+      const data = (await getNovel(novelId)) as ReaderNovel | null;
 
-    async function loadRemoteNovel() {
-      setIsLoadingRemoteNovel(true);
-      setRemoteError(null);
+      if (!isCancelled) {
+        setNovel(data);
+        setLoading(false);
 
-      try {
-        const [novelSummary, chapters] = await Promise.all([
-          getSupabaseNovelById(novelId),
-          getSupabaseChapters(novelId),
-        ]);
+        // ✅ Restore scroll
+        setTimeout(() => {
+          try {
+            const saved = localStorage.getItem(progressKey);
+            if (saved) {
+              const { chapterIndex: savedChapter, scrollY } = JSON.parse(saved);
 
-        if (!isActive) {
-          return;
-        }
-
-        if (!novelSummary || chapters.length === 0) {
-          setRemoteNovel(null);
-          return;
-        }
-
-        setRemoteNovel({
-          id: novelSummary.id,
-          title: novelSummary.title,
-          author: novelSummary.author,
-          chapters,
-        });
-      } catch (error) {
-        if (!isActive) {
-          return;
-        }
-
-        setRemoteError(
-          error instanceof Error
-            ? `Supabase could not load this novel. Showing local fallback if available. ${error.message}`
-            : "Supabase could not load this novel. Showing local fallback if available.",
-        );
-        setRemoteNovel(null);
-      } finally {
-        if (isActive) {
-          setIsLoadingRemoteNovel(false);
-        }
+              if (savedChapter === Number(chapterParam) - 1) {
+                window.scrollTo(0, scrollY || 0);
+              }
+            }
+          } catch {}
+        }, 100);
       }
     }
 
-    void loadRemoteNovel();
+    load();
 
     return () => {
-      isActive = false;
+      isCancelled = true;
     };
-  }, [initialNovel, novelId, uploadedNovel]);
+  }, [novelId, chapterParam]);
 
-  const novel = useMemo(
-    () => initialNovel ?? uploadedNovel ?? remoteNovel,
-    [initialNovel, remoteNovel, uploadedNovel],
-  );
-  const chapterNumber = Number(chapterParam);
-  const chapterIndex = Number.isInteger(chapterNumber) ? chapterNumber - 1 : -1;
+  // 🔥 STOP TTS ON UNMOUNT
+  useEffect(() => {
+    return () => stop();
+  }, []);
 
-  if (isLoadingRemoteNovel && !novel) {
-    return (
-      <main className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
-        <span className="size-8 animate-spin rounded-full border-2 border-accent/30 border-t-accent" />
-        <p className="text-sm text-muted">Loading novel from Supabase...</p>
-      </main>
-    );
+  // 🔥 SAVE PROGRESS (SCROLL)
+  useEffect(() => {
+    let timeout: any;
+
+    function handleScroll() {
+      clearTimeout(timeout);
+
+      timeout = setTimeout(() => {
+        try {
+          localStorage.setItem(
+            progressKey,
+            JSON.stringify({
+              chapterIndex,
+              scrollY: window.scrollY,
+            })
+          );
+        } catch {}
+      }, 300);
+    }
+
+    window.addEventListener("scroll", handleScroll);
+
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [chapterIndex, novelId]);
+
+    useEffect(() => {
+      if (!novel) return;
+
+      function update() {
+        const isMarked = isChapterBookmarked(novel.id, chapterIndex);
+        setBookmarked(isMarked);
+      }
+
+      update();
+
+      return subscribeToBookmarks(update);
+    }, [novel, chapterIndex]);
+
+  // 🔒 render guards
+  if (loading) return <p className="p-6">Loading...</p>;
+  if (!novel) return <p className="p-6 text-red-400">Novel not found ❌</p>;
+
+  // ✅ now safe to validate with novel
+  if (chapterIndex >= novel.chapters.length) {
+    chapterIndex = novel.chapters.length - 1;
   }
 
-  if (!novel) {
-    return (
-      <main className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
-        <p className="text-sm uppercase tracking-[0.3em] text-muted">Missing story</p>
-        <h1 className="font-heading text-3xl text-foreground">
-          This novel is not available in your library.
-        </h1>
-        <p className="max-w-md text-sm leading-7 text-muted">
-          It may have been removed from local storage or the link is invalid.
-        </p>
-        {remoteError ? (
-          <p className="max-w-xl rounded-xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
-            {remoteError}
-          </p>
-        ) : null}
-        <Button href="/">Return to library</Button>
-      </main>
-    );
+  const chapter = novel.chapters[chapterIndex];
+
+  if (!chapter) {
+    return <div className="p-6">Chapter not found ❌</div>;
   }
 
-  if (chapterIndex < 0 || chapterIndex >= novel.chapters.length) {
-    return (
-      <main className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
-        <p className="text-sm uppercase tracking-[0.3em] text-muted">Missing chapter</p>
-        <h1 className="font-heading text-3xl text-foreground">
-          This chapter is not available.
-        </h1>
-        <p className="max-w-md text-sm leading-7 text-muted">
-          Choose another chapter from the novel details page.
-        </p>
-        <Button href={`/novel/${novel.id}`}>Back to novel</Button>
-      </main>
+  // 🔥 NORMALIZE CONTENT
+  const normalizedContent = Array.isArray(chapter.content)
+    ? chapter.content.filter(Boolean)
+    : String(chapter.content ?? "")
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+  const chapterText = normalizedContent.join("\n\n");
+
+  const previousHref =
+    chapterIndex > 0 ? `/novel/${novel.id}/${chapterIndex}` : undefined;
+
+  const nextHref =
+    chapterIndex < novel.chapters.length - 1
+      ? `/novel/${novel.id}/${chapterIndex + 2}`
+      : undefined;
+
+  // 🔥 TTS
+  const handleToggleTts = async () => {
+    if (isSpeaking()) {
+      if (isPaused()) {
+        resume();
+        setTtsState("playing");
+      } else {
+        pause();
+        setTtsState("paused");
+      }
+      return;
+    }
+
+    const started = await speak(chapterText, settings, {
+      onStart: () => setTtsState("playing"),
+      onPause: () => setTtsState("paused"),
+      onResume: () => setTtsState("playing"),
+      onEnd: () => setTtsState("idle"),
+      onError: () => setTtsState("idle"),
+    });
+
+    if (!started) setTtsState("idle");
+  };
+
+  const handleSettingsChange = (next: ReaderSettings) => {
+    saveSettings(next);
+  };
+
+  const handleBookmark = () => {
+    if (!novel) return;
+
+    const result = saveNovelBookmark(
+      novel.id,
+      chapterIndex,
+      chapter.title
     );
-  }
+
+    setStatusMessage(
+      result.added ? "📌 Bookmarked!" : "Already bookmarked"
+    );
+  };
 
   return (
     <>
-      {remoteError ? (
-        <p className="mx-auto mb-4 w-full max-w-5xl rounded-[1.25rem] border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
-          {remoteError}
-        </p>
-      ) : null}
-      <ReaderShell novel={novel} chapterIndex={chapterIndex} />
+      <ReaderControls
+        novel={novel}
+        chapterIndex={chapterIndex}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onToggleTts={handleToggleTts}
+        onBookmark={handleBookmark}
+        onOpenChapters={() => {
+          console.log("open chapters");
+        }}
+        isBookmarked={bookmarked}
+      />
+
+      <main
+        className="min-h-screen pb-28 pt-24"
+        style={{
+          backgroundColor: settings.backgroundColor,
+          color: settings.textColor,
+        }}
+      >
+        <div className="w-full px-2 md:px-6 lg:px-12">
+          <div className="mb-6 flex justify-between">
+            <Link href={`/novel/${novel.id}`} className="text-sm text-white/70">
+              ← Back
+            </Link>
+
+            <span className="text-xs text-white/50">
+              Chapter {chapterIndex + 1} / {novel.chapters.length}
+            </span>
+          </div>
+
+          <article
+            className="w-full px-2 md:px-4 lg:px-6 py-6"
+            style={{
+              fontSize: `${settings.fontSize}px`,
+              lineHeight: settings.lineHeight,
+              fontFamily: settings.fontFamily,
+            }}
+          >
+            <h1 className="text-2xl font-bold mb-6">
+              Chapter {chapterIndex + 1}: {chapter.title}
+            </h1>
+
+            {normalizedContent.map((line, i) => (
+              <p key={i} className="mb-5 leading-8 tracking-wide">
+                {line}
+              </p>
+            ))}
+          </article>
+        </div>
+      </main>
+
+      <BottomNav previousHref={previousHref} nextHref={nextHref} />
+
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        settings={settings}
+        onClose={() => setIsSettingsOpen(false)}
+        onChange={handleSettingsChange}
+      />
     </>
   );
 }

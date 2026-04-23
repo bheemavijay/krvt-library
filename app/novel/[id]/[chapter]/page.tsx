@@ -1,20 +1,17 @@
 import { ReaderPageClient } from "@/components/reader/reader-page-client";
-import { getNovelById } from "@/lib/db";
 
-type ChapterPageProps = {
+type Props = {
   params: Promise<{
     id: string;
     chapter: string;
   }>;
 };
 
-export default async function ChapterPage({ params }: ChapterPageProps) {
+export default async function Page({ params }: Props) {
   const { id, chapter } = await params;
-  const novel = getNovelById(id) ?? null;
 
   return (
     <ReaderPageClient
-      initialNovel={novel}
       novelId={id}
       chapterParam={chapter}
     />

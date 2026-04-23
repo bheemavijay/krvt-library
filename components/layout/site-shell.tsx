@@ -69,18 +69,27 @@ function SiteShellInner({ children }: SiteShellProps) {
               width={176}
               height={48}
               className="h-10 w-auto object-contain sm:h-12"
+              style={{ width: "auto" }}
               priority
             />
             <span className="font-semibold tracking-wide text-royal-gold">KRVT Library</span>
           </Link>
-          <button
-            type="button"
-            onClick={open}
-            className="ml-auto inline-flex size-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-lg text-foreground transition hover:border-white/20 hover:bg-white/10"
-            aria-label="Open settings"
-          >
-            ⚙
-          </button>
+          <div className="ml-auto flex items-center gap-4">
+            <Link
+              href="/import"
+              className="hidden sm:inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-foreground transition hover:border-white/20 hover:bg-white/10"
+            >
+              Import Novel
+            </Link>
+            <button
+              type="button"
+              onClick={open}
+              className="inline-flex size-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-lg text-foreground transition hover:border-white/20 hover:bg-white/10"
+              aria-label="Open settings"
+            >
+              ⚙
+            </button>
+          </div>
         </div>
       </div>
       <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-6 py-6">

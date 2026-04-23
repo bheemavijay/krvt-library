@@ -21,6 +21,12 @@ export type Novel = {
   id: string;
   title: string;
   author: string;
+  image?: string;
+  alternative?: string;
+  genre?: string;
+  status?: string;
+  rating?: string;
+  description?: string;
   chapters: Chapter[];
 };
 
@@ -78,5 +84,5 @@ export type UploadedLibraryState = {
 
 export type UploadedNovelSaveResult = {
   record: UploadedNovelRecord;
-  persistence: "supabase" | "local";
+  persistence: "local";
 };

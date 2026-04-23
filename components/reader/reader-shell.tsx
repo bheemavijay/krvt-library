@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -60,6 +60,11 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
     getServerBookmarksState,
   );
 
+  // TTS State
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [currentSpeechIndex, setCurrentSpeechIndex] = useState(0);
+  const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
+
   const savedProgress = readingState.progressByNovel[novel.id];
   const activeChapterIndex = clampChapterIndex(chapterIndex, novel.chapters.length);
   const fontFamily = readingState.fontFamily ?? DEFAULT_FONT_FAMILY;
@@ -73,6 +78,101 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
   const isBookmarked = (bookmarksState[novel.id] ?? []).some(
     (bookmark) => bookmark.chapterIndex === activeChapterIndex,
   );
+
+  const previousChapterHref =
+    activeChapterIndex > 0 ? `/novel/${novel.id}/${activeChapterIndex}` : undefined;
+  const nextChapterHref =
+    activeChapterIndex < novel.chapters.length - 1
+      ? `/novel/${novel.id}/${activeChapterIndex + 2}`
+      : undefined;
+
+  // --- TTS LOGIC ---
+  const handleSpeakNext = useCallback(() => {
+    if (!isBrowser() || !("speechSynthesis" in window)) return;
+
+    const contentArray = Array.isArray(chapter.content) ? chapter.content : [chapter.content];
+
+    // If we've reached the end of the chapter
+    if (currentSpeechIndex >= contentArray.length) {
+      setIsSpeaking(false);
+      window.speechSynthesis.cancel();
+
+      // Auto-navigate to next chapter if available
+      if (nextChapterHref) {
+        router.push(nextChapterHref);
+      }
+      return;
+    }
+
+    const textToSpeak = contentArray[currentSpeechIndex];
+    if (!textToSpeak || !textToSpeak.trim()) {
+      // Skip empty paragraphs
+      setCurrentSpeechIndex(prev => prev + 1);
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    speechRef.current = utterance;
+
+    utterance.onend = () => {
+      // Small delay helps some voices not cut off words abruptly
+      setTimeout(() => {
+        if (isSpeaking) {
+           setCurrentSpeechIndex(prev => prev + 1);
+        }
+      }, 50);
+    };
+
+    utterance.onerror = (e) => {
+      if (e.error !== 'canceled') {
+         console.error("Speech synthesis error", e);
+         setIsSpeaking(false);
+      }
+    };
+
+    window.speechSynthesis.speak(utterance);
+  }, [currentSpeechIndex, chapter.content, isSpeaking, nextChapterHref, router]);
+
+  // Effect to trigger next speech when index changes while speaking
+  useEffect(() => {
+    if (isSpeaking) {
+      window.speechSynthesis.cancel(); // Stop whatever is currently playing
+      handleSpeakNext();
+    }
+  }, [currentSpeechIndex, isSpeaking, handleSpeakNext]);
+
+  // Cleanup speech on unmount or chapter change
+  useEffect(() => {
+    return () => {
+      if (isBrowser() && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [chapter.id]);
+
+  // Reset speech index when chapter changes
+  useEffect(() => {
+    setCurrentSpeechIndex(0);
+    setIsSpeaking(false);
+  }, [chapter.id]);
+
+
+  const toggleSpeech = () => {
+    if (!isBrowser() || !("speechSynthesis" in window)) {
+       alert("Your browser does not support text-to-speech.");
+       return;
+    }
+
+    if (!isSpeaking) {
+      setCurrentSpeechIndex(0);
+      setIsSpeaking(true);
+    } else {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    }
+  };
+
+  // --- END TTS LOGIC ---
 
   useEffect(() => {
     saveNovelReadingProgress(novel.id, activeChapterIndex, fontSize);
@@ -182,13 +282,6 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
       saveChapterScrollPosition(novel.id, activeChapterIndex, window.scrollY);
     };
   }, [activeChapterIndex, novel.id]);
-
-  const previousChapterHref =
-    activeChapterIndex > 0 ? `/novel/${novel.id}/${activeChapterIndex}` : undefined;
-  const nextChapterHref =
-    activeChapterIndex < novel.chapters.length - 1
-      ? `/novel/${novel.id}/${activeChapterIndex + 2}`
-      : undefined;
 
   const handleBookmark = () => {
     const result = saveNovelBookmark(novel.id, activeChapterIndex, chapter.title);
@@ -327,7 +420,19 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
             <p className="mt-1 text-sm text-muted">by {novel.author}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          <Button
+             type="button"
+             onClick={toggleSpeech}
+             className={cn(
+               "gap-2 rounded-full px-3 sm:px-4",
+               isSpeaking && "border-accent bg-accent-soft text-accent"
+             )}
+             aria-label={isSpeaking ? "Pause speech" : "Read aloud"}
+          >
+            {isSpeaking ? "⏸ Pause" : "▶ Read Aloud"}
+          </Button>
+
           <Button
             type="button"
             onClick={() => setIsChaptersOpen((current) => !current)}
@@ -407,9 +512,14 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
               color: themeStyles.bodyColor,
             }}
           >
-            {chapter.content.map((paragraph) => (
-              <p key={paragraph.slice(0, 32)}>{paragraph}</p>
-            ))}
+           {(Array.isArray(chapter.content) ? chapter.content : [chapter.content]).map((paragraph, i) => (
+             <p
+               key={i}
+               className={cn("transition-colors duration-200", isSpeaking && i === currentSpeechIndex && "bg-accent/20 rounded px-1")}
+             >
+               {paragraph}
+             </p>
+           ))}
           </article>
         </div>
       </Card>
@@ -461,7 +571,7 @@ export function ReaderShell({ novel, chapterIndex }: ReaderShellProps) {
 
               return (
                 <button
-                  key={item.id}
+                  key={`${index}-${item.id}`}
                   type="button"
                   onClick={() => handleChapterSelect(index)}
                   className={cn(
@@ -544,9 +654,10 @@ function getThemeStyles(theme: ReaderTheme) {
 }
 
 function getWordCount(paragraphs: string[]) {
-  return paragraphs.reduce((count, paragraph) => {
-    const words = paragraph.trim().split(/\s+/).filter(Boolean);
+  if (!Array.isArray(paragraphs)) return 0;
 
+  return paragraphs.reduce((count, paragraph) => {
+    const words = paragraph.split(/\s+/);
     return count + words.length;
   }, 0);
 }

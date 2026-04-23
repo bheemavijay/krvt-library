@@ -9,18 +9,10 @@ import {
   saveNovelMetadata,
 } from "./local-import-storage";
 import { parseChapter, parseNovel } from "./parsers/novelfull-parser";
-import {
-  buildChapterRecord,
-  getExistingChapterSourceUrls,
-  saveChapterBatch,
-  saveGenres,
-  saveNovel,
-} from "./supabase-import";
 
 const DEFAULT_NOVEL_URL = "https://novelfull.net/library-of-heavens-path.html";
 
 const CHAPTER_BATCH_SIZE = 5;
-const DB_CHAPTER_BATCH_SIZE = 50;
 const CHAPTER_RETRY_LIMIT = 2;
 const RETRY_DELAY_MS = 500;
 
@@ -69,15 +61,9 @@ async function run() {
     novelUrl,
     fetchHtml,
   });
-  const novelId = await saveNovel(novel);
-  const existingChapterUrls = await getExistingChapterSourceUrls(novelId);
   const storagePaths = createNovelStoragePaths(novel.title);
-  const chapterRecords = [];
   let localFilesSaved = 0;
-  let skippedChapters = 0;
-  let insertedBatchCount = 0;
 
-  await saveGenres(novelId, novel.genres);
   saveNovelMetadata(storagePaths.metaPath, novel);
   localFilesSaved += 1;
 
@@ -95,29 +81,12 @@ async function run() {
     const results = await Promise.all(
       batch.map(async (chapterUrl, batchIndex) => {
         const chapterIndex = index + batchIndex;
-
-        if (existingChapterUrls.has(chapterUrl)) {
-          skippedChapters += 1;
-          return null;
-        }
-
         const html = await fetchChapterWithRetry(chapterUrl);
         const parsedChapter = html ? parseChapter(html) : null;
         const status = parsedChapter ? "SUCCESS" : "FAILED";
 
         saveLocalChapter(storagePaths.chaptersDir, chapterIndex, parsedChapter, status);
         localFilesSaved += 1;
-
-        chapterRecords.push(
-          buildChapterRecord(novelId, parsedChapter, chapterUrl, chapterIndex),
-        );
-
-        if (chapterRecords.length >= DB_CHAPTER_BATCH_SIZE) {
-          const recordsToSave = chapterRecords.splice(0, chapterRecords.length);
-          await saveChapterBatch(recordsToSave);
-          insertedBatchCount += 1;
-          console.log(`Batch insert count: ${insertedBatchCount}`);
-        }
 
         return parsedChapter;
       }),
@@ -126,17 +95,9 @@ async function run() {
     chapters.push(...results.filter(Boolean));
   }
 
-  if (chapterRecords.length > 0) {
-    await saveChapterBatch(chapterRecords.splice(0, chapterRecords.length));
-    insertedBatchCount += 1;
-    console.log(`Batch insert count: ${insertedBatchCount}`);
-  }
-
   console.log("Done:");
   console.log(`Total: ${novel.chapters.length}`);
   console.log(`Success: ${chapters.length}`);
-  console.log(`Skipped chapters: ${skippedChapters}`);
-  console.log(`Batch inserts: ${insertedBatchCount}`);
   console.log(`Local files saved: ${localFilesSaved}`);
 }
 

@@ -21,16 +21,33 @@ export type MvlempyrParsedNovel = MvlempyrNovelDetails & {
 
 export function parseNovelDetails(html: string): MvlempyrNovelDetails {
   const $ = parseHtml(html);
-  const title = firstText($, ["h1.novel-title", "main h1", "article h1", "h1"]);
-  const author = firstText($, ["div.mobileauthorname", "[class*='author']", "[data-author]"]);
-  const description = firstText($, ["div.synopsis p", "div.synopsis", "section p", "main p"]);
+  removeNoise($);
+  const title = firstText($, [
+    "h1.novel-title",
+    ".novel-hero h1",
+    "main h1",
+    "article h1",
+    "h1",
+  ]);
+  const author = firstText($, [
+    "div.mobileauthorname",
+    ".novel-meta [class*='author']",
+    "[class*='author']",
+    "[data-author]",
+  ]);
+  const description = firstText($, [
+    "div.synopsis p",
+    ".novel-meta .synopsis",
+    "div.synopsis",
+    "meta[name='description']",
+  ]);
   const tags = uniqueStrings(
-    queryTexts($, ["div.genere-tagslist a", "a[href*='genre']", "a[href*='tag']"]).map((tag) =>
-      tag.replace(/^#/, ""),
-    ),
+    queryTexts($, [".genere-tagslist a", ".genere-tagslist button", "[class*='genre'] a"])
+      .map((tag) => tag.replace(/^#/, ""))
+      .filter(isLikelyTag),
   );
   const coverImage = cleanUrl(
-    firstAttribute($, ["div.novel-image-wrapper img", "main img", "img"], [
+    firstAttribute($, [".novel-image-wrapper img", ".novel-hero img", "main img", "img"], [
       "src",
       "data-src",
     ]),
@@ -46,10 +63,23 @@ export function parseNovelDetails(html: string): MvlempyrNovelDetails {
 }
 
 export function parseChapterList(html: string): string[] {
+  const raw = parseHtml(html);
+  const chapterCount = extractChapterCount(raw);
   const $ = parseHtml(html);
+  removeNoise($);
   const links = uniqueStrings(
-    queryAttributes($, ["a.chapter-item", "a.chapter-item h3", "a[href*='/chapter/']"], "href")
+    queryAttributes(
+      $,
+      [
+        ".chapter-list a.chapter-item",
+        ".chapter-list a[href*='/chapter/']",
+        "[class*='chapter'] a[href*='/chapter/']",
+        "a.chapter-item",
+      ],
+      "href",
+    )
       .map((href) => normalizeUrl(href))
+      .filter((href) => href.includes("/chapter/"))
       .filter(Boolean),
   );
 
@@ -58,7 +88,6 @@ export function parseChapterList(html: string): string[] {
   }
 
   const slug = extractSlugFromCover($);
-  const chapterCount = extractChapterCount($);
 
   if (!slug || !chapterCount || chapterCount < 1) {
     return [];
@@ -71,13 +100,9 @@ export function parseChapterList(html: string): string[] {
 
 export function parseChapter(html: string): MvlempyrChapter {
   const $ = parseHtml(html);
-  const title = firstText($, [".cha-tit h1", "#chapter h1", "main h1", "h1"]);
-  const content = uniqueParagraphs(
-    $(".cha-words p, #chapter p, #chapter-content p")
-      .map((_, element) => cleanText($(element).text()))
-      .get()
-      .filter((paragraph) => paragraph.length > 20),
-  );
+  removeNoise($);
+  const title = firstText($, [".cha-tit h1", ".chapter-shell h1", "#chapter h1", "main h1", "h1"]);
+  const content = extractChapterParagraphs($);
 
   return {
     title,
@@ -96,9 +121,18 @@ function parseHtml(html: string) {
   return cheerio.load(html);
 }
 
+function removeNoise($: cheerio.CheerioAPI) {
+  $(
+    "script, style, svg, path, noscript, iframe, button, canvas, form, nav, .ads, .advertisement, [class*='ad-'], [id*='ad-'], [aria-hidden='true']",
+  ).remove();
+}
+
 function firstText($: cheerio.CheerioAPI, selectors: string[]) {
   for (const selector of selectors) {
-    const text = cleanText($(selector).first().text());
+    const element = $(selector).first();
+    const text = selector.startsWith("meta[")
+      ? cleanText(element.attr("content"))
+      : cleanText(element.text());
 
     if (text) {
       return text;
@@ -106,6 +140,31 @@ function firstText($: cheerio.CheerioAPI, selectors: string[]) {
   }
 
   return "";
+}
+
+function extractChapterParagraphs($: cheerio.CheerioAPI) {
+  const roots = [
+    $(".cha-words").first(),
+    $(".chapter-shell .cha-words").first(),
+    $("#chapter-content").first(),
+    $("main article").first(),
+    $("main").first(),
+  ].filter((root) => root.length > 0);
+
+  for (const root of roots) {
+    const paragraphs = uniqueParagraphs(
+      root
+        .find("p, div")
+        .map((_, element) => cleanText($(element).text()))
+        .get(),
+    );
+
+    if (paragraphs.length > 0) {
+      return paragraphs;
+    }
+  }
+
+  return [];
 }
 
 function firstAttribute(
@@ -242,15 +301,24 @@ function uniqueParagraphs(values: string[]) {
   );
 }
 
+function isLikelyTag(value: string) {
+  return /^[A-Za-z][A-Za-z\s/-]{1,40}$/.test(value) && !value.toLowerCase().includes("chapter");
+}
+
 function isJunkParagraph(value: string) {
   const lowered = value.toLowerCase();
 
   return (
+    lowered.includes("svg") ||
+    lowered.includes("path") ||
     lowered.includes("next chapter") ||
     lowered.includes("previous chapter") ||
     lowered.includes("report chapter") ||
     lowered.includes("bookmark") ||
     lowered.includes("read latest") ||
-    lowered.includes("advertisement")
+    lowered.includes("advertisement") ||
+    lowered.includes("share this chapter") ||
+    lowered.includes("comments") ||
+    lowered.includes("login to comment")
   );
 }

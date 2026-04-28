@@ -1,12 +1,19 @@
+import type { Novel } from "@/types";
+
 const DB_NAME = "krvt-library";
 const STORE = "novels";
 const BOOKMARKS_STORE = "bookmarks";
+
+type StoredNovelRecord = Novel & {
+  genre?: string | string[];
+  rating?: number | string;
+};
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, 2); // Increased version for new store
 
-    req.onupgradeneeded = (event: IDBVersionChangeEvent) => {
+    req.onupgradeneeded = () => {
       const db = req.result;
 
       if (!db.objectStoreNames.contains(STORE)) {
@@ -26,10 +33,16 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-export async function addNovel(novel: any) {
+export async function addNovel(novel: StoredNovelRecord) {
   const db = await openDB();
   const tx = db.transaction(STORE, "readwrite");
-  tx.objectStore(STORE).put(novel);
+  const store = tx.objectStore(STORE);
+
+  return new Promise<void>((resolve, reject) => {
+    const req = store.put(normalizeNovelRecord(novel));
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
 }
 
 export async function getAllNovels() {
@@ -37,9 +50,21 @@ export async function getAllNovels() {
   const tx = db.transaction(STORE, "readonly");
   const store = tx.objectStore(STORE);
 
-  return new Promise<any[]>((resolve) => {
+  return new Promise<Novel[]>((resolve, reject) => {
     const req = store.getAll();
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      const result = req.result as StoredNovelRecord[];
+      const normalized = result.map((novel) => {
+        try {
+          return normalizeNovelRecord(novel);
+        } catch (e) {
+          console.error("Error normalizing novel", novel, e);
+          return null;
+        }
+      }).filter((novel): novel is Novel => novel !== null);
+      resolve(normalized);
+    };
+    req.onerror = () => reject(req.error);
   });
 }
 
@@ -58,13 +83,65 @@ export async function getNovel(id: string) {
 
       const request = store.get(id);
 
-      request.onsuccess = () => resolve(request.result || null);
+      request.onsuccess = () => {
+        const result = request.result as StoredNovelRecord | null;
+        resolve(result ? normalizeNovelRecord(result) : null);
+      };
       request.onerror = () => reject(request.error);
     } catch (err) {
       console.error("DB error:", err);
       resolve(null);
     }
   });
+}
+
+function normalizeStringArray(value: unknown) {
+  if (Array.isArray(value)) {
+    return Array.from(
+      new Set(
+        value
+          .map((item) => String(item ?? "").trim())
+          .filter(Boolean),
+      ),
+    );
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    return Array.from(
+      new Set(
+        value
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ),
+    );
+  }
+
+  return [];
+}
+
+function normalizeRating(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function normalizeNovelRecord(novel: StoredNovelRecord): Novel {
+  const genres = normalizeStringArray(novel.genres ?? novel.genre);
+  const categories = normalizeStringArray(novel.categories);
+  const tags = normalizeStringArray(novel.tags);
+
+  return {
+    ...novel,
+    image: typeof novel.image === "string" ? novel.image : "",
+    alternative: typeof novel.alternative === "string" ? novel.alternative : "",
+    status: typeof novel.status === "string" ? novel.status : "",
+    description: typeof novel.description === "string" ? novel.description : "",
+    genres,
+    categories,
+    tags,
+    rating: normalizeRating(novel.rating),
+    chapters: Array.isArray(novel.chapters) ? novel.chapters : [],
+  };
 }
 
 // --- BOOKMARKS API ---

@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 
-import { SiteShell } from "@/components/layout/site-shell";
-
 import "./globals.css";
+
+import { SiteShell } from "@/components/layout/site-shell";
 
 export const metadata: Metadata = {
   title: "KRVT Library",
   description: "A premium personal novel library and reader experience.",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({

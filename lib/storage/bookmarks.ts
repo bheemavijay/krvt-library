@@ -82,6 +82,28 @@ export function saveNovelBookmark(
   return { added: true, bookmark: newBookmark };
 }
 
+export function removeNovelBookmark(novelId: string, chapterIndex: number) {
+  const state = getBookmarksState();
+  const list = state[novelId] || [];
+  const nextList = list.filter((bookmark) => bookmark.chapterIndex !== chapterIndex);
+
+  if (nextList.length === list.length) {
+    return { removed: false };
+  }
+
+  const nextState: LibraryBookmarksState = { ...state };
+
+  if (nextList.length === 0) {
+    delete nextState[novelId];
+  } else {
+    nextState[novelId] = nextList;
+  }
+
+  persist(nextState);
+
+  return { removed: true };
+}
+
 // 🔥 PERSIST
 function persist(state: LibraryBookmarksState) {
   cachedState = state;

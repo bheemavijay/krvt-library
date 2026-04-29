@@ -1,12 +1,15 @@
 import type { Novel } from "@/types";
+import { normalizeNovelRecord } from "@/lib/novels";
 
 const DB_NAME = "krvt-library";
 const STORE = "novels";
 const BOOKMARKS_STORE = "bookmarks";
+const LIBRARY_UPDATED_EVENT = "library:updated";
 
-type StoredNovelRecord = Novel & {
+type StoredNovelRecord = Partial<Novel> & {
   genre?: string | string[];
   rating?: number | string;
+  categories?: string[] | string;
 };
 
 function openDB(): Promise<IDBDatabase> {
@@ -40,10 +43,15 @@ export async function addNovel(novel: StoredNovelRecord) {
 
   return new Promise<void>((resolve, reject) => {
     const req = store.put(normalizeNovelRecord(novel));
-    req.onsuccess = () => resolve();
+    req.onsuccess = () => {
+      notifyLibraryUpdated();
+      resolve();
+    };
     req.onerror = () => reject(req.error);
   });
 }
+
+export const saveNovel = addNovel;
 
 export async function getAllNovels() {
   const db = await openDB();
@@ -95,53 +103,40 @@ export async function getNovel(id: string) {
   });
 }
 
-function normalizeStringArray(value: unknown) {
-  if (Array.isArray(value)) {
-    return Array.from(
-      new Set(
-        value
-          .map((item) => String(item ?? "").trim())
-          .filter(Boolean),
-      ),
-    );
-  }
+export async function deleteNovel(id: string) {
+  const db = await openDB();
+  const tx = db.transaction(STORE, "readwrite");
+  const store = tx.objectStore(STORE);
 
-  if (typeof value === "string" && value.trim()) {
-    return Array.from(
-      new Set(
-        value
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean),
-      ),
-    );
-  }
-
-  return [];
+  return new Promise<void>((resolve, reject) => {
+    const req = store.delete(id);
+    req.onsuccess = () => {
+      notifyLibraryUpdated();
+      resolve();
+    };
+    req.onerror = () => reject(req.error);
+  });
 }
 
-function normalizeRating(value: unknown) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+export async function clearAllNovels() {
+  const db = await openDB();
+  const tx = db.transaction(STORE, "readwrite");
+  const store = tx.objectStore(STORE);
+
+  return new Promise<void>((resolve, reject) => {
+    const req = store.clear();
+    req.onsuccess = () => {
+      notifyLibraryUpdated();
+      resolve();
+    };
+    req.onerror = () => reject(req.error);
+  });
 }
 
-function normalizeNovelRecord(novel: StoredNovelRecord): Novel {
-  const genres = normalizeStringArray(novel.genres ?? novel.genre);
-  const categories = normalizeStringArray(novel.categories);
-  const tags = normalizeStringArray(novel.tags);
-
-  return {
-    ...novel,
-    image: typeof novel.image === "string" ? novel.image : "",
-    alternative: typeof novel.alternative === "string" ? novel.alternative : "",
-    status: typeof novel.status === "string" ? novel.status : "",
-    description: typeof novel.description === "string" ? novel.description : "",
-    genres,
-    categories,
-    tags,
-    rating: normalizeRating(novel.rating),
-    chapters: Array.isArray(novel.chapters) ? novel.chapters : [],
-  };
+function notifyLibraryUpdated() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(LIBRARY_UPDATED_EVENT));
+  }
 }
 
 // --- BOOKMARKS API ---

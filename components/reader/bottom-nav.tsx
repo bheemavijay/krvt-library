@@ -8,12 +8,12 @@ type BottomNavProps = {
 };
 
 const buttonClassName =
-  "inline-flex min-w-[128px] items-center justify-center rounded-full border border-white/10 bg-white/6 px-4 py-3 text-sm font-medium text-white transition-all duration-200 hover:border-white/20 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 sm:min-w-[140px] sm:px-5";
+  "inline-flex min-w-0 flex-1 items-center justify-center rounded-lg sm:rounded-full border border-white/10 bg-white/6 px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium text-white transition-all duration-200 hover:border-white/20 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40";
 
 export function BottomNav({ previousHref, nextHref }: BottomNavProps) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#0a0b0e]/88 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-[1600px] items-center justify-between px-3 py-3 sm:px-6">
+      <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-2 sm:gap-4 px-2 sm:px-6 py-2 sm:py-3">
         {previousHref ? (
           <Link href={previousHref} className={buttonClassName}>
             Previous

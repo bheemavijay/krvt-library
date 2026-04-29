@@ -2,20 +2,10 @@
 
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import {
-  Bookmark,
-  Info,
-  Volume2,
-  Settings,
-  List,
-} from "lucide-react";
+import { Bookmark, Info, Volume2, Settings, List } from "lucide-react";
 
 type ReaderControlsProps = {
-  novel: {
-    id: string;
-    title: string;
-    chapters: Array<unknown>;
-  };
+  novel: { id: string; title: string; chapters: Array<unknown> };
   chapterIndex: number;
   onOpenSettings: () => void;
   onToggleTts?: () => void;
@@ -40,38 +30,19 @@ const IconBtn = ({
   children: React.ReactNode;
 }) => (
   <button
-    type="button"
     onClick={onClick}
     aria-label={label}
     title={label}
     className={cn(
-      "flex h-11 w-11 items-center justify-center rounded-xl text-white/70 transition-all duration-200",
+      "flex items-center justify-center rounded-lg sm:rounded-xl",
+      "h-10 w-10 sm:h-11 sm:w-11",
+      "text-white/70 transition-all duration-200",
       "hover:bg-white/10 hover:text-white active:scale-95",
-      "shadow-[0_0_10px_rgba(255,255,255,0.05)]",
       active && "text-[#d4b16a] bg-white/5"
     )}
   >
     {children}
   </button>
-);
-
-const IconLinkBtn = ({
-  href,
-  label,
-  children,
-}: {
-  href: string;
-  label: string;
-  children: React.ReactNode;
-}) => (
-  <Link
-    href={href}
-    aria-label={label}
-    title={label}
-    className="flex h-11 w-11 items-center justify-center rounded-xl text-white/70 transition-all duration-200 hover:bg-white/10 hover:text-white active:scale-95"
-  >
-    {children}
-  </Link>
 );
 
 export default function ReaderControls({
@@ -89,50 +60,52 @@ export default function ReaderControls({
   const isTtsActive = ttsState === "playing" || ttsState === "paused";
 
   return (
-    <div className="sticky top-[92px] z-40 mb-6">
-      <div className="w-full px-2 sm:px-4">
+    <div className="sticky top-[60px] sm:top-[90px] z-40">
+      <div className="w-full">
 
-        <div className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-[#0b0c10]/80 px-6 py-3 shadow-lg backdrop-blur-xl">
+        <div className="flex w-full items-center justify-between gap-3 sm:gap-6 border-t border-white/10 bg-[#0b0c10]/80 px-4 sm:px-8 py-3 backdrop-blur-xl shadow-lg shadow-black/30">
 
-          {/* LEFT: PREV */}
+          {/* LEFT */}
           <button
             onClick={onPrev}
-            className="px-4 py-2 text-white/70 border border-white/10 rounded-lg hover:bg-white/10 transition"
+            className="h-10 sm:h-11 px-3 sm:px-4 text-sm sm:text-base text-white/70 border border-white/10 rounded-lg hover:bg-white/10 transition"
           >
-            <span className="text-lg font-medium tracking-wide">Prev</span>
+            Prev
           </button>
 
-          {/* CENTER ICONS */}
-          <div className="flex items-center gap-8">
+          {/* CENTER */}
+          <div className="flex items-center gap-4 sm:gap-6 flex-1 justify-center">
 
             <IconBtn onClick={onBookmark} label="Bookmark" active={isBookmarked}>
-              <Bookmark size={20} strokeWidth={2} />
+              <Bookmark size={20} />
             </IconBtn>
 
-            <IconLinkBtn href={`/novel/${novel.id}`} label="Info">
-              <Info size={20} strokeWidth={2} />
-            </IconLinkBtn>
+            <Link href={`/novel/${novel.id}`}>
+              <IconBtn label="Info">
+                <Info size={20} />
+              </IconBtn>
+            </Link>
 
             <IconBtn onClick={onToggleTts} label="TTS" active={isTtsActive}>
-              <Volume2 size={20} strokeWidth={2} />
+              <Volume2 size={20} />
             </IconBtn>
 
             <IconBtn onClick={onOpenSettings} label="Settings">
-              <Settings size={20} strokeWidth={2} />
+              <Settings size={20} />
             </IconBtn>
 
             <IconBtn onClick={onOpenChapters} label="Chapters" active={isChapterPanelOpen}>
-              <List size={20} strokeWidth={2} />
+              <List size={20} />
             </IconBtn>
 
           </div>
 
-          {/* RIGHT: NEXT */}
+          {/* RIGHT */}
           <button
             onClick={onNext}
-            className="px-4 py-2 text-white/70 border border-white/10 rounded-lg hover:bg-white/10 transition"
+            className="h-10 sm:h-11 px-3 sm:px-4 text-sm sm:text-base text-white/70 border border-white/10 rounded-lg hover:bg-white/10 transition"
           >
-            <span className="text-lg font-medium tracking-wide">Next</span>
+            Next
           </button>
 
         </div>

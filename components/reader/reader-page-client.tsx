@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import ReaderControls from "@/components/reader/reader-controls";
+import { BottomNav } from "@/components/reader/bottom-nav";
 import { SettingsModal } from "@/components/reader/settings-modal";
 import { saveChapterScrollPosition, saveNovelReadingProgress } from "@/lib/reader-storage";
 import { saveSettings, useReaderSettings, type ReaderSettings } from "@/lib/settings";
@@ -221,90 +222,82 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   if (!chapter) return <div className="p-6">Chapter not found.</div>;
 
   // ── Handlers ──────────────────────────────────────────────────────────────
-const handleToggleTts = async () => {
-  try {
-    if (!window.speechSynthesis) {
-      setStatusMessage("TTS not supported");
-      return;
-    }
-
-    if (isSpeaking()) {
-      if (isPaused()) {
-        resume();
-        setTtsState("playing");
-      } else {
-        pause();
-        setTtsState("paused");
+  const handleToggleTts = async () => {
+    try {
+      if (!window.speechSynthesis) {
+        setStatusMessage("TTS not supported");
+        return;
       }
+      if (isSpeaking()) {
+        if (isPaused()) {
+          resume();
+          setTtsState("playing");
+          setStatusMessage("Text-to-speech resumed.");
+        } else {
+          pause();
+          setTtsState("paused");
+          setStatusMessage("Text-to-speech paused.");
+        }
+        return;
+      }
+      await startTtsFromParagraph(0);
+    } catch (e) {
+      console.error(e);
+      setStatusMessage("TTS failed");
+    }
+  };
+
+  const handleBookmarkToggle = () => {
+    if (bookmarked) {
+      const result = removeNovelBookmark(novel.id, chapterIndex);
+      setStatusMessage(result.removed ? "Bookmark removed." : "Bookmark not found.");
       return;
     }
+    const result = saveNovelBookmark(novel.id, chapterIndex, chapter.title);
+    setStatusMessage(result.added ? "Chapter bookmarked." : "Already bookmarked.");
+  };
 
-    await startTtsFromParagraph(0);
-  } catch (e) {
-    console.error(e);
-    setStatusMessage("TTS failed");
-  }
-};
+  const handleSettingsChange = (next: ReaderSettings) => saveSettings(next);
 
-const handleBookmarkToggle = () => {
-  if (bookmarked) {
-    const result = removeNovelBookmark(novel.id, chapterIndex);
-    setStatusMessage(result.removed ? "Bookmark removed." : "Bookmark not found.");
-    return;
-  }
-
-  const result = saveNovelBookmark(novel.id, chapterIndex, chapter.title);
-  setStatusMessage(result.added ? "Chapter bookmarked." : "Already bookmarked.");
-};
-
-const handleSettingsChange = (next: ReaderSettings) => saveSettings(next);
-
-  // ── Shared nav button styles ──────────────────────────────────────────────
-  const navBtnCls =
-    "inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-6 py-3 text-sm font-medium text-white/70 transition-all duration-150 hover:border-white/20 hover:bg-white/8 hover:text-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-30";
+  const navBtnCls = "inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-xl border border-white/10 bg-white/5 px-4 sm:px-6 py-2 sm:py-3 text-sm font-medium text-white/70 transition-all duration-150 hover:border-white/20 hover:bg-white/8 hover:text-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-30";
 
   return (
     <>
       {/* ── Top header ─────────────────────────────────────────────────────── */}
       {showTopNav && (
-        <header className="fixed inset-x-0 top-0 z-50 border-b border-white/10 backdrop-blur-xl h-[90px]">
+        <header className="fixed inset-x-0 top-0 z-40 border-b border-white/10 backdrop-blur-xl h-[60px] sm:h-[90px]">
+          <div
+            className="absolute inset-0 bg-cover bg-center opacity-20 sm:opacity-30"
+            style={{ backgroundImage: "url('/logo.png')" }}
+          />
+          <div className="absolute inset-0 bg-black/90 sm:bg-black/85" />
 
-          {/* BACKGROUND IMAGE */}
-         <div
-           className="absolute inset-0 bg-cover bg-center opacity-30"
-           style={{ backgroundImage: "url('/logo.png')" }}
-         />
-
-         <div className="absolute inset-0 bg-black/90" />
-
-          <div className="relative flex h-full items-center px-4">
-
+          <div className="relative flex h-full items-center px-2 sm:px-4 gap-2 sm:gap-4">
             {/* LEFT LOGO */}
-            <Link href="/" className="flex items-center gap-3">
-              <div className="relative flex items-center justify-center h-16 w-16 rounded-xl bg-white/5 border border-white/10 shadow-[0_0_25px_rgba(212,177,106,0.15)] backdrop-blur-sm">
+            <Link href="/" className="flex-shrink-0">
+              <div className="flex items-center justify-center h-12 w-12 sm:h-16 sm:w-16 rounded-lg sm:rounded-xl bg-white/5 border border-white/10 shadow-sm sm:shadow-[0_0_25px_rgba(212,177,106,0.15)]">
                 <img
                   src="/logo.png"
-                  className="h-11 w-11 object-contain scale-110"
+                  className="h-8 w-8 sm:h-11 sm:w-11 object-contain"
                   alt="logo"
                 />
               </div>
             </Link>
 
             {/* CENTER TITLE */}
-            <div className="flex-1 text-center">
-              <span className="text-2xl font-semibold bg-gradient-to-r from-[#d4b16a] via-[#fff3d6] to-[#d4b16a] bg-clip-text text-transparent">
+            <div className="flex-1 text-center min-w-0">
+              <span className="text-xl sm:text-2xl font-semibold bg-gradient-to-r from-[#d4b16a] via-[#fff3d6] to-[#d4b16a] bg-clip-text text-transparent truncate inline-block">
                 KRVT Library
               </span>
             </div>
 
-            {/* RIGHT SEARCH */}
-            <div className="w-[260px]">
+            {/* RIGHT SEARCH - hidden on mobile */}
+            <div className="hidden sm:block flex-shrink-0 w-[260px]">
               <input
-                placeholder="Search novels..."
-                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none"
+                placeholder="Search…"
+                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
               />
             </div>
-
           </div>
         </header>
       )}
@@ -322,19 +315,19 @@ const handleSettingsChange = (next: ReaderSettings) => saveSettings(next);
       {/* ── Chapter panel ─────────────────────────────────────────────────── */}
       <aside
         className={cn(
-          "fixed right-0 top-0 z-50 flex h-full w-full max-w-sm flex-col border-l border-white/8 bg-[#0d0f13]/98 shadow-[-24px_0_60px_rgba(0,0,0,0.4)] transition-transform duration-300",
+          "fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-white/8 bg-[#0d0f13]/98 shadow-lg sm:shadow-[-24px_0_60px_rgba(0,0,0,0.4)] transition-transform duration-300",
           isChapterPanelOpen ? "translate-x-0" : "translate-x-full",
         )}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-white/8 px-5 py-4">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.32em] text-[#d4b16a]">Chapters</p>
-            <h2 className="mt-0.5 text-lg font-semibold text-white">{novel.title}</h2>
+        <div className="flex shrink-0 items-center justify-between border-b border-white/8 px-3 sm:px-5 py-3 sm:py-4 gap-2">
+          <div className="min-w-0">
+            <p className="text-[9px] sm:text-[10px] uppercase tracking-widest text-[#d4b16a]">Chapters</p>
+            <h2 className="text-base sm:text-lg font-semibold text-white truncate">{novel.title}</h2>
           </div>
           <button
             type="button"
             onClick={() => setIsChapterPanelOpen(false)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 text-white/50 hover:text-white"
+            className="flex-shrink-0 flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 text-white/50 hover:text-white hover:bg-white/5"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
@@ -342,20 +335,21 @@ const handleSettingsChange = (next: ReaderSettings) => saveSettings(next);
           </button>
         </div>
 
-        <div className="shrink-0 px-5 pt-4">
+        <div className="shrink-0 px-3 sm:px-5 pt-3 sm:pt-4">
           <input
             type="search"
             value={chapterSearch}
             onChange={(e) => setChapterSearch(e.target.value)}
-            placeholder="Search chapters…"
-            className="w-full rounded-xl border border-white/8 bg-white/4 px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/30 focus:border-white/20"
+            placeholder="Search…"
+            className="w-full rounded-lg sm:rounded-xl border border-white/8 bg-white/4 px-3 sm:px-4 py-2 sm:py-2.5 text-sm text-white outline-none placeholder:text-white/30 focus:border-white/20"
           />
         </div>
 
-        <div className="mt-4 min-h-0 flex-1 space-y-2 overflow-y-auto px-5 pb-6 pr-4">
+        <div className="mt-3 sm:mt-4 min-h-0 flex-1 space-y-2 sm:space-y-3 overflow-y-auto px-3 sm:px-5 pb-6 pr-2 sm:pr-4">
           {filteredChapters.map(({ item, index: resolvedIndex }) => {
             const href = `/novel/${novel.id}/${resolvedIndex + 1}`;
             const isActive = resolvedIndex === chapterIndex;
+
             return (
               <Link
                 key={item.id ?? `${novel.id}-${resolvedIndex}`}
@@ -363,17 +357,20 @@ const handleSettingsChange = (next: ReaderSettings) => saveSettings(next);
                 ref={isActive ? activeChapterRef : undefined}
                 onClick={() => setIsChapterPanelOpen(false)}
                 className={cn(
-                  "flex items-center justify-between gap-3 rounded-xl border px-4 py-3.5 transition-all duration-150",
+                  "flex items-center justify-between gap-2 rounded-lg sm:rounded-xl border px-3 sm:px-4 py-2.5 sm:py-3 transition-all duration-150 text-xs sm:text-sm",
                   isActive
                     ? "border-[#d4b16a]/30 bg-[#d4b16a]/8 text-[#d4b16a]"
-                    : "border-white/6 bg-white/3 text-white/70 hover:border-white/12 hover:bg-white/6 hover:text-white",
+                    : "border-white/6 bg-white/3 text-white/70 hover:border-white/12 hover:bg-white/6 hover:text-white"
                 )}
               >
                 <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-[0.2em] opacity-60">Ch. {resolvedIndex + 1}</p>
-                  <p className="truncate text-sm font-medium">{item.title}</p>
+                  <p className="text-[11px] sm:text-[12px] uppercase tracking-wider opacity-60">
+                    Ch. {resolvedIndex + 1}
+                  </p>
+                  <p className="truncate font-medium">{item.title}</p>
                 </div>
-                <span className="shrink-0 text-[10px] uppercase tracking-[0.16em] opacity-50">
+
+                <span className="shrink-0 text-[11px] sm:text-[12px] uppercase tracking-wider opacity-50">
                   {isActive ? "Now" : "Go"}
                 </span>
               </Link>
@@ -384,24 +381,12 @@ const handleSettingsChange = (next: ReaderSettings) => saveSettings(next);
 
       {/* ── Main content ───────────────────────────────────────────────────── */}
       <main
-        className={cn(
-          "min-h-screen",
-          showTopNav ? "pt-[90px]" : "pt-0",
-        )}
+        className={cn("min-h-screen", showTopNav ? "pt-[60px] sm:pt-[90px]" : "pt-0", showBottomNav ? "pb-20" : "")}
         style={{ backgroundColor: settings.backgroundColor, color: settings.textColor }}
       >
-        <div className="w-full px-4 py-6 sm:px-6 sm:py-8">
 
-          {/* ── Chapter header ────────────────────────────────────────────── */}
-          {showChapterName && (
-            <h1 className="mb-6 text-center text-5xl font-semibold tracking-tight sm:text-6xl">
-              <span className="bg-gradient-to-b from-white to-white/70 bg-clip-text text-transparent">
-                {chapter.title}
-              </span>
-            </h1>
-          )}
 
-          {/* ── Inline sticky control bar ─────────────────────────────────── */}
+          {/* ── Control bar ───────────────────────────────────────────────── */}
           {showTopNav && (
             <ReaderControls
               novel={novel}
@@ -412,13 +397,7 @@ const handleSettingsChange = (next: ReaderSettings) => saveSettings(next);
               onOpenChapters={() => setIsChapterPanelOpen((v) => !v)}
               isBookmarked={bookmarked}
               isChapterPanelOpen={isChapterPanelOpen}
-              autoNextEnabled={autoNextEnabled}
-              autoPlayTtsEnabled={autoPlayTtsEnabled}
-              onToggleAutoNext={() => setAutoNextEnabled((v) => !v)}
-              onToggleAutoPlayTts={() => setAutoPlayTtsEnabled((v) => !v)}
               ttsState={ttsState}
-
-              // ✅ ADD THESE
               onPrev={() => {
                 if (chapterIndex > 0) {
                   router.push(`/novel/${novel.id}/${chapterIndex}`);
@@ -432,6 +411,30 @@ const handleSettingsChange = (next: ReaderSettings) => saveSettings(next);
             />
           )}
 
+        <div className="w-full px-3 sm:px-8 lg:px-12 py-6 sm:py-8">
+
+          {/* ── Novel & Chapter headers ───────────────────────────────────── */}
+          <div className="mb-3 sm:mb-4 text-center space-y-2">
+            <h2 className="text-xl font-bold tracking-wide text-white/90 sm:text-2xl">
+              {novel.title}
+            </h2>
+
+            {showChapterName && (
+              <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
+                <span className="bg-gradient-to-b from-white to-white/70 bg-clip-text text-transparent">
+                  {chapter.title}
+                </span>
+              </h1>
+            )}
+          </div>
+
+          {/* ── Status message ────────────────────────────────────────────── */}
+          {statusMessage && (
+            <div className="mb-6 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80">
+              {statusMessage}
+            </div>
+          )}
+
           {/* ── Reading content ───────────────────────────────────────────── */}
           <article
             onDoubleClick={() => setIsSettingsOpen(true)}
@@ -442,11 +445,11 @@ const handleSettingsChange = (next: ReaderSettings) => saveSettings(next);
               textAlign,
             }}
           >
-            <div className="w-full transition-all duration-200 px-2 sm:px-4">
+            <div className="w-full px-4 sm:px-6 transition-all duration-200">
               {normalizedContent.map((line, index) => (
                 <p
                   key={`${chapter.id}-${index}`}
-                  className="mb-6"
+                  className="mb-5 sm:mb-6"
                   style={{ color: settings.textColor, opacity: 0.9 }}
                   onPointerDown={() => {
                     if (longPressTimeoutRef.current) clearTimeout(longPressTimeoutRef.current);
@@ -474,9 +477,9 @@ const handleSettingsChange = (next: ReaderSettings) => saveSettings(next);
           </article>
 
           {/* ── End-of-chapter navigation ─────────────────────────────────── */}
-          <div className="mt-16 w-full">
-            <div className="mb-6 border-t border-white/8" />
-            <div className="flex items-center justify-between gap-4">
+          <div className="mt-12 sm:mt-16 w-full">
+            <div className="mb-4 sm:mb-6 border-t border-white/8" />
+            <div className="flex items-center justify-between gap-3 sm:gap-4">
               {previousHref ? (
                 <Link href={previousHref} className={navBtnCls}>
                   Previous
@@ -500,8 +503,6 @@ const handleSettingsChange = (next: ReaderSettings) => saveSettings(next);
           </div>
         </div>
       </main>
-
-
       {/* ── Settings modal ────────────────────────────────────────────────── */}
       <SettingsModal
         isOpen={isSettingsOpen}
@@ -512,3 +513,4 @@ const handleSettingsChange = (next: ReaderSettings) => saveSettings(next);
     </>
   );
 }
+

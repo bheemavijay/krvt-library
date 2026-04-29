@@ -5,8 +5,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { ContinueReadingCard } from "@/components/continue-reading-card";
+import { mergeNovelChapters, normalizeNovelRecord } from "@/lib/novels";
 import { exportLibrary, importLibrary } from "@/lib/storage/backup";
-import { addNovel, getAllNovels } from "@/lib/storage/indexeddb";
+import {
+  addNovel,
+  clearAllNovels,
+  deleteNovel,
+  getAllNovels,
+} from "@/lib/storage/indexeddb";
 import type { Novel } from "@/types";
 
 // ✅ CLEAN NAV LINKS (fixed duplicate)
@@ -87,7 +93,7 @@ export default function HomePage() {
   }, [filteredBySearch, selectedGenre]);
 
   // ✅ DERIVED DATA (clean)
-  const featured = novels[0] ?? null;
+  const featured = filteredNovels[0] ?? null;
 
   const popular = useMemo(() => {
     return [...filteredNovels]
@@ -138,7 +144,7 @@ export default function HomePage() {
     if (!window.confirm("Delete this novel?")) return;
     try {
       setBusyNovelId(novel.id);
-      await deleteNovelById(novel.id);
+      await deleteNovel(novel.id);
       setNovels((prev) => prev.filter((n) => n.id !== novel.id));
       setBackupMessage(`Deleted "${novel.title}"`);
     } catch {
@@ -149,7 +155,7 @@ export default function HomePage() {
   };
 
   const handleUpdateNovel = async (novel: Novel) => {
-    if (!novel.sourceUrl) {
+    if (!/^https?:/i.test(novel.sourceUrl)) {
       setBackupMessage("Update failed: source URL missing");
       return;
     }
@@ -165,7 +171,6 @@ export default function HomePage() {
         image?: string;
         alternative?: string;
         genres?: string[];
-        categories?: string[];
         tags?: string[];
         status?: string;
         rating?: number | null;
@@ -179,7 +184,12 @@ export default function HomePage() {
           body: JSON.stringify({
             url: novel.sourceUrl,
             offset,
-            existingNovel: novel,
+            existingNovel: {
+              title: novel.title,
+              novelUrl: novel.sourceUrl,
+              lastChapterIndex: novel.chapters.length > 0 ? novel.chapters.length - 1 : -1,
+              chapterCount: novel.chapters.length,
+            },
           }),
         });
 
@@ -190,7 +200,6 @@ export default function HomePage() {
           image?: string;
           alternative?: string;
           genres?: string[];
-          categories?: string[];
           tags?: string[];
           status?: string;
           rating?: number | null;
@@ -226,16 +235,15 @@ export default function HomePage() {
         offset += batchSize;
       }
 
-      const merged = mergeUniqueChapters(novel.chapters, incoming);
+      const merged = mergeNovelChapters(novel.id, novel.chapters, incoming);
       const addedCount = merged.length - novel.chapters.length;
-      const nextNovel: Novel = {
+      const nextNovel: Novel = normalizeNovelRecord({
         ...novel,
         title: latestMeta?.title || novel.title,
         author: latestMeta?.author || novel.author,
         image: latestMeta?.image || novel.image,
         alternative: latestMeta?.alternative || novel.alternative,
         genres: Array.isArray(latestMeta?.genres) ? latestMeta.genres : novel.genres,
-        categories: Array.isArray(latestMeta?.categories) ? latestMeta.categories : novel.categories,
         tags: Array.isArray(latestMeta?.tags) ? latestMeta.tags : novel.tags,
         status: latestMeta?.status || novel.status,
         rating: typeof latestMeta?.rating === "number" ? latestMeta.rating : novel.rating,
@@ -244,7 +252,7 @@ export default function HomePage() {
           novel.isCompleted || /\b(completed|complete|full)\b/i.test(latestMeta?.status ?? ""),
         lastUpdated: new Date().toISOString(),
         chapters: merged,
-      };
+      });
 
       await addNovel(nextNovel);
       setNovels((prev) => prev.map((n) => (n.id === novel.id ? nextNovel : n)));
@@ -381,52 +389,32 @@ export default function HomePage() {
 
   return (
     <div className="space-y-10">
-
       <NavBar currentView={view} />
-
-      {/* HERO */}
-      <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-fuchsia-700/35 via-violet-900/35 to-black/80 p-7 shadow-2xl">
-        <div className="grid gap-6 md:grid-cols-[1.4fr_1fr] md:items-center">
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-white/55">MVLEMPYR-inspired library</p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-white md:text-4xl">
-              Discover Web Novels by Genre, Rank, and Updates
+      <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-[#1e2d1f] via-[#10161c] to-black p-7 shadow-2xl">
+        <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+          <div className="space-y-4">
+            <p className="text-xs uppercase tracking-[0.18em] text-white/55">KRVT Dashboard</p>
+            <h1 className="text-3xl font-bold tracking-tight text-white md:text-4xl">
+              Offline library management for import, reading, and cleanup
             </h1>
-            <p className="mt-3 max-w-2xl text-white/75">
-              Explore your offline collection with smart sections, modern cards, and quick genre filtering.
+            <p className="max-w-2xl text-white/75">
+              IndexedDB is now the single source of truth. Use this dashboard to review covers,
+              update imports, and delete broken records without leaving the home screen.
             </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link href="/?view=novels" className="btn">
-                Explore Novels
-              </Link>
-              <Link href="/?view=updates" className="btn">
-                Latest Updates
-              </Link>
-            </div>
+            <GenreFilter
+              genres={genres}
+              selectedGenre={selectedGenre}
+              onSelect={setSelectedGenre}
+            />
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-            <p className="text-sm text-white/65">Library Snapshot</p>
-            <p className="mt-3 text-3xl font-semibold text-white">{novels.length}</p>
-            <p className="text-sm text-white/60">Total novels</p>
-            <p className="mt-4 text-sm text-white/65">{popular.length} in popular</p>
-            <p className="text-sm text-white/65">{updates.length} in updates</p>
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+            <DashboardStat label="Total novels" value={String(novels.length)} />
+            <DashboardStat label="Filtered" value={String(filteredNovels.length)} />
+            <DashboardStat label="Ongoing" value={String(novels.filter((novel) => !novel.isCompleted).length)} />
           </div>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 shadow-xl backdrop-blur-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold text-white">Genres</h2>
-          <p className="text-sm text-white/60">Filter across all home sections</p>
-        </div>
-        <GenreFilter
-          genres={genres}
-          selectedGenre={selectedGenre}
-          onSelect={setSelectedGenre}
-        />
-      </section>
-
-      {/* CONTINUE */}
       <ContinueReadingCard
         novels={novels.map((n) => ({
           id: n.id,
@@ -437,11 +425,9 @@ export default function HomePage() {
         novelDetails={novels}
       />
 
-      {/* FEATURED */}
       {featured && (
-        <section>
+        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 shadow-xl backdrop-blur-sm">
           <h2 className="mb-4 text-xl font-semibold text-white">Featured Spotlight</h2>
-
           <Link href={`/novel/${featured.id}`}>
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 shadow-lg transition hover:bg-white/[0.08]">
               <h3 className="text-lg font-semibold text-white">
@@ -453,43 +439,22 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* NEW ARRIVALS */}
-      <section>
-        <h2 className="mb-4 text-xl font-semibold text-white">New Arrivals</h2>
-        <Grid novels={newArrivals} />
-      </section>
-
-      {/* POPULAR */}
-      <section>
-        <h2 className="mb-4 text-xl font-semibold text-white">Popular</h2>
-        <Grid novels={popular} />
-      </section>
-
-      {/* TRENDING UPDATES */}
-      <section>
-        <h2 className="mb-4 text-xl font-semibold text-white">New Updates</h2>
-        <Grid novels={updates} />
-      </section>
-
-      {/* GENRES */}
-      <section>
-        <h2 className="mb-4 text-xl font-semibold text-white">Genre Chips</h2>
-
-        <div className="flex flex-wrap gap-2">
-          {genres.map((g) => (
-            <button
-              key={g}
-              onClick={() => setSelectedGenre(g)}
-              className={`rounded-full border px-3 py-2 text-sm transition ${
-                selectedGenre === g
-                  ? "border-amber-300/60 bg-amber-300/15 text-white"
-                  : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/[0.07]"
-              }`}
-            >
-              {g}
-            </button>
-          ))}
+      <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 shadow-xl backdrop-blur-sm">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold text-white">Library Dashboard</h2>
+            <p className="text-sm text-white/60">
+              Cover, author, chapter count, status, update, and delete in one place.
+            </p>
+          </div>
+          <p className="text-sm text-white/60">{backupMessage}</p>
         </div>
+        <LibraryManagementGrid
+          novels={filteredNovels}
+          busyNovelId={busyNovelId}
+          onDelete={handleDeleteNovel}
+          onUpdate={handleUpdateNovel}
+        />
       </section>
     </div>
   );
@@ -564,6 +529,15 @@ function NovelCard({ novel }: { novel: Novel }) {
   );
 }
 
+function DashboardStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+      <p className="text-xs uppercase tracking-[0.22em] text-white/45">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+    </div>
+  );
+}
+
 function GenreFilter({
   genres,
   selectedGenre,
@@ -616,24 +590,33 @@ function LibraryManagementGrid({
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {novels.map((novel) => {
         const isBusy = busyNovelId === novel.id;
+        const canUpdate = /^https?:/i.test(novel.sourceUrl);
         return (
           <div
             key={novel.id}
-            className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-white shadow-lg"
+            className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] text-white shadow-lg"
           >
-            <h3 className="text-lg font-semibold">{novel.title}</h3>
-            <p className="mt-1 text-sm text-white/70">{novel.author}</p>
-            <p className="mt-2 text-xs text-white/55">{novel.chapters.length} chapters</p>
-            <p className="mt-1 text-xs text-white/55">
-              Status: {novel.isCompleted ? "Completed" : "Ongoing"}
-            </p>
-            <p className="mt-1 text-xs text-white/55">
-              Last Updated: {novel.lastUpdated ? new Date(novel.lastUpdated).toLocaleString() : "N/A"}
-            </p>
-            <div className="mt-4 flex gap-2">
+            <Link href={`/novel/${novel.id}`} className="block">
+              <div
+                className="aspect-[3/4] w-full bg-cover bg-center"
+                style={{ backgroundImage: `url("${novel.image}")` }}
+              />
+            </Link>
+            <div className="space-y-2 p-5">
+              <h3 className="line-clamp-2 text-lg font-semibold">{novel.title}</h3>
+              <p className="text-sm text-white/70">{novel.author}</p>
+              <div className="flex flex-wrap gap-2 text-xs text-white/60">
+                <span>{novel.chapters.length} chapters</span>
+                <span>{novel.isCompleted ? "Completed" : novel.status || "Ongoing"}</span>
+              </div>
+              <p className="text-xs text-white/50">
+                Last updated: {new Date(novel.lastUpdated).toLocaleString()}
+              </p>
+            </div>
+            <div className="flex gap-2 px-5 pb-5">
               <button
                 type="button"
-                disabled={isBusy || !novel.sourceUrl}
+                disabled={isBusy || !canUpdate}
                 onClick={() => onUpdate(novel)}
                 className="btn"
               >
@@ -653,56 +636,4 @@ function LibraryManagementGrid({
       })}
     </div>
   );
-}
-
-function mergeUniqueChapters(existing: Novel["chapters"], incoming: Novel["chapters"]) {
-  const seen = new Set(
-    existing.map((chapter) => `${chapter.id}::${chapter.title.toLowerCase().trim()}`)
-  );
-  const merged = [...existing];
-
-  for (const chapter of incoming) {
-    const key = `${chapter.id}::${chapter.title.toLowerCase().trim()}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    merged.push(chapter);
-  }
-
-  return merged.map((chapter, index) => ({
-    ...chapter,
-    order: index + 1,
-    id: chapter.id || String(index + 1),
-  }));
-}
-
-async function deleteNovelById(id: string) {
-  const db = await openNovelsDB();
-  await runStoreRequest<undefined>(db, "readwrite", (store) => store.delete(id));
-}
-
-async function clearAllNovels() {
-  const db = await openNovelsDB();
-  await runStoreRequest<undefined>(db, "readwrite", (store) => store.clear());
-}
-
-function openNovelsDB() {
-  return new Promise<IDBDatabase>((resolve, reject) => {
-    const req = indexedDB.open("krvt-library", 2);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-function runStoreRequest<T>(
-  db: IDBDatabase,
-  mode: IDBTransactionMode,
-  action: (store: IDBObjectStore) => IDBRequest<T>
-) {
-  return new Promise<T>((resolve, reject) => {
-    const tx = db.transaction("novels", mode);
-    const store = tx.objectStore("novels");
-    const req = action(store);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
 }

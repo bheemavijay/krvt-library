@@ -55,15 +55,29 @@ function normalizeNovelUrl(inputUrl: string) {
   try {
     const u = new URL(inputUrl);
 
-    if (/novelfull\.com/i.test(u.hostname)) {
+    if (/novelfull\.(com|net)/i.test(u.hostname)) {
       if (!u.pathname.includes("/chapter-") && !u.pathname.endsWith(".html")) {
-        u.pathname = u.pathname + ".html";
+        u.pathname = `${u.pathname.replace(/\/$/, "")}.html`;
       }
     }
 
     return u.toString();
   } catch {
     return inputUrl;
+  }
+}
+
+function normalizeNovelUrlKey(inputUrl: string | undefined) {
+  if (!inputUrl) {
+    return "";
+  }
+
+  try {
+    const normalized = new URL(normalizeNovelUrl(inputUrl));
+    const normalizedPath = normalized.pathname.replace(/\.html\/?$/i, "").replace(/\/$/, "");
+    return `${normalized.origin}${normalizedPath}`.toLowerCase();
+  } catch {
+    return normalizeNovelUrl(inputUrl).toLowerCase();
   }
 }
 
@@ -83,9 +97,11 @@ export async function POST(req: Request) {
     const normalizedInputUrl = normalizeNovelUrl(url);
     const normalizedUrl = new URL(normalizedInputUrl);
     const baseUrl = normalizedUrl.origin;
-    const isNovelFull = /novelfull\.com/i.test(normalizedUrl.hostname);
+    const isNovelFull = /novelfull\.(com|net)/i.test(normalizedUrl.hostname);
     const novelBasePath = normalizedUrl.pathname.replace(/\.html\/?$/i, "").replace(/\/$/, "");
     const novelBaseUrl = `${normalizedUrl.origin}${novelBasePath}`;
+    const requestedNovelKey = normalizeNovelUrlKey(novelBaseUrl);
+    const incomingNovelKey = normalizeNovelUrlKey(incomingNovelUrl);
 
     const res = await safeFetch(normalizedInputUrl);
     const html = await res.text();
@@ -113,7 +129,6 @@ export async function POST(req: Request) {
       "https://via.placeholder.com/300x400?text=No+Cover";
     const alternative =
       $(".other-name, .info h3:contains('Alternative') + p").first().text().trim() ?? "";
-    const categories = genres;
     const tags = $(".info a[href*='/tag/'], a[href*='/tag/']")
       .map((_, el) => $(el).text().trim())
       .get()
@@ -144,13 +159,12 @@ export async function POST(req: Request) {
       existingCandidate?.title && canonicalTitle
         ? normalizeNovelTitle(existingCandidate.title) === canonicalTitle
         : false;
+    const existingNovelUrlKey = normalizeNovelUrlKey(existingCandidate?.novelUrl);
+    const existingUrlKey = normalizeNovelUrlKey(existingCandidate?.url);
     const existingMatchesByUrl =
-      existingCandidate?.url === novelBaseUrl ||
-      existingCandidate?.novelUrl === novelBaseUrl ||
-      incomingNovelUrl === novelBaseUrl ||
-      existingCandidate?.url === url ||
-      existingCandidate?.novelUrl === url ||
-      incomingNovelUrl === url;
+      existingUrlKey === requestedNovelKey ||
+      existingNovelUrlKey === requestedNovelKey ||
+      incomingNovelKey === requestedNovelKey;
 
     const lastSavedChapterIndex =
       existingMatchesByTitle || existingMatchesByUrl
@@ -161,6 +175,17 @@ export async function POST(req: Request) {
               -1
           )
         : -1;
+
+    console.info("[api/import] resume-check", {
+      requestedNovelKey,
+      incomingNovelKey,
+      existingUrlKey,
+      existingNovelUrlKey,
+      existingMatchesByTitle,
+      existingMatchesByUrl,
+      lastSavedChapterIndex,
+      offset,
+    });
 
     // 🔥 GET LINKS
     let links: string[] = [];
@@ -215,6 +240,14 @@ export async function POST(req: Request) {
 
     const BATCH = 50;
     const selected = links.slice(incrementalStart, incrementalStart + BATCH);
+
+    console.info("[api/import] batch-selection", {
+      novelBaseUrl,
+      totalLinks: links.length,
+      incrementalStart,
+      selectedCount: selected.length,
+      offset,
+    });
 
     if (selected.length === 0 && links.length > 0 && incrementalStart >= links.length) {
       return NextResponse.json({ error: "No new chapters available" }, { status: 409 });
@@ -282,7 +315,6 @@ export async function POST(req: Request) {
       image,
       alternative,
       genres,
-      categories,
       tags,
       status,
       rating: Number.isFinite(rating) ? rating : undefined,

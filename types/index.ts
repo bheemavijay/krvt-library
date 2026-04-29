@@ -21,17 +21,16 @@ export type Novel = {
   id: string;
   title: string;
   author: string;
-  sourceUrl?: string;
-  isCompleted?: boolean;
-  lastUpdated?: string;
-  image?: string;
-  alternative?: string;
-  genres?: string[];
-  status?: string;
+  sourceUrl: string;
+  isCompleted: boolean;
+  lastUpdated: string;
+  image: string;
+  alternative: string;
+  genres: string[];
+  status: string;
   rating?: number;
-  categories?: string[];
-  tags?: string[];
-  description?: string;
+  tags: string[];
+  description: string;
   chapters: Chapter[];
 };
 

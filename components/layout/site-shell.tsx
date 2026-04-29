@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 
 import { SettingsModal } from "@/components/settings/settings-modal";
@@ -28,6 +29,12 @@ export function SiteShell({ children }: SiteShellProps) {
 }
 
 function SiteShellInner({ children }: SiteShellProps) {
+  const pathname = usePathname();
+
+  const isReaderPage =
+    pathname?.startsWith("/novel/") &&
+    pathname.split("/").length >= 4;
+
   const appSettings = useSyncExternalStore(
     subscribeToAppSettings,
     getAppSettingsState,
@@ -63,13 +70,6 @@ function SiteShellInner({ children }: SiteShellProps) {
     appSettings.fontFamily,
   ]);
 
-  // SERVICE WORKER
-  /* useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      //navigator.serviceWorker.register("/sw.js").catch(() => {});
-    }
-  }, []); */
-
   useEffect(() => {
     const timer = startAutoNovelUpdates();
     return () => {
@@ -78,69 +78,68 @@ function SiteShellInner({ children }: SiteShellProps) {
   }, []);
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
+    <div className="relative min-h-screen">
       {/* Background */}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_22%),radial-gradient(circle_at_bottom_left,rgba(212,177,106,0.12),transparent_26%)]" />
 
-      {/* HEADER */}
-      <div className="sticky top-0 z-50 border-b border-white/10 bg-black/60 backdrop-blur">
-        <div className="mx-auto flex h-16 w-full max-w-7xl items-center px-4 sm:px-6 lg:px-8">
+      {/* ✅ HEADER (CONDITION FIXED) */}
+      {!isReaderPage && (
+        <div className="sticky top-0 z-50 border-b border-white/10 bg-black/60 backdrop-blur">
+          <div className="mx-auto flex h-16 w-full max-w-7xl items-center px-4 sm:px-6 lg:px-8">
 
-          {/* LOGO */}
-          <Link href="/" className="inline-flex items-center gap-3 text-white">
-            <img
-              src="/logo.png"
-              alt="KRVT Library logo"
-              className="h-10 w-auto object-contain sm:h-12"
-            />
-            <span className="font-semibold tracking-wide">
-              KRVT Library
-            </span>
-          </Link>
-
-          {/* NAV */}
-          <nav className="ml-6 flex items-center gap-4 text-white/80">
-            <Link href="/" className="hover:text-white">Home</Link>
-            <Link href="/?view=novels" className="hover:text-white">Novels</Link>
-            <Link href="/?view=rankings" className="hover:text-white">Rankings</Link>
-            <Link href="/?view=updates" className="hover:text-white">Updates</Link>
-            <Link href="/?view=library" className="hover:text-white">Library</Link>
-          </nav>
-
-          {/* RIGHT SIDE */}
-          <div className="ml-auto flex items-center gap-3">
-
-            {/* SEARCH (LOCAL ONLY) */}
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search..."
-              className="block w-64 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white outline-none"
-            />
-
-            {/* IMPORT */}
-            <Link
-              href="/import"
-              className="inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
-            >
-              Import
+            {/* LOGO */}
+            <Link href="/" className="inline-flex items-center gap-3 text-white">
+              <img
+                src="/logo.png"
+                alt="KRVT Library logo"
+                className="h-10 w-auto object-contain sm:h-12"
+              />
+              <span className="font-semibold tracking-wide">
+                KRVT Library
+              </span>
             </Link>
 
-            {/* SETTINGS */}
-            <button
-              onClick={open}
-              className="inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
-            >
-              Settings
-            </button>
+            {/* NAV */}
+            <nav className="ml-6 flex items-center gap-4 text-white/80">
+              <Link href="/" className="hover:text-white">Home</Link>
+              <Link href="/?view=novels" className="hover:text-white">Novels</Link>
+              <Link href="/?view=rankings" className="hover:text-white">Rankings</Link>
+              <Link href="/?view=updates" className="hover:text-white">Updates</Link>
+              <Link href="/?view=library" className="hover:text-white">Library</Link>
+            </nav>
 
+            {/* RIGHT SIDE */}
+            <div className="ml-auto flex items-center gap-3">
+
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search..."
+                className="block w-64 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-sm text-white outline-none"
+              />
+
+              <Link
+                href="/import"
+                className="inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+              >
+                Import
+              </Link>
+
+              <button
+                onClick={open}
+                className="inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-white"
+              >
+                Settings
+              </button>
+
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* CONTENT */}
-      <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-6 py-6">
+        <div className="relative w-full min-h-screen">
         {children}
       </div>
 

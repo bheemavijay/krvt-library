@@ -3,6 +3,12 @@
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  mergeNovelChapters,
+  normalizeImportUrl,
+  normalizeNovelRecord,
+  normalizeNovelUrlKey,
+} from "@/lib/novels";
 import { addNovel, getAllNovels } from "@/lib/storage/indexeddb";
 import type { Novel } from "@/types";
 
@@ -13,7 +19,6 @@ type ImportResponse = {
   image?: string;
   alternative?: string;
   genres?: string[];
-  categories?: string[];
   tags?: string[];
   status?: string;
   rating?: number | null;
@@ -62,17 +67,47 @@ export function ImportBox() {
     setPreview(null);
 
     try {
+      const normalizedUrl = normalizeImportUrl(url);
+      const normalizedUrlKey = normalizeNovelUrlKey(normalizedUrl);
+      const storedNovels = await getAllNovels();
+      let currentNovel = storedNovels.find(
+        (n) => normalizeNovelUrlKey(n.sourceUrl) === normalizedUrlKey,
+      );
+      let baseChapterCount = currentNovel?.chapters.length ?? 0;
       let offset = 0;
-      const batchSize = 50; // ✅ FIXED (match backend)
+      const batchSize = 50;
       const allChapters: NonNullable<ImportResponse["chapters"]> = [];
       let meta: ImportResponse | null = null;
       let latestData: ImportResponse | null = null;
       let completedBy409 = false;
 
+      console.info("[import-box] start", {
+        inputUrl: url,
+        normalizedUrl,
+        normalizedUrlKey,
+        storedNovelCount: storedNovels.length,
+        matchedNovelId: currentNovel?.id ?? null,
+        matchedNovelSourceUrl: currentNovel?.sourceUrl ?? null,
+        existingChapterCount: currentNovel?.chapters.length ?? 0,
+      });
+
       while (true) {
+        const batchStart = baseChapterCount + offset + 1;
         setMessage({
-          text: `Downloading chapters ${offset + 1} to ${offset + batchSize}...`,
+          text: `Downloading chapters ${batchStart} to ${batchStart + batchSize - 1}...`,
           isError: false,
+        });
+
+        console.info("[import-box] request-batch", {
+          normalizedUrl,
+          offset,
+          batchStart,
+          existingChapterCount: currentNovel?.chapters.length ?? 0,
+        });
+        console.log("Sending existingNovel:", {
+            chapters: currentNovel?.chapters.length,
+            lastIndex: currentNovel?.chapters.length - 1,
+            sourceUrl: currentNovel?.sourceUrl,
         });
 
         const response = await fetch("/api/import", {
@@ -80,7 +115,18 @@ export function ImportBox() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ url, offset }),
+          body: JSON.stringify({
+            url: normalizedUrl,
+            offset,
+            existingNovel: currentNovel
+              ? {
+                  title: currentNovel.title,
+                  novelUrl: currentNovel.sourceUrl ?? normalizedUrl,
+                  lastChapterIndex: currentNovel.chapters.length - 1,
+                  chapterCount: currentNovel.chapters.length,
+                }
+              : null,
+          }),
         });
 
         const data = (await response.json()) as ImportResponse & { error?: string };
@@ -106,40 +152,74 @@ export function ImportBox() {
         }
 
         const chapters = data.chapters;
-
         allChapters.push(...chapters);
 
-        setPreview({
-          title: data.title ?? meta?.title ?? "Importing...",
-          author: data.author ?? meta?.author ?? "Unknown Author",
-          genres: data.genres ?? meta?.genres ?? [],
-          status: data.status ?? meta?.status ?? "Unknown",
+        const nextBatch = chapters.map((chapter, index) => ({
+          id: chapter.id ?? String((currentNovel?.chapters.length ?? 0) + index + 1),
+          order: (currentNovel?.chapters.length ?? 0) + index + 1,
+          title: chapter.title,
+          content: chapter.content,
+        }));
+
+        const persistedNovel: Novel = normalizeNovelRecord({
+          ...currentNovel,
+          title: data.title ?? meta?.title ?? currentNovel?.title ?? "Unknown Title",
+          author: data.author ?? meta?.author ?? currentNovel?.author ?? "Unknown",
+          sourceUrl: data.sourceUrl ?? meta?.sourceUrl ?? currentNovel?.sourceUrl ?? normalizedUrl,
+          image: data.image ?? meta?.image ?? currentNovel?.image,
+          alternative: data.alternative ?? meta?.alternative ?? currentNovel?.alternative,
+          genres: data.genres ?? meta?.genres ?? currentNovel?.genres,
+          tags: data.tags ?? meta?.tags ?? currentNovel?.tags,
+          status: data.status ?? meta?.status ?? currentNovel?.status,
           rating:
             typeof data.rating === "number"
               ? data.rating
               : typeof meta?.rating === "number"
               ? meta.rating
-              : undefined,
-          chapters: allChapters.length,
+              : currentNovel?.rating,
+          description: data.description ?? meta?.description ?? currentNovel?.description,
+          lastUpdated: new Date().toISOString(),
+          isCompleted:
+            currentNovel?.isCompleted ||
+            /\b(completed|complete|full)\b/i.test(data.status ?? meta?.status ?? ""),
+          chapters: mergeNovelChapters(
+            currentNovel?.id ?? normalizeNovelRecord({ title: data.title ?? meta?.title ?? "Unknown Title" }).id,
+            currentNovel?.chapters ?? [],
+            nextBatch,
+          ),
         });
 
-        if (chapters.length < batchSize) break;
+        await addNovel(persistedNovel);
+        currentNovel = persistedNovel;
+
+        console.info("[import-box] persisted-batch", {
+          novelId: persistedNovel.id,
+          sourceUrl: persistedNovel.sourceUrl,
+          totalPersistedChapters: persistedNovel.chapters.length,
+          receivedBatchChapters: nextBatch.length,
+        });
+
+        setPreview({
+          title: persistedNovel.title,
+          author: persistedNovel.author,
+          genres: persistedNovel.genres ?? [],
+          status: persistedNovel.status ?? "Unknown",
+          rating: persistedNovel.rating,
+          chapters: persistedNovel.chapters.length,
+        });
+
+        if (chapters.length < batchSize) {
+          break;
+        }
 
         offset += batchSize;
       }
 
       const mappedChapters = (Array.isArray(allChapters) ? allChapters : []).map((chapter, index) => ({
-        id: chapter.id ?? String(index + 1),
-        order: index + 1,
+        id: chapter.id ?? String(baseChapterCount + index + 1),
+        order: baseChapterCount + index + 1,
         title: chapter.title,
-        content: Array.isArray(chapter.content)
-          ? chapter.content
-          : typeof chapter.content === "string"
-          ? chapter.content
-              .split(/\n+/)
-              .map((line) => line.trim())
-              .filter(Boolean)
-          : [],
+        content: chapter.content,
       }));
 
       if (!mappedChapters.length) {
@@ -154,44 +234,43 @@ export function ImportBox() {
       }
 
       const data = meta ?? latestData;
-      const existingNovel = (await getAllNovels()).find(
-        (n) =>
-          (n.sourceUrl && n.sourceUrl === url.trim()) ||
-          n.title.toLowerCase().trim() === (data?.title || "").toLowerCase().trim()
-      );
-
-      const novel: Novel = {
-        id: existingNovel?.id || crypto.randomUUID(),
-        title: data?.title || "Unknown Title",
-        author: data?.author || "Unknown",
-        chapters: mappedChapters,
-        genres: Array.isArray(data?.genres) ? data.genres : [],
-        description: data?.description || "",
-        sourceUrl: url.trim(),
+      const novel: Novel = normalizeNovelRecord({
+        ...currentNovel,
+        title: data?.title || currentNovel?.title || "Unknown Title",
+        author: data?.author || currentNovel?.author || "Unknown",
+        sourceUrl: data?.sourceUrl || currentNovel?.sourceUrl || normalizedUrl,
+        image: data?.image || currentNovel?.image,
+        alternative: data?.alternative || currentNovel?.alternative,
+        genres: data?.genres || currentNovel?.genres,
+        tags: data?.tags || currentNovel?.tags,
+        status: data?.status || currentNovel?.status,
+        rating: typeof data?.rating === "number" ? data.rating : currentNovel?.rating,
+        description: data?.description || currentNovel?.description,
         lastUpdated: new Date().toISOString(),
-        isCompleted: false,
-        image: data?.image || "",
-        alternative: data?.alternative || "",
-        categories: Array.isArray(data?.categories) ? data.categories : [],
-        tags: Array.isArray(data?.tags) ? data.tags : [],
-        status: data?.status || "",
-        rating: typeof data?.rating === "number" ? data.rating : undefined,
-      };
+        isCompleted:
+          currentNovel?.isCompleted || /\b(completed|complete|full)\b/i.test(data?.status ?? ""),
+        chapters: currentNovel?.chapters ?? mappedChapters,
+      });
 
       await addNovel(novel);
 
+      console.info("[import-box] import-complete", {
+        novelId: novel.id,
+        sourceUrl: novel.sourceUrl,
+        totalChapters: novel.chapters.length,
+        importedThisRun: mappedChapters.length,
+      });
+
       setMessage({
-        text: `Imported ${mappedChapters.length} chapters successfully.`,
+        text: `Imported ${mappedChapters.length} new chapters successfully.`,
         isError: false,
       });
 
       setUrl("");
 
-      // ✅ FIXED redirect
       setTimeout(() => {
         window.location.href = "/";
       }, 1500);
-
     } catch (error) {
       console.error(error);
       setMessage({

@@ -1,4 +1,4 @@
-import type { Chapter, NovelSummary } from "@/types";
+import type { Chapter, Novel, NovelSummary } from "@/types";
 
 type ChapterFetchOptions = {
   chapterNumber?: number;
@@ -78,12 +78,7 @@ export async function getChapters(novelId: string, options: ChapterFetchOptions 
   );
 }
 
-export async function saveNovel(novel: {
-  id: string;
-  title: string;
-  author: string;
-  chapters: Chapter[];
-}) {
+export async function saveNovel(novel: Novel) {
   const response = await fetch("/api/novels", {
     method: "POST",
     headers: {

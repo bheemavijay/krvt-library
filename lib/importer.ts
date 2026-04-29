@@ -1,10 +1,7 @@
 "use client";
 
+import { normalizeNovelRecord, slugifyNovelId } from "@/lib/novels";
 import { saveNovel } from "@/lib/storage/indexeddb";
-
-function generateId() {
-  return Math.random().toString(36).substring(2, 10);
-}
 
 export async function importFromText(text: string, title: string) {
   if (!text || !title) {
@@ -13,15 +10,13 @@ export async function importFromText(text: string, title: string) {
 
   const chapters = parseChapters(text);
 
-  const novel = {
-    id: generateId(),
+  const novel = normalizeNovelRecord({
     title,
     author: "Unknown",
+    sourceUrl: `local://uploaded/${slugifyNovelId(title)}`,
     chapters,
-    createdAt: Date.now(),
-  };
+  });
 
-  // ✅ IMPORTANT: async save
   await saveNovel(novel);
 
   return novel;
@@ -29,10 +24,15 @@ export async function importFromText(text: string, title: string) {
 
 function parseChapters(text: string) {
   const lines = text.split("\n");
+  const chapters: Array<{
+    id: string;
+    order: number;
+    title: string;
+    content: string[];
+  }> = [];
 
-  const chapters: any[] = [];
   let current = {
-    id: generateId(),
+    id: "",
     order: 1,
     title: "Chapter 1",
     content: [] as string[],
@@ -46,18 +46,18 @@ function parseChapters(text: string) {
         chapters.push(current);
       }
 
-      chapterCount++;
-
+      chapterCount += 1;
       current = {
-        id: generateId(),
+        id: "",
         order: chapterCount,
         title: line.trim() || `Chapter ${chapterCount}`,
         content: [],
       };
-    } else {
-      if (line.trim()) {
-        current.content.push(line.trim());
-      }
+      continue;
+    }
+
+    if (line.trim()) {
+      current.content.push(line.trim());
     }
   }
 

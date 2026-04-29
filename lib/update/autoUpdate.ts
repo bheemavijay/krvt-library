@@ -1,5 +1,6 @@
 "use client";
 
+import { mergeNovelChapters, normalizeNovelRecord } from "@/lib/novels";
 import { addNovel, getAllNovels } from "@/lib/storage/indexeddb";
 import type { Chapter, Novel } from "@/types";
 
@@ -10,7 +11,6 @@ type ImportApiResponse = {
   image?: string;
   alternative?: string;
   genres?: string[];
-  categories?: string[];
   tags?: string[];
   status?: string;
   rating?: number | null;
@@ -118,19 +118,14 @@ async function updateSingleNovel(novel: Novel) {
 
     if (!uniqueNew.length) return;
 
-    const mergedChapters = [...novel.chapters, ...uniqueNew].map((chapter, index) => ({
-      ...chapter,
-      order: index + 1,
-      id: chapter.id || String(index + 1),
-    }));
+    const mergedChapters = mergeNovelChapters(novel.id, novel.chapters, uniqueNew);
 
-    await addNovel({
+    await addNovel(normalizeNovelRecord({
       ...novel,
       author: latestMeta?.author ?? novel.author,
       image: latestMeta?.image ?? novel.image,
       alternative: latestMeta?.alternative ?? novel.alternative,
       genres: Array.isArray(latestMeta?.genres) ? latestMeta?.genres : novel.genres,
-      categories: Array.isArray(latestMeta?.categories) ? latestMeta?.categories : novel.categories,
       tags: Array.isArray(latestMeta?.tags) ? latestMeta?.tags : novel.tags,
       status: latestMeta?.status ?? novel.status,
       rating: typeof latestMeta?.rating === "number" ? latestMeta.rating : novel.rating,
@@ -139,7 +134,7 @@ async function updateSingleNovel(novel: Novel) {
       isCompleted: novel.isCompleted || isCompletedStatus(latestMeta?.status),
       lastUpdated: new Date().toISOString(),
       chapters: mergedChapters,
-    });
+    }));
   } catch (error) {
     console.error(`Auto update skipped for novel: ${novel.title}`, error);
   }

@@ -1,11 +1,16 @@
 import axios from "axios";
-import { parseChapter, parseNovel } from "./parsers/novelfull-parser";
-import { upsertNovel, upsertChapter } from "@/lib/db";
-import type { Novel, Chapter } from "@/types";
 
-const CHAPTER_BATCH_SIZE = 5;
+import { upsertChapter, upsertNovel } from "@/lib/db";
+import { mergeNovelChapters, normalizeNovelRecord } from "@/lib/novels";
+import { getNovel } from "@/lib/storage/indexeddb";
+import type { Chapter, Novel } from "@/types";
+
+import { parseChapter, parseNovel } from "./parsers/novelfull-parser";
+
 const CHAPTER_RETRY_LIMIT = 2;
 const RETRY_DELAY_MS = 500;
+
+export type ImportProgressCallback = (progress: { current: number; total: number }) => void;
 
 export async function fetchHtml(url: string): Promise<string> {
   const response = await axios.get(url, {
@@ -29,17 +34,18 @@ async function fetchChapterWithRetry(url: string): Promise<string | null> {
       return await fetchHtml(url);
     } catch (error) {
       console.error(`Attempt ${attempt + 1} failed for ${url}:`, error);
+
       if (attempt === CHAPTER_RETRY_LIMIT) {
         console.error(`Skipped: ${url} after ${CHAPTER_RETRY_LIMIT + 1} attempts.`);
         return null;
       }
+
       await sleep(RETRY_DELAY_MS);
     }
   }
+
   return null;
 }
-
-export type ImportProgressCallback = (progress: { current: number; total: number }) => void;
 
 export async function importNovelFromUrl(
   novelUrl: string,
@@ -53,67 +59,77 @@ export async function importNovelFromUrl(
     fetchHtml,
   });
 
-  // Construct a partial Novel object for initial upsert
-  const novelToUpsert: Novel = {
-    id: parsedNovel.id,
+  const seedNovel = normalizeNovelRecord({
     title: parsedNovel.title,
     author: parsedNovel.author,
-    chapters: [], // Will be populated after chapters are processed
-  };
+    sourceUrl: novelUrl,
+    chapters: [],
+  });
 
-  // Save the novel metadata first. upsertNovel will create the novel directory and meta.json
-  const savedNovel = await upsertNovel(novelToUpsert);
+  const savedNovel = await upsertNovel(seedNovel);
+  if (!savedNovel) {
+    throw new Error("Unable to initialize novel import");
+  }
 
   const chaptersToProcess = parsedNovel.chapters;
   const totalChapters = chaptersToProcess.length;
   const importedChapters: Chapter[] = [];
   let processedCount = 0;
 
-  for (let index = 0; index < chaptersToProcess.length; index += CHAPTER_BATCH_SIZE) {
-    const batch = chaptersToProcess.slice(index, index + CHAPTER_BATCH_SIZE);
+  const existingNovel = await getNovel(savedNovel.id);
+  const existingChapters = new Set((existingNovel?.chapters || []).map((chapter) => chapter.order));
 
-    console.log(`Processing chapter batch ${index / CHAPTER_BATCH_SIZE + 1}/${Math.ceil(chaptersToProcess.length / CHAPTER_BATCH_SIZE)}`);
-
-    const results = await Promise.all(
-      batch.map(async (chapterUrl, batchIndex) => {
-        const chapterOrder = index + batchIndex + 1; // Chapter numbers are 1-based
-        const html = await fetchChapterWithRetry(chapterUrl);
-        const parsedChapterContent = html ? parseChapter(html) : null;
-
-        processedCount += 1;
-        if (onProgress) {
-          onProgress({ current: processedCount, total: totalChapters });
-        }
-
-        if (parsedChapterContent) {
-          const chapterData = {
-            title: parsedChapterContent.title,
-            content: parsedChapterContent.content,
-          };
-          await upsertChapter(savedNovel.id, chapterOrder, chapterData);
-          return {
-            id: `${savedNovel.id}-chapter-${chapterOrder}`,
-            order: chapterOrder,
-            title: parsedChapterContent.title,
-            content: parsedChapterContent.content,
-          };
-        }
-        return null;
-      }),
-    );
-    importedChapters.push(...results.filter(Boolean));
+  let startIndex = 0;
+  if (existingChapters.size > 0) {
+    const maxChapter = Math.max(...existingChapters);
+    startIndex = Math.max(0, maxChapter - 1);
   }
 
-  // Update the novel with the full list of chapters after all are processed
-  // This might not be strictly necessary if upsertNovel handles chapter updates implicitly,
-  // but it ensures the novel object returned is complete.
-  const finalNovel: Novel = {
-    ...savedNovel,
-    chapters: importedChapters.sort((a, b) => a.order - b.order),
-  };
-  await upsertNovel(finalNovel); // Re-upsert to ensure chapter list is updated in meta if needed
+  for (let index = startIndex; index < chaptersToProcess.length; index += 1) {
+    const chapterUrl = chaptersToProcess[index];
+    const chapterOrder = index + 1;
 
-  console.log(`Import completed for ${finalNovel.title}. Total chapters: ${importedChapters.length}`);
+    if (existingChapters.has(chapterOrder)) {
+      continue;
+    }
+
+    const html = await fetchChapterWithRetry(chapterUrl);
+    const parsedChapterContent = html ? parseChapter(html) : null;
+
+    processedCount += 1;
+    onProgress?.({ current: processedCount, total: totalChapters });
+
+    if (!parsedChapterContent) {
+      break;
+    }
+
+    await upsertChapter(savedNovel.id, chapterOrder, {
+      title: parsedChapterContent.title,
+      content: parsedChapterContent.content,
+    });
+
+    existingChapters.add(chapterOrder);
+    importedChapters.push({
+      id: `${savedNovel.id}-chapter-${chapterOrder}`,
+      order: chapterOrder,
+      title: parsedChapterContent.title,
+      content: parsedChapterContent.content,
+    });
+
+    await sleep(1000);
+  }
+
+  const finalNovel = normalizeNovelRecord({
+    ...savedNovel,
+    sourceUrl: novelUrl,
+    chapters: mergeNovelChapters(savedNovel.id, existingNovel?.chapters || [], importedChapters),
+  });
+
+  await upsertNovel(finalNovel);
+
+  console.log(
+    `Import completed for ${finalNovel.title}. Total chapters: ${finalNovel.chapters.length}`,
+  );
 
   return finalNovel;
 }

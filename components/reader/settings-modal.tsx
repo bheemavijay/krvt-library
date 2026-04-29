@@ -159,10 +159,10 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
     onChange({ ...settings, ...partial, tts: { ...settings.tts, ...partial.tts } });
 
   return (
-    <div className="fixed inset-0 z-[70] flex justify-end bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[70] flex justify-end bg-black/55 backdrop-blur-sm">
       <button type="button" aria-label="Close settings" onClick={onClose} className="absolute inset-0" />
 
-      <aside className="relative z-10 flex h-full w-full max-w-[420px] flex-col border-l border-white/8 bg-[#0d0f13] shadow-[-32px_0_80px_rgba(0,0,0,0.5)]">
+      <aside className="relative z-10 h-full w-full max-w-none sm:max-w-[460px] overflow-y-auto border-l border-white/10 bg-[#121318] px-3 sm:px-5 py-4 sm:py-6 shadow-lg sm:shadow-[-24px_0_80px_rgba(0,0,0,0.45)]">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-white/8 px-5 py-4">
           <div>

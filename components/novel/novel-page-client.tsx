@@ -80,14 +80,6 @@ export default function NovelPageClient({ novelId }: { novelId: string }) {
                   {genre}
                 </span>
               ))}
-              {novel.categories?.map((category) => (
-                <span
-                  key={category}
-                  className="rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs text-white/80 transition-all duration-200"
-                >
-                  {category}
-                </span>
-              ))}
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
@@ -182,10 +174,9 @@ export default function NovelPageClient({ novelId }: { novelId: string }) {
               />
               <MetadataRow label="Genres" value={(novel.genres || []).join(", ") || "None"} />
               <MetadataRow
-                label="Categories"
-                value={(novel.categories || []).join(", ") || "None"}
+                label="Tags"
+                value={(novel.tags || []).join(", ") || "None"}
               />
-              <MetadataRow label="Tags" value={(novel.tags || []).join(", ") || "None"} />
             </div>
           </div>
 

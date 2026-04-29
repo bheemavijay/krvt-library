@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -25,6 +26,16 @@ const HOME_LINKS = [
 ];
 
 export default function HomePage() {
+     return (
+        <Suspense fallback={<div className="text-center mt-10">Loading...</div>}>
+          <HomePageClient />
+        </Suspense>
+      );
+    }
+
+    function HomePageClient() {
+      const searchParams = useSearchParams();
+
   const [novels, setNovels] = useState<Novel[]>([]);
   const [backupMessage, setBackupMessage] = useState("");
   const [selectedGenre, setSelectedGenre] = useState<string>("All");
@@ -32,7 +43,6 @@ export default function HomePage() {
   const [isClearingLibrary, setIsClearingLibrary] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const searchParams = useSearchParams();
   const searchQuery = searchParams.get("q") ?? "";
   const view = searchParams.get("view") ?? "home";
 

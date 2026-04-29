@@ -74,6 +74,7 @@ export type AppThemeMode = "dark" | "black";
 export type AppSettingsState = {
   accentColor: AppAccentColor;
   themeMode: AppThemeMode;
+  fontFamily?: string;
 };
 
 export type UploadedNovelRecord = {

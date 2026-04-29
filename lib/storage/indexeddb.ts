@@ -76,7 +76,7 @@ export async function getAllNovels() {
   });
 }
 
-export async function getNovel(id: string) {
+export async function getNovel(id: string): Promise<Novel | null> {
   if (!id) {
     console.error("❌ getNovel called with invalid id:", id);
     return null;

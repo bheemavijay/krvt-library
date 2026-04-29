@@ -1,3 +1,4 @@
+/*
 import { writeFileSync, existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import axios from "axios";
@@ -198,4 +199,4 @@ async function run() {
   console.log(`Local files saved: ${localFilesSaved}`);
 }
 
-run().catch(console.error);
+run().catch(console.error); */

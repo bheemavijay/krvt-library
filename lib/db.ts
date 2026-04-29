@@ -76,6 +76,7 @@ export async function getNovelById(
 ): Promise<Novel | null> {
   const summary = await getNovelSummaryById(id);
 
+  // ✅ MUST check FIRST
   if (!summary) {
     return null;
   }
@@ -85,7 +86,19 @@ export async function getNovelById(
   return {
     id: summary.id,
     title: summary.title,
-    author: summary.author,
+    author: summary.author ?? "Unknown Author",
+
+    sourceUrl: "",
+    image: "",
+    description: "",
+    genres: [],
+    tags: [],
+    alternative: "",
+    status: "unknown",
+    rating: 0,
+    isCompleted: false,
+    lastUpdated: new Date().toISOString(),
+
     chapters,
   };
 }

@@ -11,7 +11,7 @@
     "android": "npm run mobile && npx cap open android"
   },
   "dependencies": {
-    "@capacitor/core": "latest",
+    "@capacitor/core": "^8.3.1",
     "axios": "^1.14.0",
     "cheerio": "^1.2.0",
     "clsx": "^2.1.1",
@@ -23,7 +23,7 @@
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
-    "@capacitor/cli": "latest",
+    "@capacitor/cli": "^8.3.1",
     "@types/react": "19.2.14",
     "autoprefixer": "^10.4.19",
     "eslint": "^8.57.0",

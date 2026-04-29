@@ -1,3 +1,4 @@
+/*
 import axios from "axios";
 import dotenv from "dotenv";
 
@@ -172,3 +173,4 @@ function uniqueStrings(values: string[]) {
 }
 
 void run().catch(console.error);
+ */

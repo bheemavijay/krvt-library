@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReaderSettings } from "@/lib/settings";
 import { filterVoices, loadVoices, speak, stop } from "@/lib/tts";
 import { cn } from "@/lib/utils";
+import type { CSSProperties } from "react";
 
 type SettingsModalProps = {
   isOpen: boolean;
@@ -431,7 +432,7 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
                   fontFamily: settings.fontFamily,
                   fontSize: `${settings.fontSize}px`,
                   lineHeight: settings.lineHeight,
-                  textAlign: settings.textAlign ?? "left",
+                  textAlign: (settings.textAlign ?? "left") as CSSProperties["textAlign"],
                 }}
               >
                 <p className="mb-2 text-[10px] uppercase tracking-[0.28em] opacity-50">Sample text</p>

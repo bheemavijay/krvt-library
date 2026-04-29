@@ -52,7 +52,7 @@ function SiteShellInner({ children }: SiteShellProps) {
 
     document.documentElement.style.setProperty(
       "--font-heading",
-      appSettings.fontFamily
+      appSettings.fontFamily ?? "serif",
     );
 
     document.documentElement.style.setProperty(
@@ -67,7 +67,7 @@ function SiteShellInner({ children }: SiteShellProps) {
   }, [
     appSettings.accentColor,
     appSettings.themeMode,
-    appSettings.fontFamily,
+    appSettings.fontFamily ?? "serif",
   ]);
 
   useEffect(() => {

@@ -13,7 +13,7 @@ export default function NovelPageClient({ novelId }: { novelId: string }) {
   useEffect(() => {
     let cancelled = false;
 
-    getNovel(novelId).then((data) => {
+    getNovel(novelId).then((data: Novel | null) => {
       if (!cancelled) {
         setNovel(data);
       }

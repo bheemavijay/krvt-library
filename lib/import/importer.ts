@@ -61,7 +61,7 @@ export async function importNovelFromUrl(
 
   const seedNovel = normalizeNovelRecord({
     title: parsedNovel.title,
-    author: parsedNovel.author,
+    author: "Unknown Author", // ✅ FIX
     sourceUrl: novelUrl,
     chapters: [],
   });

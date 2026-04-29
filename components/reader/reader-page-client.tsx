@@ -14,6 +14,7 @@ import { getNovel } from "@/lib/storage/indexeddb";
 import { isPaused, isSpeaking, pause, resume, speak, stop } from "@/lib/tts";
 import { cn } from "@/lib/utils";
 import type { Novel } from "@/types";
+import type { CSSProperties } from "react";
 
 type Props = {
   novelId: string;
@@ -22,6 +23,25 @@ type Props = {
 
 export function ReaderPageClient({ novelId, chapterParam }: Props) {
   const settings = useReaderSettings();
+  const safeSettings = settings ?? {
+    fontSize: 18,
+    lineHeight: 1.8,
+    fontFamily: "Georgia",
+    textColor: "#FFFFFF",
+    backgroundColor: "#16151d",
+    textAlign: "left",
+    contentMaxWidth: 720,
+    showNovelName: true,
+    showChapterName: true,
+    showTopNav: true,
+    showBottomNav: true,
+    showFooter: true,
+    tts: {
+      voiceURI: "",
+      rate: 1,
+      pitch: 1,
+    },
+  };
   const router = useRouter();
   const [novel, setNovel] = useState<Novel | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,7 +61,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   });
 
   const activeChapterRef = useRef<HTMLAnchorElement | null>(null);
-  const longPressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTimeoutRef = useRef<number | null>(null);
 
   const progressKey = `progress_${novelId}`;
   const autoNextKey = "krvt-reader-auto-next";
@@ -85,9 +105,9 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   }, [autoPlayTtsEnabled]);
 
   useEffect(() => {
-    let timeout: ReturnType<typeof setTimeout> | null = null;
+    let timeout: number | null = null;
     function handleScroll() {
-      if (timeout) clearTimeout(timeout);
+      if (timeout !== null) clearTimeout(timeout);
       timeout = window.setTimeout(() => {
         try {
           window.localStorage.setItem(progressKey, JSON.stringify({ chapterIndex: requestedChapterIndex, scrollY: window.scrollY }));
@@ -111,10 +131,17 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
     return subscribeToBookmarks(updateBookmarkState);
   }, [novel, requestedChapterIndex]);
 
+  const fontSize = settings?.fontSize ?? 18;
+
   useEffect(() => {
     if (!novel) return;
-    saveNovelReadingProgress(novel.id, requestedChapterIndex, settings.fontSize);
-  }, [novel, requestedChapterIndex, settings.fontSize]);
+
+    saveNovelReadingProgress(
+      novel.id,
+      requestedChapterIndex,
+      fontSize
+    );
+  }, [novel, requestedChapterIndex, fontSize]);
 
   useEffect(() => {
     if (!isChapterPanelOpen || !activeChapterRef.current) return;
@@ -132,13 +159,13 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
     ? Math.min(requestedChapterIndex, novel.chapters.length - 1)
     : requestedChapterIndex;
   const chapter = novel?.chapters[chapterIndex];
-  const textAlign = settings.textAlign ?? "left";
-  const contentMaxWidth = Number(settings.contentMaxWidth ?? 720);
-  const showNovelName = settings.showNovelName ?? true;
-  const showChapterName = settings.showChapterName ?? true;
-  const showTopNav = settings.showTopNav ?? true;
-  const showBottomNav = settings.showBottomNav ?? true;
-  const showFooter = settings.showFooter ?? true;
+  const textAlign: CSSProperties["textAlign"] = safeSettings.textAlign as CSSProperties["textAlign"];
+  const contentMaxWidth = Number(safeSettings.contentMaxWidth);
+  const showNovelName = safeSettings.showNovelName;
+  const showChapterName = safeSettings.showChapterName;
+  const showTopNav = safeSettings.showTopNav;
+  const showBottomNav = safeSettings.showBottomNav;
+  const showFooter = safeSettings.showFooter;
 
   const normalizedContent = useMemo(
     () =>
@@ -173,19 +200,27 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   const startTtsFromParagraph = useCallback(
     async (startIndex: number) => {
       const partialText = normalizedContent.slice(startIndex).join("\n\n");
-      const started = await speak(partialText, settings, {
+
+      const started = await speak(partialText, safeSettings, {
         onStart: () => {
           setTtsState("playing");
-          setStatusMessage(startIndex === 0 ? "Reading chapter aloud." : `Reading from paragraph ${startIndex + 1}.`);
+          setStatusMessage(
+            startIndex === 0
+              ? "Reading chapter aloud."
+              : `Reading from paragraph ${startIndex + 1}.`
+          );
         },
         onPause: () => setTtsState("paused"),
         onResume: () => setTtsState("playing"),
         onEnd: () => {
           setTtsState("idle");
           setStatusMessage("Text-to-speech finished.");
+
           if (autoNextEnabled && nextHref) {
-            if (autoPlayTtsEnabled) window.sessionStorage.setItem("krvt-reader-autoplay-tts", "1");
-            try { router.push(nextHref); } catch (e) { console.error("Router push failed:", e); }
+            if (autoPlayTtsEnabled) {
+              window.sessionStorage.setItem("krvt-reader-autoplay-tts", "1");
+            }
+            router.push(nextHref);
           }
         },
         onError: () => {
@@ -193,9 +228,12 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
           setStatusMessage("Text-to-speech could not start.");
         },
       });
-      if (!started) setTtsState("idle");
+
+      if (!started) {
+        setTtsState("idle");
+      }
     },
-    [autoNextEnabled, autoPlayTtsEnabled, nextHref, normalizedContent, router, settings],
+    [autoNextEnabled, autoPlayTtsEnabled, nextHref, normalizedContent, router, safeSettings],
   );
 
   useEffect(() => {
@@ -382,7 +420,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
       {/* ── Main content ───────────────────────────────────────────────────── */}
       <main
         className={cn("min-h-screen", showTopNav ? "pt-[60px] sm:pt-[90px]" : "pt-0", showBottomNav ? "pb-20" : "")}
-        style={{ backgroundColor: settings.backgroundColor, color: settings.textColor }}
+        style={{ backgroundColor: safeSettings.backgroundColor, color: safeSettings.textColor }}
       >
 
 
@@ -439,9 +477,9 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
           <article
             onDoubleClick={() => setIsSettingsOpen(true)}
             style={{
-              fontSize: `${settings.fontSize}px`,
-              lineHeight: settings.lineHeight,
-              fontFamily: settings.fontFamily,
+              fontSize: `${safeSettings.fontSize}px`,
+              lineHeight: safeSettings.lineHeight,
+              fontFamily: safeSettings.fontFamily,
               textAlign,
             }}
           >
@@ -450,7 +488,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
                 <p
                   key={`${chapter.id}-${index}`}
                   className="mb-5 sm:mb-6"
-                  style={{ color: settings.textColor, opacity: 0.9 }}
+                  style={{ color: safeSettings.textColor, opacity: 0.9 }}
                   onPointerDown={() => {
                     if (longPressTimeoutRef.current) clearTimeout(longPressTimeoutRef.current);
                     longPressTimeoutRef.current = window.setTimeout(() => {
@@ -506,7 +544,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
       {/* ── Settings modal ────────────────────────────────────────────────── */}
       <SettingsModal
         isOpen={isSettingsOpen}
-        settings={settings}
+        settings={safeSettings}
         onClose={() => setIsSettingsOpen(false)}
         onChange={handleSettingsChange}
       />

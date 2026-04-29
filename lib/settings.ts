@@ -1,7 +1,30 @@
+export type ReaderSettings = {
+  fontSize: number;
+  lineHeight: number;
+  fontFamily: string;
+  textColor: string;
+  backgroundColor: string;
+
+  // ✅ ADD THESE ↓↓↓
+  textAlign?: string;
+  contentMaxWidth?: number;
+  showNovelName?: boolean;
+  showChapterName?: boolean;
+  showTopNav?: boolean;
+  showBottomNav?: boolean;
+  showFooter?: boolean;
+
+  tts: {
+    voiceURI: string;
+    rate: number;
+    pitch: number;
+  };
+};
+
 const STORAGE_KEY = "reader_settings";
 
 // ✅ DEFAULT
-const defaultSettings = {
+const defaultSettings: ReaderSettings = {
   fontSize: 18,
   lineHeight: 1.8,
   fontFamily: "Georgia",
@@ -15,7 +38,7 @@ const defaultSettings = {
 };
 
 // ✅ CACHE (IMPORTANT)
-let cachedSettings: any = null;
+let cachedSettings: ReaderSettings | null = null;
 const listeners = new Set<() => void>();
 
 // ✅ LOAD (ONLY ONCE)
@@ -46,8 +69,11 @@ export function subscribeToSettings(callback: () => void) {
 }
 
 // ✅ SAVE
-export function saveSettings(newSettings: any) {
-  cachedSettings = { ...cachedSettings, ...newSettings };
+export function saveSettings(newSettings: Partial<ReaderSettings>) {
+  cachedSettings = {
+    ...(cachedSettings ?? defaultSettings),
+    ...newSettings,
+  } as ReaderSettings;
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(cachedSettings));
 

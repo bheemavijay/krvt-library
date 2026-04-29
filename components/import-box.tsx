@@ -104,10 +104,12 @@ export function ImportBox() {
           batchStart,
           existingChapterCount: currentNovel?.chapters.length ?? 0,
         });
+        const chapterCount = currentNovel?.chapters?.length ?? 0;
+
         console.log("Sending existingNovel:", {
-            chapters: currentNovel?.chapters.length,
-            lastIndex: currentNovel?.chapters.length - 1,
-            sourceUrl: currentNovel?.sourceUrl,
+          chapters: chapterCount,
+          lastIndex: chapterCount - 1,
+          sourceUrl: currentNovel?.sourceUrl,
         });
 
         const response = await fetch("/api/import", {
@@ -122,8 +124,8 @@ export function ImportBox() {
               ? {
                   title: currentNovel.title,
                   novelUrl: currentNovel.sourceUrl ?? normalizedUrl,
-                  lastChapterIndex: currentNovel.chapters.length - 1,
-                  chapterCount: currentNovel.chapters.length,
+                  lastChapterIndex: chapterCount - 1,
+                  chapterCount: chapterCount,
                 }
               : null,
           }),
@@ -158,7 +160,9 @@ export function ImportBox() {
           id: chapter.id ?? String((currentNovel?.chapters.length ?? 0) + index + 1),
           order: (currentNovel?.chapters.length ?? 0) + index + 1,
           title: chapter.title,
-          content: chapter.content,
+          content: Array.isArray(chapter.content)
+            ? chapter.content
+            : [chapter.content],
         }));
 
         const persistedNovel: Novel = normalizeNovelRecord({
@@ -219,7 +223,9 @@ export function ImportBox() {
         id: chapter.id ?? String(baseChapterCount + index + 1),
         order: baseChapterCount + index + 1,
         title: chapter.title,
-        content: chapter.content,
+        content: Array.isArray(chapter.content)
+          ? chapter.content
+          : [chapter.content],
       }));
 
       if (!mappedChapters.length) {

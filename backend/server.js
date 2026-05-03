@@ -9,31 +9,39 @@ const { buildStructuredLog } = require("./utils/normalize");
 const app = express();
 
 /**
- * IMPORTANT:
- * Railway provides PORT dynamically.
- * Always fallback to 8080.
+ * Railway assigns PORT dynamically.
+ * Always fallback to 8080 locally.
  */
 const PORT = process.env.PORT || 8080;
+const HOST = "0.0.0.0";
 
 /**
- * Allow all origins for now (safe for your use case)
- * You can restrict later
+ * CORS
  */
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "*";
 
-/**
- * Middleware
- */
 app.use(
   cors({
     origin: ALLOWED_ORIGIN === "*" ? true : ALLOWED_ORIGIN,
+    methods: ["GET", "POST"],
+    credentials: true,
   })
 );
 
+/**
+ * Body parser
+ */
 app.use(express.json({ limit: "1mb" }));
 
 /**
- * Health Check (VERY IMPORTANT for Railway + debugging)
+ * ROOT ROUTE (IMPORTANT for Railway health check)
+ */
+app.get("/", (_req, res) => {
+  res.status(200).send("KRVT Library Backend Running 🚀");
+});
+
+/**
+ * HEALTH CHECK
  */
 app.get("/health", (_req, res) => {
   res.status(200).json({
@@ -43,12 +51,12 @@ app.get("/health", (_req, res) => {
 });
 
 /**
- * Routes
+ * ROUTES
  */
 app.use("/api/import", importRoutes);
 
 /**
- * Global Error Handler
+ * GLOBAL ERROR HANDLER
  */
 app.use((err, _req, res, _next) => {
   console.error(
@@ -63,14 +71,25 @@ app.use((err, _req, res, _next) => {
 });
 
 /**
- * START SERVER (CRITICAL FIX)
- * Must bind to 0.0.0.0 for Railway / mobile access
+ * HANDLE CRASHES (VERY IMPORTANT IN PROD)
  */
-app.listen(PORT, "0.0.0.0", () => {
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT_EXCEPTION", err);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("UNHANDLED_REJECTION", err);
+});
+
+/**
+ * START SERVER
+ */
+app.listen(PORT, HOST, () => {
   console.info(
     JSON.stringify(
       buildStructuredLog("server.started", {
         port: PORT,
+        host: HOST,
         allowedOrigin: ALLOWED_ORIGIN,
       })
     )

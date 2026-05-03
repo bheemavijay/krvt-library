@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { ContinueReadingCard } from "@/components/continue-reading-card";
+import { getImportApiUrl } from "@/lib/import-api";
 import { mergeNovelChapters, normalizeNovelRecord } from "@/lib/novels";
 import { exportLibrary, importLibrary } from "@/lib/storage/backup";
 import {
@@ -188,7 +189,7 @@ export default function HomePage() {
       } | null = null;
 
       while (true) {
-        const response = await fetch("/api/import", {
+        const response = await fetch(getImportApiUrl(), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

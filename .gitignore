@@ -10,3 +10,17 @@ pnpm-debug.log*
 coverage
 *.tsbuildinfo
 data
+
+# Capacitor Android (build + generated only)
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+
+# Generated assets (Capacitor sync output)
+android/app/src/main/assets/public
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+
+# Optional (logs)
+android/*.log

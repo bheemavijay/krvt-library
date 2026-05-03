@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { getImportApiUrl } from "@/lib/import-api";
 import {
   mergeNovelChapters,
   normalizeImportUrl,
@@ -106,13 +107,7 @@ export function ImportBox() {
         });
         const chapterCount = currentNovel?.chapters?.length ?? 0;
 
-        console.log("Sending existingNovel:", {
-          chapters: chapterCount,
-          lastIndex: chapterCount - 1,
-          sourceUrl: currentNovel?.sourceUrl,
-        });
-
-        const response = await fetch("/api/import", {
+        const response = await fetch(getImportApiUrl(), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

@@ -1,5 +1,6 @@
 "use client";
 
+import { getImportApiUrl } from "@/lib/import-api";
 import { mergeNovelChapters, normalizeNovelRecord } from "@/lib/novels";
 import { addNovel, getAllNovels } from "@/lib/storage/indexeddb";
 import type { Chapter, Novel } from "@/types";
@@ -64,7 +65,7 @@ async function updateSingleNovel(novel: Novel) {
     const incomingChapters: Chapter[] = [];
 
     while (true) {
-      const response = await fetch("/api/import", {
+      const response = await fetch(getImportApiUrl(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

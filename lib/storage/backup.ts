@@ -1,6 +1,6 @@
 "use client";
 
-import { addNovel, getAllNovels } from "@/lib/storage/indexeddb";
+import { getAllNovels, saveOrUpdateNovel } from "@/lib/storage/indexeddb";
 import type { Novel } from "@/types";
 
 type LibraryBackupPayload = {
@@ -42,7 +42,7 @@ export async function importLibrary(file: File) {
   }
 
   for (const novel of novels) {
-    await addNovel(novel);
+    await saveOrUpdateNovel(novel);
   }
 
   return novels.length;

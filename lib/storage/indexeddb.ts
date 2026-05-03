@@ -10,7 +10,16 @@ type StoredNovelRecord = Partial<Novel> & {
   genre?: string | string[];
   rating?: number | string;
   categories?: string[] | string;
+  lastChapterIndex?: number;
+  chapters?: Array<
+    Partial<Novel["chapters"][number]> & {
+      url?: string;
+      content?: string[] | string;
+    }
+  >;
 };
+
+type StoredChapterRecord = NonNullable<StoredNovelRecord["chapters"]>[number];
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -37,12 +46,21 @@ function openDB(): Promise<IDBDatabase> {
 }
 
 export async function addNovel(novel: StoredNovelRecord) {
+  return saveOrUpdateNovel(novel);
+}
+
+async function putNovelRecord(novel: StoredNovelRecord) {
   const db = await openDB();
   const tx = db.transaction(STORE, "readwrite");
   const store = tx.objectStore(STORE);
 
   return new Promise<void>((resolve, reject) => {
-    const req = store.put(normalizeNovelRecord(novel));
+    const normalizedNovel = normalizeNovelRecord(novel) as Novel & {
+      lastChapterIndex?: number;
+    };
+    normalizedNovel.lastChapterIndex = Math.max(0, normalizedNovel.chapters.length - 1);
+
+    const req = store.put(normalizedNovel);
     req.onsuccess = () => {
       notifyLibraryUpdated();
       resolve();
@@ -51,7 +69,142 @@ export async function addNovel(novel: StoredNovelRecord) {
   });
 }
 
-export const saveNovel = addNovel;
+function getChapterUrl(chapter: StoredChapterRecord | undefined) {
+  const url = chapter && "url" in chapter ? chapter.url : undefined;
+  return typeof url === "string" ? url.trim() : "";
+}
+
+function getChapterKey(
+  chapter: StoredChapterRecord | undefined,
+  fallbackOrder: number
+) {
+  const chapterUrl = getChapterUrl(chapter);
+
+  // ✅ BEST: URL (stable unique identifier)
+  if (chapterUrl) {
+    return `url:${chapterUrl.toLowerCase()}`;
+  }
+
+  // ✅ fallback: use stable title only (NOT order/index)
+  const title = String(chapter?.title ?? "").trim().toLowerCase();
+
+  return `fallback:${title}`;
+}
+
+function pickPreferredValue<T>(incoming: T | undefined | null, existing: T | undefined | null) {
+  if (typeof incoming === "string") {
+    return incoming.trim() ? incoming : existing;
+  }
+
+  if (Array.isArray(incoming)) {
+    return incoming.length ? incoming : existing;
+  }
+
+  return incoming ?? existing;
+}
+
+function mergeChapters(
+  existingChapters: StoredNovelRecord["chapters"],
+  incomingChapters: StoredNovelRecord["chapters"],
+) {
+  const mergedByKey = new Map<string, StoredChapterRecord>();
+  const ordered = [
+    ...(Array.isArray(existingChapters) ? existingChapters : []),
+    ...(Array.isArray(incomingChapters) ? incomingChapters : []),
+  ];
+
+  ordered.forEach((chapter, index) => {
+    const key = getChapterKey(chapter, index + 1);
+    const current = mergedByKey.get(key);
+
+    if (!current) {
+      mergedByKey.set(key, chapter);
+      return;
+    }
+
+    const currentLength = Array.isArray(current.content)
+      ? current.content.length
+      : typeof current.content === "string"
+      ? current.content.length
+      : 0;
+    const nextLength = Array.isArray(chapter.content)
+      ? chapter.content.length
+      : typeof chapter.content === "string"
+      ? chapter.content.length
+      : 0;
+
+    if (nextLength >= currentLength) {
+      mergedByKey.set(key, {
+        ...current,
+        ...chapter,
+        url: getChapterUrl(chapter) || getChapterUrl(current) || undefined,
+      });
+    }
+  });
+
+  return Array.from(mergedByKey.values())
+    .sort((left, right) => {
+      const leftOrder = Number(left.order) || 0;
+      const rightOrder = Number(right.order) || 0;
+      return leftOrder - rightOrder;
+    })
+    .map((chapter, index) => ({
+      ...chapter,
+      id: chapter.id ?? String(index + 1),
+      order: index + 1,
+      url: getChapterUrl(chapter) || undefined,
+    }));
+}
+
+export async function saveOrUpdateNovel(newNovel: StoredNovelRecord) {
+  const normalizedIncoming = normalizeNovelRecord(newNovel);
+  const existingNovel = await getNovel(normalizedIncoming.id);
+
+  if (!existingNovel) {
+    await putNovelRecord({
+      ...newNovel,
+      ...normalizedIncoming,
+      sourceUrl: normalizedIncoming.sourceUrl,
+      lastChapterIndex: Math.max(0, normalizedIncoming.chapters.length - 1),
+    });
+    return normalizedIncoming;
+  }
+
+  const mergedChapters = mergeChapters(
+    existingNovel.chapters as StoredNovelRecord["chapters"],
+    newNovel.chapters as StoredNovelRecord["chapters"],
+  );
+
+  const mergedNovel: StoredNovelRecord = {
+    ...existingNovel,
+    ...newNovel,
+    id: existingNovel.id,
+    title: pickPreferredValue(newNovel.title, existingNovel.title),
+    author: pickPreferredValue(newNovel.author, existingNovel.author),
+    sourceUrl: pickPreferredValue(newNovel.sourceUrl, existingNovel.sourceUrl),
+    image: pickPreferredValue(newNovel.image, existingNovel.image),
+    alternative: pickPreferredValue(newNovel.alternative, existingNovel.alternative),
+    description: pickPreferredValue(newNovel.description, existingNovel.description),
+    status: pickPreferredValue(newNovel.status, existingNovel.status),
+    genres: pickPreferredValue(newNovel.genres, existingNovel.genres),
+    tags: pickPreferredValue(newNovel.tags, existingNovel.tags),
+    rating:
+      typeof newNovel.rating === "number"
+        ? newNovel.rating
+        : typeof existingNovel.rating === "number"
+        ? existingNovel.rating
+        : undefined,
+    isCompleted: Boolean(newNovel.isCompleted ?? existingNovel.isCompleted),
+    lastUpdated: new Date().toISOString(),
+    chapters: mergedChapters,
+    lastChapterIndex: Math.max(0, mergedChapters.length - 1),
+  };
+
+  await putNovelRecord(mergedNovel);
+  return normalizeNovelRecord(mergedNovel);
+}
+
+export const saveNovel = saveOrUpdateNovel;
 
 export async function getAllNovels() {
   const db = await openDB();

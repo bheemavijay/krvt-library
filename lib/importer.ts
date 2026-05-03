@@ -1,7 +1,7 @@
 "use client";
 
 import { normalizeNovelRecord, slugifyNovelId } from "@/lib/novels";
-import { saveNovel } from "@/lib/storage/indexeddb";
+import { saveOrUpdateNovel } from "@/lib/storage/indexeddb";
 
 export async function importFromText(text: string, title: string) {
   if (!text || !title) {
@@ -17,7 +17,7 @@ export async function importFromText(text: string, title: string) {
     chapters,
   });
 
-  await saveNovel(novel);
+  await saveOrUpdateNovel(novel);
 
   return novel;
 }

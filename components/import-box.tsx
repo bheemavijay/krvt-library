@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { getImportApiUrl } from "@/lib/import-api";
+import { enableWakeLock, releaseWakeLock } from "@/lib/wake-lock";
 import {
   mergeNovelChapters,
   normalizeImportUrl,
@@ -66,6 +67,7 @@ export function ImportBox() {
     setIsLoading(true);
     setMessage({ text: "Starting download...", isError: false });
     setPreview(null);
+    await enableWakeLock();
 
     try {
       const normalizedUrl = normalizeImportUrl(url);
@@ -75,7 +77,6 @@ export function ImportBox() {
         (n) => normalizeNovelUrlKey(n.sourceUrl) === normalizedUrlKey,
       );
       let baseChapterCount = currentNovel?.chapters.length ?? 0;
-      let offset = 0;
       const batchSize = 50;
       const allChapters: NonNullable<ImportResponse["chapters"]> = [];
       let meta: ImportResponse | null = null;
@@ -93,7 +94,7 @@ export function ImportBox() {
       });
 
       while (true) {
-        const batchStart = baseChapterCount + offset + 1;
+        const batchStart = baseChapterCount + allChapters.length + 1;
         setMessage({
           text: `Downloading chapters ${batchStart} to ${batchStart + batchSize - 1}...`,
           isError: false,
@@ -101,7 +102,6 @@ export function ImportBox() {
 
         console.info("[import-box] request-batch", {
           normalizedUrl,
-          offset,
           batchStart,
           existingChapterCount: currentNovel?.chapters.length ?? 0,
         });
@@ -114,7 +114,6 @@ export function ImportBox() {
           },
           body: JSON.stringify({
             url: normalizedUrl,
-            offset,
             existingNovel: currentNovel
               ? {
                   title: currentNovel.title,
@@ -210,8 +209,6 @@ export function ImportBox() {
         if (chapters.length < batchSize) {
           break;
         }
-
-        offset += batchSize;
       }
 
       const mappedChapters = (Array.isArray(allChapters) ? allChapters : []).map((chapter, index) => ({
@@ -280,6 +277,7 @@ export function ImportBox() {
       });
     } finally {
       setIsLoading(false);
+      releaseWakeLock();
     }
   };
 

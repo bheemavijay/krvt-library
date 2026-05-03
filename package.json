@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "export": "next export",
     "lint": "eslint .",
     "mobile": "npm run build && npx cap sync",
     "android": "npm run mobile && npx cap open android"

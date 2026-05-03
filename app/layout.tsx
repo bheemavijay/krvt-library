@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-
 import "./globals.css";
 
 import { SiteShell } from "@/components/layout/site-shell";
@@ -17,8 +16,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className="antialiased">
-        <SiteShell>{children}</SiteShell>
+      <body className="antialiased bg-black text-white">
+        <SiteShell>
+          {children}
+        </SiteShell>
       </body>
     </html>
   );

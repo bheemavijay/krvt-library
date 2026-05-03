@@ -80,27 +80,36 @@ function getChapterKey(
 ) {
   const chapterUrl = getChapterUrl(chapter);
 
-  // ✅ BEST: URL (stable unique identifier)
+  // BEST: URL
   if (chapterUrl) {
     return `url:${chapterUrl.toLowerCase()}`;
   }
 
-  // ✅ fallback: use stable title only (NOT order/index)
+  // SECOND: explicit order if present
+  const order = Number(chapter?.order);
+  if (order > 0) {
+    return `order:${order}`;
+  }
+
+  // LAST fallback: title + index (force uniqueness)
   const title = String(chapter?.title ?? "").trim().toLowerCase();
 
-  return `fallback:${title}`;
+  return `fallback:${title}:${fallbackOrder}`;
 }
 
-function pickPreferredValue<T>(incoming: T | undefined | null, existing: T | undefined | null) {
+function pickPreferredValue<T>(
+  incoming: T | undefined | null,
+  existing: T | undefined | null
+): T | undefined {
   if (typeof incoming === "string") {
-    return incoming.trim() ? incoming : existing;
+    return incoming.trim() ? incoming : existing ?? undefined;
   }
 
   if (Array.isArray(incoming)) {
-    return incoming.length ? incoming : existing;
+    return incoming.length ? incoming : existing ?? undefined;
   }
 
-  return incoming ?? existing;
+  return incoming ?? existing ?? undefined;
 }
 
 function mergeChapters(
@@ -122,17 +131,23 @@ function mergeChapters(
       return;
     }
 
-    const currentLength = Array.isArray(current.content)
-      ? current.content.length
-      : typeof current.content === "string"
-      ? current.content.length
-      : 0;
-    const nextLength = Array.isArray(chapter.content)
-      ? chapter.content.length
-      : typeof chapter.content === "string"
-      ? chapter.content.length
-      : 0;
+const currentContent = current?.content as unknown;
+let currentLength = 0;
 
+if (Array.isArray(currentContent)) {
+  currentLength = currentContent.length;
+} else if (typeof currentContent === "string") {
+  currentLength = currentContent.length;
+}
+
+const nextContent = chapter?.content as unknown;
+let nextLength = 0;
+
+if (Array.isArray(nextContent)) {
+  nextLength = nextContent.length;
+} else if (typeof nextContent === "string") {
+  nextLength = nextContent.length;
+}
     if (nextLength >= currentLength) {
       mergedByKey.set(key, {
         ...current,

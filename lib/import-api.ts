@@ -12,5 +12,7 @@ export function getImportApiUrl() {
     return FALLBACK_IMPORT_API_URL;
   }
 
-  return normalizeConfiguredApiUrl(configuredUrl);
+  const url = configuredUrl.trim().replace(/\/+$/, "");
+
+  return url.includes("/api/import") ? url : `${url}/api/import`;
 }

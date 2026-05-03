@@ -173,8 +173,6 @@ export default function HomePage() {
 
     try {
       setBusyNovelId(novel.id);
-      let offset = 0;
-      const batchSize = 50;
       const incoming: Novel["chapters"] = [];
       let latestMeta: {
         title?: string;
@@ -188,44 +186,35 @@ export default function HomePage() {
         description?: string;
       } | null = null;
 
-      while (true) {
-        const response = await fetch(getImportApiUrl(), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            url: novel.sourceUrl,
-            offset,
-            existingNovel: {
-              title: novel.title,
-              novelUrl: novel.sourceUrl,
-              lastChapterIndex: novel.chapters.length > 0 ? novel.chapters.length - 1 : -1,
-              chapterCount: novel.chapters.length,
-            },
-          }),
-        });
+      const response = await fetch(getImportApiUrl(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: novel.sourceUrl,
+        }),
+      });
 
-        const data = (await response.json()) as {
-          error?: string;
-          title?: string;
-          author?: string;
-          image?: string;
-          alternative?: string;
-          genres?: string[];
-          tags?: string[];
-          status?: string;
-          rating?: number | null;
-          description?: string;
-          chapters?: Array<{ id?: string; title: string; content: string[] | string }>;
-        };
+      const data = (await response.json()) as {
+        error?: string;
+        title?: string;
+        author?: string;
+        image?: string;
+        alternative?: string;
+        genres?: string[];
+        tags?: string[];
+        status?: string;
+        rating?: number | null;
+        description?: string;
+        chapters?: Array<{ id?: string; title: string; content: string[] | string }>;
+      };
 
-        if (!response.ok) {
-          if (response.status === 409) break;
-          throw new Error(data.error || "Update failed");
+      if (!response.ok) {
+        if (response.status !== 409) {
+           throw new Error(data.error || "Update failed");
         }
-
+      } else {
         latestMeta = data;
         const fetched = Array.isArray(data.chapters) ? data.chapters : [];
-        if (!fetched.length) break;
 
         for (let i = 0; i < fetched.length; i++) {
           const chapter = fetched[i];
@@ -241,12 +230,12 @@ export default function HomePage() {
                   .filter(Boolean),
           });
         }
-
-        if (fetched.length < batchSize) break;
-        offset += batchSize;
       }
 
       const merged = mergeNovelChapters(novel.id, novel.chapters, incoming);
+      console.log("Incoming:", incoming.length);
+      console.log("Before:", novel.chapters.length);
+      console.log("After:", merged.length);
       const addedCount = merged.length - novel.chapters.length;
       const nextNovel: Novel = normalizeNovelRecord({
         ...novel,
@@ -589,6 +578,11 @@ function LibraryManagementGrid({
   onDelete: (novel: Novel) => void;
   onUpdate: (novel: Novel) => void;
 }) {
+  const [showAll, setShowAll] = useState(false);
+  const displayNovels = useMemo(() => {
+    return showAll ? novels : novels.slice(0, 6);
+  }, [novels, showAll]);
+
   if (!novels.length) {
     return (
       <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-8 text-center">
@@ -598,53 +592,66 @@ function LibraryManagementGrid({
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {novels.map((novel) => {
-        const isBusy = busyNovelId === novel.id;
-        const canUpdate = /^https?:/i.test(novel.sourceUrl);
-        return (
-          <div
-            key={novel.id}
-            className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] text-white shadow-lg"
-          >
-            <Link href={`/novel/${novel.id}`} className="block">
-              <div
-                className="aspect-[3/4] w-full bg-cover bg-center"
-                style={{ backgroundImage: `url("${novel.image}")` }}
-              />
-            </Link>
-            <div className="space-y-2 p-5">
-              <h3 className="line-clamp-2 text-lg font-semibold">{novel.title}</h3>
-              <p className="text-sm text-white/70">{novel.author}</p>
-              <div className="flex flex-wrap gap-2 text-xs text-white/60">
-                <span>{novel.chapters.length} chapters</span>
-                <span>{novel.isCompleted ? "Completed" : novel.status || "Ongoing"}</span>
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {displayNovels.map((novel) => {
+          const isBusy = busyNovelId === novel.id;
+          const canUpdate = /^https?:/i.test(novel.sourceUrl);
+          return (
+            <div
+              key={novel.id}
+              className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] text-white shadow-lg"
+            >
+              <Link href={`/novel/${novel.id}`} className="block">
+                <div
+                  className="aspect-[3/4] w-full bg-cover bg-center"
+                  style={{ backgroundImage: `url("${novel.image}")` }}
+                />
+              </Link>
+              <div className="space-y-2 p-5">
+                <h3 className="line-clamp-2 text-lg font-semibold">{novel.title}</h3>
+                <p className="text-sm text-white/70">{novel.author}</p>
+                <div className="flex flex-wrap gap-2 text-xs text-white/60">
+                  <span>{novel.chapters.length} chapters</span>
+                  <span>{novel.isCompleted ? "Completed" : novel.status || "Ongoing"}</span>
+                </div>
+                <p className="text-xs text-white/50">
+                  Last updated: {new Date(novel.lastUpdated).toLocaleString()}
+                </p>
               </div>
-              <p className="text-xs text-white/50">
-                Last updated: {new Date(novel.lastUpdated).toLocaleString()}
-              </p>
+              <div className="flex gap-2 px-5 pb-5">
+                <button
+                  type="button"
+                  disabled={isBusy || !canUpdate}
+                  onClick={() => onUpdate(novel)}
+                  className="btn"
+                >
+                  {isBusy ? "Updating..." : "Update"}
+                </button>
+                <button
+                  type="button"
+                  disabled={isBusy}
+                  onClick={() => onDelete(novel)}
+                  className="btn"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
-            <div className="flex gap-2 px-5 pb-5">
-              <button
-                type="button"
-                disabled={isBusy || !canUpdate}
-                onClick={() => onUpdate(novel)}
-                className="btn"
-              >
-                {isBusy ? "Updating..." : "Update"}
-              </button>
-              <button
-                type="button"
-                disabled={isBusy}
-                onClick={() => onDelete(novel)}
-                className="btn"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+
+      {novels.length > 6 && !showAll && (
+        <div className="text-center">
+          <button
+            onClick={() => setShowAll(true)}
+            className="btn"
+          >
+            See More ({novels.length - 6} hidden)
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -4,27 +4,17 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b17fc1dc-ac9a-491d-abb8-def7b5b914a1" name="Changes" comment="feat: fixing bug for apk implemendation">
+    <list default="true" id="b17fc1dc-ac9a-491d-abb8-def7b5b914a1" name="Changes" comment="chore: clean repo and apply gitignore">
       <change beforePath="$PROJECT_DIR$/.env.local" beforeDir="false" afterPath="$PROJECT_DIR$/.env.local" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/codeStyles/codeStyleConfig.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/copilot.data.migration.ask2agent.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/copilotDiffState.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/krvt-library.iml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/api/import/route.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/android/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/layout.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/layout.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/page.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/capacitor.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/capacitor.config.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/components/import-box.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/import-box.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/importer.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/importer.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/storage/backup.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/storage/backup.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/layout/site-shell.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/layout/site-shell.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/import-api.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/import-api.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/storage/indexeddb.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/storage/indexeddb.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/update/autoUpdate.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/update/autoUpdate.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/next.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/next.config.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -140,7 +130,15 @@
       <option name="project" value="LOCAL" />
       <updated>1777459808340</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="chore: clean repo and apply gitignore">
+      <option name="closed" value="true" />
+      <created>1777780788577</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1777780788577</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -173,7 +171,8 @@
     <MESSAGE value="upgrade ui and fetures" />
     <MESSAGE value="feat: normalize data model, fix resume logic, fix image handling, add dashboard and delete feature" />
     <MESSAGE value="feat: fixing bug for apk implemendation" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat: fixing bug for apk implemendation" />
+    <MESSAGE value="chore: clean repo and apply gitignore" />
+    <option name="LAST_COMMIT_MESSAGE" value="chore: clean repo and apply gitignore" />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>

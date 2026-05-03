@@ -31,9 +31,10 @@ export function SiteShell({ children }: SiteShellProps) {
 function SiteShellInner({ children }: SiteShellProps) {
   const pathname = usePathname();
 
-  const isReaderPage =
-    pathname?.startsWith("/novel/") &&
-    pathname.split("/").length >= 4;
+const segments = pathname?.split("/").filter(Boolean) ?? [];
+
+const isReaderPage =
+  segments.length === 3 && segments[0] === "novel";
 
   const appSettings = useSyncExternalStore(
     subscribeToAppSettings,

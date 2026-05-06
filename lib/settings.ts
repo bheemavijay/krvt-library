@@ -8,6 +8,7 @@ export type ReplacementRule = {
   find: string;
   replace: string;
   caseSensitive: boolean;
+  isRegex: boolean;
 };
 
 export type ReaderSettings = {
@@ -121,7 +122,7 @@ export function saveSettings(nextSettings: Partial<ReaderSettings>) {
     ...current,
     ...nextSettings,
     replacements: Array.isArray(nextSettings.replacements)
-      ? nextSettings.replacements.map(normalizeReplacementRule).filter((rule) => rule.find)
+      ? nextSettings.replacements.map(normalizeReplacementRule)
       : current.replacements,
     tts: {
       ...current.tts,
@@ -166,7 +167,7 @@ function normalizeSettings(storedValue: string | null): ReaderSettings {
       autoNext: parsed.autoNext === true,
       autoPlayTts: parsed.autoPlayTts === true,
       replacements: Array.isArray(parsed.replacements)
-        ? parsed.replacements.map(normalizeReplacementRule).filter((rule) => rule.find)
+        ? parsed.replacements.map(normalizeReplacementRule)
         : defaultSettings.replacements,
       tts: {
         voiceURI: parsed.tts?.voiceURI ?? defaultSettings.tts.voiceURI,
@@ -185,6 +186,7 @@ function normalizeReplacementRule(rule: Partial<ReplacementRule>): ReplacementRu
     find: String(rule.find ?? "").trim(),
     replace: String(rule.replace ?? ""),
     caseSensitive: Boolean(rule.caseSensitive),
+    isRegex: Boolean(rule.isRegex),
   };
 }
 

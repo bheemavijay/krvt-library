@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
-import { usePathname } from "next/navigation";
 
 import { GlobalHeader } from "@/components/layout/global-header";
 import { SettingsModal } from "@/components/settings/settings-modal";
@@ -29,9 +28,6 @@ export function SiteShell({ children }: SiteShellProps) {
 }
 
 function SiteShellInner({ children }: SiteShellProps) {
-  const pathname = usePathname();
-  const isReaderPage = pathname?.startsWith("/reader");
-
   const appSettings = useSyncExternalStore(
     subscribeToAppSettings,
     getAppSettingsState,
@@ -92,7 +88,7 @@ function SiteShellInner({ children }: SiteShellProps) {
     <div className="relative min-h-screen overflow-x-hidden">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_22%),radial-gradient(circle_at_bottom_left,rgba(212,177,106,0.12),transparent_26%)]" />
 
-      {!isReaderPage ? <GlobalHeader onOpenSettings={open} /> : null}
+      <GlobalHeader onOpenSettings={open} />
 
       <div className="relative min-h-screen w-full">{children}</div>
 

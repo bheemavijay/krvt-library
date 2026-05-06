@@ -15,79 +15,182 @@ type SpeakCallbacks = {
 let utterance: SpeechSynthesisUtterance | null = null;
 let lastCallbacks: SpeakCallbacks = {};
 let currentSpeechKey = "";
+let voicesCache: TtsVoice[] = [];
+let voicesPromise: Promise<TtsVoice[]> | null = null;
+let bootPromise: Promise<boolean> | null = null;
 
-function isSpeechSupported() {
-  return typeof window !== "undefined" && "speechSynthesis" in window;
+const DEFAULT_LANG = "en-US";
+const BASE_VOICE_TIMEOUT_MS = 1800;
+const ANDROID_VOICE_TIMEOUT_MS = 5000;
+const VOICE_POLL_INTERVAL_MS = 250;
+
+function isBrowserWithSpeechApis() {
+  return (
+    typeof window !== "undefined" &&
+    typeof SpeechSynthesisUtterance !== "undefined" &&
+    "speechSynthesis" in window
+  );
+}
+
+function getSpeechSynthesisInstance() {
+  if (!isBrowserWithSpeechApis()) {
+    return null;
+  }
+
+  return window.speechSynthesis ?? null;
+}
+
+function isAndroidLikeEnvironment() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const userAgent = window.navigator.userAgent.toLowerCase();
+  return userAgent.includes("android") || userAgent.includes("wv;");
 }
 
 function voicePriority(voice: SpeechSynthesisVoice) {
   const lang = voice.lang.toLowerCase();
 
-  if (lang.startsWith("en-gb")) {
-    return 0;
-  }
-
-  if (lang.startsWith("en-us")) {
-    return 1;
-  }
-
-  if (lang.startsWith("en")) {
-    return 2;
-  }
-
+  if (lang.startsWith("en-gb")) return 0;
+  if (lang.startsWith("en-us")) return 1;
+  if (lang.startsWith("en")) return 2;
   return 3;
 }
 
 export function filterVoices(voices: SpeechSynthesisVoice[]) {
-  return [...voices]
+  const englishVoices = [...voices]
     .filter((voice) => voice.lang.toLowerCase().startsWith("en"))
     .sort((left, right) => {
       const priorityDifference = voicePriority(left) - voicePriority(right);
-
       if (priorityDifference !== 0) {
         return priorityDifference;
       }
-
       return left.name.localeCompare(right.name);
     });
+
+  return englishVoices.length > 0 ? englishVoices : [...voices];
 }
 
-export function loadVoices(): Promise<TtsVoice[]> {
-  if (!isSpeechSupported()) {
-    return Promise.resolve([]);
+export async function initializeTts() {
+  if (bootPromise) {
+    return bootPromise;
   }
 
-  const synth = window.speechSynthesis;
+  bootPromise = (async () => {
+    const startedAt = Date.now();
+    const timeoutMs = isAndroidLikeEnvironment() ? ANDROID_VOICE_TIMEOUT_MS : BASE_VOICE_TIMEOUT_MS;
 
-  return new Promise((resolve) => {
-    const resolveVoices = () => {
-      const available = filterVoices(synth.getVoices());
-
-      if (available.length > 0) {
-        resolve(available);
+    while (Date.now() - startedAt < timeoutMs) {
+      const synth = getSpeechSynthesisInstance();
+      if (synth) {
+        try {
+          synth.getVoices();
+        } catch {
+          // Keep polling until the WebView finishes exposing the API.
+        }
         return true;
       }
 
-      return false;
-    };
-
-    if (resolveVoices()) {
-      return;
+      await wait(VOICE_POLL_INTERVAL_MS);
     }
 
-    const handleVoicesChanged = () => {
-      if (resolveVoices()) {
+    return getSpeechSynthesisInstance() !== null;
+  })();
+
+  const ready = await bootPromise;
+  bootPromise = null;
+  return ready;
+}
+
+export async function loadVoices(forceRefresh = false): Promise<TtsVoice[]> {
+  if (!forceRefresh && voicesCache.length > 0) {
+    return voicesCache;
+  }
+
+  if (!forceRefresh && voicesPromise) {
+    return voicesPromise;
+  }
+
+  voicesPromise = (async () => {
+    const ready = await initializeTts();
+    if (!ready) {
+      return [];
+    }
+
+    const synth = getSpeechSynthesisInstance();
+    if (!synth) {
+      return [];
+    }
+
+    const startedAt = Date.now();
+    const timeoutMs = isAndroidLikeEnvironment() ? ANDROID_VOICE_TIMEOUT_MS : BASE_VOICE_TIMEOUT_MS;
+
+    return await new Promise<TtsVoice[]>((resolve) => {
+      let settled = false;
+      let intervalId: number | undefined;
+      let timeoutId: number | undefined;
+
+      const finish = (voices: TtsVoice[]) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        if (intervalId !== undefined) {
+          window.clearInterval(intervalId);
+        }
+        if (timeoutId !== undefined) {
+          window.clearTimeout(timeoutId);
+        }
         synth.removeEventListener("voiceschanged", handleVoicesChanged);
+        voicesCache = filterVoices(voices);
+        resolve(voicesCache);
+      };
+
+      const readVoices = () => {
+        try {
+          return synth.getVoices();
+        } catch {
+          return [];
+        }
+      };
+
+      const maybeFinish = () => {
+        const available = readVoices();
+        if (available.length > 0) {
+          finish(available);
+        }
+      };
+
+      const handleVoicesChanged = () => {
+        maybeFinish();
+      };
+
+      synth.addEventListener("voiceschanged", handleVoicesChanged);
+
+      maybeFinish();
+
+      if (settled) {
+        return;
       }
-    };
 
-    synth.addEventListener("voiceschanged", handleVoicesChanged);
+      intervalId = window.setInterval(() => {
+        maybeFinish();
+        if (!settled && Date.now() - startedAt >= timeoutMs) {
+          finish(readVoices());
+        }
+      }, VOICE_POLL_INTERVAL_MS);
 
-    window.setTimeout(() => {
-      synth.removeEventListener("voiceschanged", handleVoicesChanged);
-      resolve(filterVoices(synth.getVoices()));
-    }, 1200);
-  });
+      timeoutId = window.setTimeout(() => {
+        finish(readVoices());
+      }, timeoutMs + 150);
+    });
+  })();
+
+  const resolved = await voicesPromise;
+  voicesPromise = null;
+  return resolved;
 }
 
 export async function speak(
@@ -95,8 +198,19 @@ export async function speak(
   settings: ReaderSettings,
   callbacks: SpeakCallbacks = {},
 ) {
-  if (!isSpeechSupported()) {
-    callbacks.onError?.("Speech synthesis is not supported in this browser.");
+  const ready = await initializeTts();
+  if (!ready) {
+    callbacks.onError?.("Speech synthesis is not available yet. Please try again in a moment.");
+    return false;
+  }
+
+  const synth = getSpeechSynthesisInstance();
+  if (!synth) {
+    callbacks.onError?.(
+      typeof window !== "undefined" && typeof window.speechSynthesis === "undefined"
+        ? "Speech synthesis is not supported in this browser."
+        : "Speech synthesis is not available yet. Please try again in a moment.",
+    );
     return false;
   }
 
@@ -116,28 +230,29 @@ export async function speak(
 
   if (utterance && currentSpeechKey === speechKey) {
     lastCallbacks = callbacks;
-    if (window.speechSynthesis.paused) {
-      window.speechSynthesis.resume();
+    if (synth.paused) {
+      synth.resume();
     }
     return true;
   }
 
   if (utterance) {
-    window.speechSynthesis.cancel();
+    synth.cancel();
     utterance = null;
   }
 
   const voices = await loadVoices();
-  const synth = window.speechSynthesis;
   const nextUtterance = new SpeechSynthesisUtterance(normalizedText);
   const selectedVoice =
-    voices.find((voice) => voice.voiceURI === settings.tts.voiceURI) ?? voices[0] ?? null;
+    voices.find((voice) => voice.voiceURI === settings.tts.voiceURI) ??
+    voices[0] ??
+    null;
 
   if (selectedVoice) {
     nextUtterance.voice = selectedVoice;
-    nextUtterance.lang = selectedVoice.lang;
+    nextUtterance.lang = selectedVoice.lang || DEFAULT_LANG;
   } else {
-    nextUtterance.lang = "en-GB";
+    nextUtterance.lang = DEFAULT_LANG;
   }
 
   nextUtterance.rate = settings.tts.rate;
@@ -164,48 +279,61 @@ export async function speak(
   utterance = nextUtterance;
   currentSpeechKey = speechKey;
   lastCallbacks = callbacks;
-  synth.speak(nextUtterance);
 
+  if (synth.paused) {
+    synth.resume();
+  }
+
+  synth.speak(nextUtterance);
   return true;
 }
 
 export function pause() {
-  if (!isSpeechSupported()) {
+  const synth = getSpeechSynthesisInstance();
+  if (!synth) {
     return;
   }
 
-  if (window.speechSynthesis.speaking) {
-    window.speechSynthesis.pause();
+  if (synth.speaking) {
+    synth.pause();
   }
   lastCallbacks.onPause?.();
 }
 
 export function resume() {
-  if (!isSpeechSupported()) {
+  const synth = getSpeechSynthesisInstance();
+  if (!synth) {
     return;
   }
 
-  if (window.speechSynthesis.paused) {
-    window.speechSynthesis.resume();
+  if (synth.paused) {
+    synth.resume();
   }
   lastCallbacks.onResume?.();
 }
 
 export function stop() {
-  if (!isSpeechSupported()) {
+  const synth = getSpeechSynthesisInstance();
+  if (!synth) {
     return;
   }
 
-  window.speechSynthesis.cancel();
+  synth.cancel();
   utterance = null;
   currentSpeechKey = "";
   lastCallbacks = {};
 }
 
 export function isSpeaking() {
-  return isSpeechSupported() ? window.speechSynthesis.speaking : false;
+  const synth = getSpeechSynthesisInstance();
+  return synth ? synth.speaking : false;
 }
 
 export function isPaused() {
-  return isSpeechSupported() ? window.speechSynthesis.paused : false;
+  const synth = getSpeechSynthesisInstance();
+  return synth ? synth.paused : false;
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }

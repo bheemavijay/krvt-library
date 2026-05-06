@@ -54,6 +54,66 @@ export async function addNovel(novel: StoredNovelRecord) {
   return saveOrUpdateNovel(novel);
 }
 
+export async function saveNovelsBatch(novels: StoredNovelRecord[]) {
+  if (!Array.isArray(novels) || novels.length === 0) {
+    return 0;
+  }
+
+  const existingNovels = await getAllNovels();
+  const mergedById = new Map(existingNovels.map((novel) => [novel.id, novel] as const));
+
+  for (const novel of novels) {
+    const normalizedIncoming = normalizeNovelRecord(novel);
+    const existingNovel = mergedById.get(normalizedIncoming.id) ?? null;
+    const mergedNovel = existingNovel
+      ? buildMergedNovelRecord(existingNovel, novel)
+      : normalizeNovelRecord({
+          ...novel,
+          ...normalizedIncoming,
+          sourceUrl: normalizedIncoming.sourceUrl,
+        });
+    const mergedNovelId = String(mergedNovel.id ?? normalizedIncoming.id);
+    const mergedNovelRecord = normalizeNovelRecord({
+      ...mergedNovel,
+      id: mergedNovelId,
+    });
+
+    mergedById.set(mergedNovelId, mergedNovelRecord);
+  }
+
+  const db = await openDB();
+  const tx = db.transaction(STORE, "readwrite");
+  const store = tx.objectStore(STORE);
+
+  return new Promise<number>((resolve, reject) => {
+    const values = Array.from(mergedById.values());
+    let index = 0;
+
+    const writeNext = () => {
+      if (index >= values.length) {
+        notifyLibraryUpdated();
+        resolve(novels.length);
+        return;
+      }
+
+      const record = values[index] as StoredNovelRecord;
+      const normalizedNovel = normalizeNovelRecord(record) as Novel & {
+        lastChapterIndex?: number;
+      };
+      normalizedNovel.lastChapterIndex = Math.max(0, normalizedNovel.chapters.length - 1);
+
+      const req = store.put(normalizedNovel);
+      req.onsuccess = () => {
+        index += 1;
+        writeNext();
+      };
+      req.onerror = () => reject(req.error);
+    };
+
+    writeNext();
+  });
+}
+
 async function putNovelRecord(novel: StoredNovelRecord) {
   const db = await openDB();
   const tx = db.transaction(STORE, "readwrite");
@@ -190,35 +250,7 @@ export async function saveOrUpdateNovel(newNovel: StoredNovelRecord) {
     return normalizedIncoming;
   }
 
-  const mergedChapters = mergeChapters(
-    existingNovel.chapters as StoredNovelRecord["chapters"],
-    newNovel.chapters as StoredNovelRecord["chapters"],
-  );
-
-  const mergedNovel: StoredNovelRecord = {
-    ...existingNovel,
-    ...newNovel,
-    id: existingNovel.id,
-    title: pickPreferredValue(newNovel.title, existingNovel.title),
-    author: pickPreferredValue(newNovel.author, existingNovel.author),
-    sourceUrl: pickPreferredValue(newNovel.sourceUrl, existingNovel.sourceUrl),
-    image: pickPreferredValue(newNovel.image, existingNovel.image),
-    alternative: pickPreferredValue(newNovel.alternative, existingNovel.alternative),
-    description: pickPreferredValue(newNovel.description, existingNovel.description),
-    status: pickPreferredValue(newNovel.status, existingNovel.status),
-    genres: pickPreferredValue(newNovel.genres, existingNovel.genres),
-    tags: pickPreferredValue(newNovel.tags, existingNovel.tags),
-    rating:
-      typeof newNovel.rating === "number"
-        ? newNovel.rating
-        : typeof existingNovel.rating === "number"
-        ? existingNovel.rating
-        : undefined,
-    isCompleted: Boolean(newNovel.isCompleted ?? existingNovel.isCompleted),
-    lastUpdated: new Date().toISOString(),
-    chapters: mergedChapters,
-    lastChapterIndex: Math.max(0, mergedChapters.length - 1),
-  };
+  const mergedNovel = buildMergedNovelRecord(existingNovel, newNovel);
 
   await putNovelRecord(mergedNovel);
   return normalizeNovelRecord(mergedNovel);
@@ -376,4 +408,36 @@ export async function getBookmarks(novelId: string): Promise<Bookmark[]> {
       resolve([]);
     }
   });
+}
+
+function buildMergedNovelRecord(existingNovel: Novel, newNovel: StoredNovelRecord): StoredNovelRecord {
+  const mergedChapters = mergeChapters(
+    existingNovel.chapters as StoredNovelRecord["chapters"],
+    newNovel.chapters as StoredNovelRecord["chapters"],
+  );
+
+  return {
+    ...existingNovel,
+    ...newNovel,
+    id: existingNovel.id,
+    title: pickPreferredValue(newNovel.title, existingNovel.title),
+    author: pickPreferredValue(newNovel.author, existingNovel.author),
+    sourceUrl: pickPreferredValue(newNovel.sourceUrl, existingNovel.sourceUrl),
+    image: pickPreferredValue(newNovel.image, existingNovel.image),
+    alternative: pickPreferredValue(newNovel.alternative, existingNovel.alternative),
+    description: pickPreferredValue(newNovel.description, existingNovel.description),
+    status: pickPreferredValue(newNovel.status, existingNovel.status),
+    genres: pickPreferredValue(newNovel.genres, existingNovel.genres),
+    tags: pickPreferredValue(newNovel.tags, existingNovel.tags),
+    rating:
+      typeof newNovel.rating === "number"
+        ? newNovel.rating
+        : typeof existingNovel.rating === "number"
+          ? existingNovel.rating
+          : undefined,
+    isCompleted: Boolean(newNovel.isCompleted ?? existingNovel.isCompleted),
+    lastUpdated: new Date().toISOString(),
+    chapters: mergedChapters,
+    lastChapterIndex: Math.max(0, mergedChapters.length - 1),
+  };
 }

@@ -290,7 +290,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
 
   const handleToggleTts = async () => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      setStatusMessage("TTS is not supported on this device.");
+      setStatusMessage("Text-to-speech could not start.");
       return;
     }
 
@@ -420,26 +420,13 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
         className={cn("min-h-screen", settings.showBottomNav ? "pb-20" : "pb-8")}
         style={{ backgroundColor: settings.backgroundColor, color: settings.textColor }}
       >
-        {settings.showTopNav ? (
-          <div className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0c10]/88 backdrop-blur-xl">
-            <div className="flex items-center justify-between gap-3 px-4 py-3">
-              <Link
-                href={`/novel?id=${novel.id}`}
-                className="inline-flex h-10 items-center justify-center rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white/80 transition hover:bg-white/10 hover:text-white"
-              >
-                Back
-              </Link>
-              <p className="text-sm font-medium text-white/75">
-                {chapterIndex + 1} / {totalChapters} ({progressPercent}%)
-              </p>
-            </div>
-          </div>
-        ) : null}
-
         <div className="w-full px-3 py-6 sm:px-4 sm:py-8">
           <ReaderControls
             novel={novel}
             chapterIndex={chapterIndex}
+            totalChapters={totalChapters}
+            progressPercent={progressPercent}
+            showProgress={settings.showTopNav}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onToggleTts={handleToggleTts}
             onBookmark={handleBookmarkToggle}
@@ -537,28 +524,46 @@ function applyTermReplacements(content: string[], replacements: ReplacementRule[
         continue;
       }
 
-      const flags = rule.caseSensitive ? "g" : "gi";
       try {
-        result = result.replace(new RegExp(rule.find, flags), rule.replace || "");
+        result = result.replace(createReplacementRegex(rule), rule.replace || "");
       } catch {
-        if (rule.caseSensitive) {
-          result = result.split(rule.find).join(rule.replace || "");
-        } else {
-          const lowerFind = rule.find.toLowerCase();
-          let nextValue = result;
-          let index = nextValue.toLowerCase().indexOf(lowerFind);
-          while (index !== -1) {
-            nextValue =
-              nextValue.slice(0, index) +
-              (rule.replace || "") +
-              nextValue.slice(index + rule.find.length);
-            index = nextValue.toLowerCase().indexOf(lowerFind, index + (rule.replace || "").length);
-          }
-          result = nextValue;
-        }
+        result = replaceWithoutRegex(result, rule);
       }
     }
 
     return result;
   });
+}
+
+function createReplacementRegex(rule: ReplacementRule) {
+  const baseFlags = rule.caseSensitive ? "g" : "gi";
+  if (!rule.isRegex) {
+    return new RegExp(escapeRegex(rule.find), baseFlags);
+  }
+
+  return new RegExp(rule.find, baseFlags);
+}
+
+function replaceWithoutRegex(value: string, rule: ReplacementRule) {
+  if (rule.caseSensitive) {
+    return value.split(rule.find).join(rule.replace || "");
+  }
+
+  const lowerFind = rule.find.toLowerCase();
+  let nextValue = value;
+  let index = nextValue.toLowerCase().indexOf(lowerFind);
+
+  while (index !== -1) {
+    nextValue =
+      nextValue.slice(0, index) +
+      (rule.replace || "") +
+      nextValue.slice(index + rule.find.length);
+    index = nextValue.toLowerCase().indexOf(lowerFind, index + (rule.replace || "").length);
+  }
+
+  return nextValue;
+}
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

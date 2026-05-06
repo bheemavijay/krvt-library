@@ -7,6 +7,9 @@ import { Bookmark, Info, Volume2, Settings, List } from "lucide-react";
 type ReaderControlsProps = {
   novel: { id: string; title: string; chapters: Array<unknown> };
   chapterIndex: number;
+  totalChapters: number;
+  progressPercent: number;
+  showProgress?: boolean;
   onOpenSettings: () => void;
   onToggleTts?: () => void;
   onBookmark?: () => void;
@@ -47,6 +50,10 @@ const IconBtn = ({
 
 export default function ReaderControls({
   novel,
+  chapterIndex,
+  totalChapters,
+  progressPercent,
+  showProgress = true,
   onOpenSettings,
   onToggleTts,
   onBookmark,
@@ -60,12 +67,16 @@ export default function ReaderControls({
   const isTtsActive = ttsState === "playing" || ttsState === "paused";
 
   return (
-    <div className="sticky top-0 z-40">
+    <div className="sticky top-14 z-40 sm:top-16">
       <div className="w-full">
+        <div className="w-full rounded-xl border border-white/10 bg-[#0b0c10]/80 px-2 py-2 shadow-lg shadow-black/30 backdrop-blur-xl sm:px-6 sm:py-3">
+          {showProgress ? (
+            <div className="mb-2 flex items-center justify-center text-xs font-medium text-white/60">
+              Chapter {chapterIndex + 1} of {totalChapters} ({progressPercent}%)
+            </div>
+          ) : null}
 
-        <div className="flex w-full items-center justify-between gap-2 border-t border-white/10 bg-[#0b0c10]/80 px-2 sm:px-8 py-2 sm:py-3 backdrop-blur-xl shadow-lg shadow-black/30 overflow-x-auto no-scrollbar">
-
-          <div className="flex items-center gap-2 w-full justify-between">
+          <div className="flex w-full items-center justify-between gap-2 overflow-x-auto no-scrollbar">
             {/* LEFT */}
             <button
               onClick={onPrev}

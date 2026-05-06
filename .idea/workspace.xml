@@ -4,41 +4,34 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b17fc1dc-ac9a-491d-abb8-def7b5b914a1" name="Changes" comment="prepare frontend for vercel deployment">
+    <list default="true" id="b17fc1dc-ac9a-491d-abb8-def7b5b914a1" name="Changes" comment="fixing ui and ux">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/android/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/android/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/android/app/capacitor.build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/capacitor.build.gradle" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/android/capacitor.settings.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/android/capacitor.settings.gradle" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/globals.css" beforeDir="false" afterPath="$PROJECT_DIR$/app/globals.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/novel/[id]/[chapter]/page.tsx" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/novel/[id]/page.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/src/main/res/mipmap-hdpi/ic_launcher.png" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/src/main/res/mipmap-hdpi/ic_launcher.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/src/main/res/mipmap-mdpi/ic_launcher.png" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/src/main/res/mipmap-mdpi/ic_launcher.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/src/main/res/values/ic_launcher_background.xml" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/src/main/res/values/ic_launcher_background.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/app/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/page.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/capacitor.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/capacitor.config.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/continue-reading-card.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/continue-reading-card.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/components/import-box.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/import-box.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/components/layout/site-shell.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/layout/site-shell.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/novel-card.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/novel-card.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/novel-grid.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/novel-grid.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/novel/novel-page-client.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/novel/novel-page-client.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/components/reader/reader-controls.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/reader/reader-controls.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/components/reader/reader-page-client.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/reader/reader-page-client.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/components/reader/settings-modal.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/reader/settings-modal.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/components/settings/settings-modal.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/settings/settings-modal.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/eslint.config.mjs" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/db.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/server/db.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/import-api.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/import-api.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/import/importer.ts" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/import/parsers/mvlempyr-parser.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/import/parsers/mvlempyr-parser.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/novels.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/novels.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/reader-storage.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/reader-storage.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/settings.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/settings.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/storage/backup.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/storage/backup.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/storage/indexeddb.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/storage/indexeddb.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/lib/tts.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/tts.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/utils.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/utils.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/next.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/next.config.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tailwind.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/tailwind.config.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/types/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/types/index.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -170,7 +163,15 @@
       <option name="project" value="LOCAL" />
       <updated>1777815260702</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="fixing ui and ux">
+      <option name="closed" value="true" />
+      <created>1778066622181</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1778066622181</updated>
+    </task>
+    <option name="localTasksCounter" value="10" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -205,7 +206,8 @@
     <MESSAGE value="feat: fixing bug for apk implemendation" />
     <MESSAGE value="chore: clean repo and apply gitignore" />
     <MESSAGE value="prepare frontend for vercel deployment" />
-    <option name="LAST_COMMIT_MESSAGE" value="prepare frontend for vercel deployment" />
+    <MESSAGE value="fixing ui and ux" />
+    <option name="LAST_COMMIT_MESSAGE" value="fixing ui and ux" />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>

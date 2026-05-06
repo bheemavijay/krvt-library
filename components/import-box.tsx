@@ -42,6 +42,12 @@ type PreviewState = {
   chapters: number;
 };
 
+type NetworkInformation = {
+  type?: string;
+  effectiveType?: string;
+  saveData?: boolean;
+};
+
 export function ImportBox() {
   const [url, setUrl] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -62,6 +68,17 @@ export function ImportBox() {
         isError: true,
       });
       return;
+    }
+
+    const network = getNetworkInformation();
+    if (network && shouldWarnForMeteredConnection(network)) {
+      const continueImport = window.confirm(
+        "You appear to be on mobile data or a metered connection. Large downloads work best on Wi-Fi. Continue anyway?",
+      );
+      if (!continueImport) {
+        setMessage({ text: "Download cancelled. Connect to Wi-Fi and try again.", isError: true });
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -180,7 +197,11 @@ export function ImportBox() {
               : typeof meta?.rating === "number"
               ? meta.rating
               : currentNovel?.rating,
-          description: data.description ?? meta?.description ?? currentNovel?.description,
+          description: pickDescription(
+            data.description,
+            meta?.description,
+            currentNovel?.description,
+          ),
           lastUpdated: new Date().toISOString(),
           isCompleted:
             currentNovel?.isCompleted ||
@@ -248,7 +269,7 @@ export function ImportBox() {
         tags: data?.tags || currentNovel?.tags,
         status: data?.status || currentNovel?.status,
         rating: typeof data?.rating === "number" ? data.rating : currentNovel?.rating,
-        description: data?.description || currentNovel?.description,
+        description: pickDescription(data?.description, currentNovel?.description),
         lastUpdated: new Date().toISOString(),
         isCompleted:
           currentNovel?.isCompleted || /\b(completed|complete|full)\b/i.test(data?.status ?? ""),
@@ -324,5 +345,44 @@ export function ImportBox() {
         </p>
       )}
     </div>
+  );
+}
+
+function pickDescription(...values: Array<string | undefined>) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return "No description available";
+}
+
+function getNetworkInformation(): NetworkInformation | null {
+  if (typeof navigator === "undefined") {
+    return null;
+  }
+
+  return (
+    (navigator as Navigator & {
+      connection?: NetworkInformation;
+      mozConnection?: NetworkInformation;
+      webkitConnection?: NetworkInformation;
+    }).connection ??
+    (navigator as Navigator & { mozConnection?: NetworkInformation }).mozConnection ??
+    (navigator as Navigator & { webkitConnection?: NetworkInformation }).webkitConnection ??
+    null
+  );
+}
+
+function shouldWarnForMeteredConnection(network: NetworkInformation) {
+  const type = network.type?.toLowerCase() ?? "";
+  const effectiveType = network.effectiveType?.toLowerCase() ?? "";
+
+  return (
+    network.saveData === true ||
+    type === "cellular" ||
+    effectiveType === "2g" ||
+    effectiveType === "3g"
   );
 }

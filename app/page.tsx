@@ -34,6 +34,11 @@ function toNovelSummary(n: Novel): NovelSummary {
 
 type LibrarySort = "lastImported" | "lastRead" | "chapterCount";
 type ChapterFilter = "all" | "short" | "medium" | "long";
+type NetworkInformation = {
+  type?: string;
+  effectiveType?: string;
+  saveData?: boolean;
+};
 
 function getLastReadAt(novelId: string) {
   return getReadingState().progressByNovel[novelId]?.updatedAt ?? "";
@@ -54,6 +59,45 @@ function formatRelativeDate(value?: string) {
     day: "numeric",
     year: "numeric",
   }).format(new Date(timestamp));
+}
+
+function pickDescription(...values: Array<string | undefined>) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return "No description available";
+}
+
+function getNetworkInformation(): NetworkInformation | null {
+  if (typeof navigator === "undefined") {
+    return null;
+  }
+
+  return (
+    (navigator as Navigator & {
+      connection?: NetworkInformation;
+      mozConnection?: NetworkInformation;
+      webkitConnection?: NetworkInformation;
+    }).connection ??
+    (navigator as Navigator & { mozConnection?: NetworkInformation }).mozConnection ??
+    (navigator as Navigator & { webkitConnection?: NetworkInformation }).webkitConnection ??
+    null
+  );
+}
+
+function shouldWarnForMeteredConnection(network: NetworkInformation) {
+  const type = network.type?.toLowerCase() ?? "";
+  const effectiveType = network.effectiveType?.toLowerCase() ?? "";
+
+  return (
+    network.saveData === true ||
+    type === "cellular" ||
+    effectiveType === "2g" ||
+    effectiveType === "3g"
+  );
 }
 
 function matchesChapterFilter(novel: Novel, filter: ChapterFilter) {
@@ -85,6 +129,13 @@ function HomePageClient() {
   const [librarySort, setLibrarySort] = useState<LibrarySort>("lastImported");
   const [chapterFilter, setChapterFilter] = useState<ChapterFilter>("all");
   const [libraryPage, setLibraryPage] = useState(1);
+  const [backupImportProgress, setBackupImportProgress] = useState<{
+    processedNovels: number;
+    processedBytes: number;
+    totalBytes: number;
+    failedNovels: string[];
+  } | null>(null);
+  const [backupImportFailures, setBackupImportFailures] = useState<string[]>([]);
 
   const searchQuery = searchParams.get("q") ?? "";
   const view = searchParams.get("view") ?? "home";
@@ -192,11 +243,29 @@ function HomePageClient() {
     if (!file) return;
 
     try {
-      const count = await importLibrary(file);
-      setBackupMessage(`Imported ${count} novels`);
+      setBackupImportFailures([]);
+      setBackupImportProgress({
+        processedNovels: 0,
+        processedBytes: 0,
+        totalBytes: file.size,
+        failedNovels: [],
+      });
+      setBackupMessage("Importing backup...");
+      const result = await importLibrary(file, {
+        onProgress: (progress) => setBackupImportProgress(progress),
+      });
+      setBackupImportFailures(result.failedNovels);
+      setBackupMessage(
+        result.failedNovels.length > 0
+          ? `Imported ${result.importedCount} novels. ${result.failedNovels.length} failed.`
+          : `Imported ${result.importedCount} novels`,
+      );
       setNovels(await getAllNovels());
-    } catch {
-      setBackupMessage("Import failed");
+    } catch (error) {
+      setBackupMessage(error instanceof Error ? error.message : "Import failed");
+    } finally {
+      setBackupImportProgress(null);
+      e.target.value = "";
     }
   };
 
@@ -218,6 +287,17 @@ function HomePageClient() {
     if (!/^https?:/i.test(novel.sourceUrl)) {
       setBackupMessage("Update failed: source URL missing");
       return;
+    }
+
+    const network = getNetworkInformation();
+    if (network && shouldWarnForMeteredConnection(network)) {
+      const shouldContinue = window.confirm(
+        "This update may use mobile data. Connect to Wi-Fi for large downloads, or continue anyway.",
+      );
+      if (!shouldContinue) {
+        setBackupMessage("Update cancelled. Connect to Wi-Fi and try again.");
+        return;
+      }
     }
 
     try {
@@ -328,7 +408,7 @@ if (!response.ok) {
         tags: Array.isArray(latestMeta?.tags) ? latestMeta.tags : novel.tags,
         status: latestMeta?.status || novel.status,
         rating: typeof latestMeta?.rating === "number" ? latestMeta.rating : novel.rating,
-        description: latestMeta?.description || novel.description,
+        description: pickDescription(latestMeta?.description, novel.description),
         isCompleted:
           novel.isCompleted || /\b(completed|complete|full)\b/i.test(latestMeta?.status ?? ""),
         lastUpdated: new Date().toISOString(),
@@ -421,6 +501,31 @@ if (!response.ok) {
           </div>
 
           {backupMessage && <p className="mt-3 text-sm text-[#d4b16a]">{backupMessage}</p>}
+          {backupImportProgress ? (
+            <div className="mt-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75">
+              <p>
+                Imported {backupImportProgress.processedNovels} novels
+                {backupImportProgress.totalBytes > 0
+                  ? ` • ${Math.min(
+                      100,
+                      Math.round(
+                        (backupImportProgress.processedBytes / backupImportProgress.totalBytes) * 100,
+                      ),
+                    )}%`
+                  : ""}
+              </p>
+              {backupImportProgress.failedNovels.length > 0 ? (
+                <p className="mt-1 text-red-300">
+                  Failed so far: {backupImportProgress.failedNovels.join(", ")}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {backupImportFailures.length > 0 ? (
+            <div className="mt-3 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+              Failed novels: {backupImportFailures.join(", ")}
+            </div>
+          ) : null}
         </section>
 
         <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6 shadow-xl backdrop-blur-sm">

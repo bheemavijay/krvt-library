@@ -20,6 +20,8 @@ const COLOR_PRESETS = [
   { label: "Paper", text: "#212121", bg: "#FAFAFA" },
   { label: "Ocean", text: "#B3D9FF", bg: "#0a1628" },
   { label: "Forest", text: "#C8E6C9", bg: "#0d1f0e" },
+  { label: "Royal", text: "#F6E7C8", bg: "#221616" },
+  { label: "Slate", text: "#E6EDF7", bg: "#121A26" },
 ] as const;
 
 const FONT_OPTIONS = [
@@ -34,12 +36,6 @@ const FONT_OPTIONS = [
 
 const LINE_HEIGHT_OPTIONS = [1.2, 1.5, 1.8, 2.0, 2.2] as const;
 const FONT_SIZES = [14, 16, 18, 20, 22, 24, 28, 32] as const;
-const MAX_WIDTH_OPTIONS = [
-  { label: "Compact", value: 600 },
-  { label: "Default", value: 720 },
-  { label: "Wide", value: 860 },
-  { label: "Full", value: 1000 },
-] as const;
 const TTS_RATES = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0] as const;
 const TTS_PITCHES = [0.75, 1.0, 1.25, 1.5] as const;
 
@@ -106,7 +102,7 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
     update({
       replacements: [
         ...settings.replacements,
-        { find: "", replace: "", caseSensitive: false },
+        { find: "", replace: "", caseSensitive: false, isRegex: false },
       ],
     });
   };
@@ -189,6 +185,19 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
               }))}
             />
 
+            <div className="grid grid-cols-2 gap-3">
+              <ColorInput
+                label="Text color"
+                value={settings.textColor}
+                onChange={(value) => update({ textColor: value })}
+              />
+              <ColorInput
+                label="Background"
+                value={settings.backgroundColor}
+                onChange={(value) => update({ backgroundColor: value })}
+              />
+            </div>
+
             <ChoiceGroup
               label={`Line height - ${settings.lineHeight}`}
               options={LINE_HEIGHT_OPTIONS.map((lineHeight) => ({
@@ -221,20 +230,9 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
               ))}
             </div>
 
-            <Select
-              value={settings.contentMaxWidth}
-              onChange={(value) => update({ contentMaxWidth: Number(value) })}
-            >
-              {MAX_WIDTH_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value} className="bg-[#111319]">
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-
             <div className="space-y-2">
               <ToggleRow
-                label="Show top header"
+                label="Show chapter progress"
                 checked={settings.showTopNav}
                 onChange={(value) => update({ showTopNav: value })}
               />
@@ -262,22 +260,18 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
               />
             </div>
 
-            <Select
-              value={settings.tts.voiceURI}
-              onChange={(value) => update({ tts: { ...settings.tts, voiceURI: value } })}
-            >
-              {voices.length === 0 ? (
-                <option value="" className="bg-[#111319]">
-                  No voices available
-                </option>
-              ) : (
-                voices.map((voice) => (
+            {voices.length > 0 ? (
+              <Select
+                value={settings.tts.voiceURI}
+                onChange={(value) => update({ tts: { ...settings.tts, voiceURI: value } })}
+              >
+                {voices.map((voice) => (
                   <option key={voice.voiceURI} value={voice.voiceURI} className="bg-[#111319]">
                     {voice.name} ({voice.lang})
                   </option>
-                ))
-              )}
-            </Select>
+                ))}
+              </Select>
+            ) : null}
 
             <Select
               value={settings.tts.rate}
@@ -341,17 +335,30 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
                     className="w-full rounded-lg border border-white/10 bg-[#111319] px-3 py-2.5 text-sm text-white outline-none focus:border-white/20"
                   />
                   <div className="flex items-center justify-between gap-4">
-                    <label className="flex items-center gap-2 text-sm text-white/65">
-                      <input
-                        type="checkbox"
-                        checked={rule.caseSensitive}
-                        onChange={(event) =>
-                          updateReplacement(index, { caseSensitive: event.target.checked })
-                        }
-                        className="h-4 w-4 accent-[#d4b16a]"
-                      />
-                      Case sensitive
-                    </label>
+                    <div className="flex flex-wrap items-center gap-4">
+                      <label className="flex items-center gap-2 text-sm text-white/65">
+                        <input
+                          type="checkbox"
+                          checked={rule.caseSensitive}
+                          onChange={(event) =>
+                            updateReplacement(index, { caseSensitive: event.target.checked })
+                          }
+                          className="h-4 w-4 accent-[#d4b16a]"
+                        />
+                        Case sensitive
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-white/65">
+                        <input
+                          type="checkbox"
+                          checked={rule.isRegex}
+                          onChange={(event) =>
+                            updateReplacement(index, { isRegex: event.target.checked })
+                          }
+                          className="h-4 w-4 accent-[#d4b16a]"
+                        />
+                        Regex
+                      </label>
+                    </div>
                     <button
                       type="button"
                       onClick={() => removeReplacement(index)}
@@ -431,6 +438,31 @@ function ChoiceGroup({
         ))}
       </div>
     </div>
+  );
+}
+
+function ColorInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="space-y-2">
+      <span className="block text-xs text-white/40">{label}</span>
+      <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-[#111319] px-3 py-2.5">
+        <input
+          type="color"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="h-8 w-8 rounded border border-white/10 bg-transparent"
+        />
+        <span className="text-sm text-white/80">{value}</span>
+      </div>
+    </label>
   );
 }
 

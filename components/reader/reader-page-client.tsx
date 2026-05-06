@@ -3,18 +3,27 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 
 import ReaderControls from "@/components/reader/reader-controls";
-import { BottomNav } from "@/components/reader/bottom-nav";
 import { SettingsModal } from "@/components/reader/settings-modal";
 import { saveChapterScrollPosition, saveNovelReadingProgress } from "@/lib/reader-storage";
-import { saveSettings, useReaderSettings, type ReaderSettings } from "@/lib/settings";
-import { isChapterBookmarked, removeNovelBookmark, saveNovelBookmark, subscribeToBookmarks } from "@/lib/storage/bookmarks";
+import {
+  getDefaultReaderSettings,
+  saveSettings,
+  useReaderSettings,
+  type ReplacementRule,
+} from "@/lib/settings";
+import {
+  isChapterBookmarked,
+  removeNovelBookmark,
+  saveNovelBookmark,
+  subscribeToBookmarks,
+} from "@/lib/storage/bookmarks";
 import { getNovel } from "@/lib/storage/indexeddb";
-import { isPaused, isSpeaking, pause, resume, speak, stop } from "@/lib/tts";
+import { isPaused, isSpeaking, pause, resume, speak } from "@/lib/tts";
 import { cn } from "@/lib/utils";
 import type { Novel } from "@/types";
-import type { CSSProperties } from "react";
 
 type Props = {
   novelId: string;
@@ -22,27 +31,8 @@ type Props = {
 };
 
 export function ReaderPageClient({ novelId, chapterParam }: Props) {
-  const settings = useReaderSettings();
-  const safeSettings = settings ?? {
-    fontSize: 18,
-    lineHeight: 1.8,
-    fontFamily: "Georgia",
-    textColor: "#FFFFFF",
-    backgroundColor: "#16151d",
-    textAlign: "left",
-    contentMaxWidth: 720,
-    showNovelName: true,
-    showChapterName: true,
-    showTopNav: true,
-    showBottomNav: true,
-    showFooter: true,
-    tts: {
-      voiceURI: "",
-      rate: 1,
-      pitch: 1,
-    },
-  };
   const router = useRouter();
+  const settings = useReaderSettings() ?? getDefaultReaderSettings();
   const [novel, setNovel] = useState<Novel | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -51,163 +41,183 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   const [ttsState, setTtsState] = useState<"idle" | "playing" | "paused">("idle");
   const [statusMessage, setStatusMessage] = useState("");
   const [bookmarked, setBookmarked] = useState(false);
-  const [autoNextEnabled, setAutoNextEnabled] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try { return window.localStorage.getItem("krvt-reader-auto-next") === "1"; } catch { return false; }
-  });
-  const [autoPlayTtsEnabled, setAutoPlayTtsEnabled] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try { return window.localStorage.getItem("krvt-reader-auto-play-tts") === "1"; } catch { return false; }
-  });
 
-  const activeChapterRef = useRef<HTMLAnchorElement | null>(null);
   const longPressTimeoutRef = useRef<number | null>(null);
+  const activeChapterRef = useRef<HTMLAnchorElement | null>(null);
 
-  const progressKey = `progress_${novelId}`;
-  const autoNextKey = "krvt-reader-auto-next";
-  const autoPlayKey = "krvt-reader-auto-play-tts";
+  const safeNovelId = decodeURIComponent(novelId).trim();
   const parsedChapterIndex = Number(chapterParam) - 1;
   const requestedChapterIndex =
     Number.isNaN(parsedChapterIndex) || parsedChapterIndex < 0 ? 0 : parsedChapterIndex;
+  const progressKey = `progress_${safeNovelId}`;
 
-  // ── Data loading ──────────────────────────────────────────────────────────
   useEffect(() => {
-    let isCancelled = false;
-    async function load() {
-      const data = await getNovel(novelId);
-      if (!isCancelled) {
-        setNovel(data);
-        setLoading(false);
-        window.setTimeout(() => {
-          try {
-            const saved = window.localStorage.getItem(progressKey);
-            if (!saved) return;
-            const parsed = JSON.parse(saved) as { chapterIndex?: number; scrollY?: number };
-            if (parsed.chapterIndex === requestedChapterIndex) {
-              window.scrollTo({ top: parsed.scrollY || 0, behavior: "auto" });
-            }
-          } catch { /* ignore */ }
-        }, 100);
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const nextNovel = await getNovel(safeNovelId);
+        if (!cancelled) {
+          setNovel(nextNovel);
+          setLoading(false);
+        }
+      } catch (e) {
+        console.error("Failed to load novel:", e);
+        if (!cancelled) {
+          setNovel(null);
+          setLoading(false);
+        }
       }
-    }
-    load();
-    return () => { isCancelled = true; };
-  }, [novelId, progressKey, requestedChapterIndex]);
+      if (cancelled) {
+        return;
+      }
 
-  useEffect(() => { return () => stop(); }, []);
+      window.setTimeout(() => {
+        try {
+          const saved = window.localStorage.getItem(progressKey);
+          if (!saved) {
+            return;
+          }
 
-  useEffect(() => {
-    try { window.localStorage.setItem(autoNextKey, autoNextEnabled ? "1" : "0"); } catch { /* ignore */ }
-  }, [autoNextEnabled]);
+          const parsed = JSON.parse(saved) as { chapterIndex?: number; scrollY?: number };
+          if (parsed.chapterIndex === requestedChapterIndex) {
+            window.scrollTo({ top: parsed.scrollY || 0, behavior: "auto" });
+          }
+        } catch {
+          // Ignore corrupted scroll progress.
+        }
+      }, 80);
+    };
 
-  useEffect(() => {
-    try { window.localStorage.setItem(autoPlayKey, autoPlayTtsEnabled ? "1" : "0"); } catch { /* ignore */ }
-  }, [autoPlayTtsEnabled]);
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [progressKey, requestedChapterIndex, safeNovelId]);
 
   useEffect(() => {
     let timeout: number | null = null;
-    function handleScroll() {
-      if (timeout !== null) clearTimeout(timeout);
+
+    const handleScroll = () => {
+      if (timeout !== null) {
+        clearTimeout(timeout);
+      }
+
       timeout = window.setTimeout(() => {
         try {
-          window.localStorage.setItem(progressKey, JSON.stringify({ chapterIndex: requestedChapterIndex, scrollY: window.scrollY }));
-          saveChapterScrollPosition(novelId, requestedChapterIndex, window.scrollY);
-        } catch { /* ignore */ }
-      }, 300);
-    }
+          const payload = {
+            chapterIndex: requestedChapterIndex,
+            scrollY: window.scrollY,
+          };
+          window.localStorage.setItem(progressKey, JSON.stringify(payload));
+          saveChapterScrollPosition(safeNovelId, requestedChapterIndex, window.scrollY);
+        } catch {
+          // Ignore scroll persistence failures.
+        }
+      }, 250);
+    };
+
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => {
-      if (timeout) clearTimeout(timeout);
+      if (timeout !== null) {
+        clearTimeout(timeout);
+      }
       window.removeEventListener("scroll", handleScroll);
     };
-  }, [novelId, progressKey, requestedChapterIndex]);
+  }, [progressKey, requestedChapterIndex, safeNovelId]);
 
   useEffect(() => {
-    if (!novel) return;
-    function updateBookmarkState() {
-      setBookmarked(isChapterBookmarked(novel!.id, requestedChapterIndex));
+    if (!novel) {
+      return;
     }
-    updateBookmarkState();
-    return subscribeToBookmarks(updateBookmarkState);
+
+    const syncBookmarkState = () => {
+      setBookmarked(isChapterBookmarked(novel.id, requestedChapterIndex));
+    };
+
+    syncBookmarkState();
+    return subscribeToBookmarks(syncBookmarkState);
   }, [novel, requestedChapterIndex]);
 
-  const fontSize = settings?.fontSize ?? 18;
+  useEffect(() => {
+    if (!novel) {
+      return;
+    }
+
+    saveNovelReadingProgress(novel.id, requestedChapterIndex, settings.fontSize);
+  }, [novel, requestedChapterIndex, settings.fontSize]);
 
   useEffect(() => {
-    if (!novel) return;
+    if (!isChapterPanelOpen || !activeChapterRef.current) {
+      return;
+    }
 
-    saveNovelReadingProgress(
-      novel.id,
-      requestedChapterIndex,
-      fontSize
-    );
-  }, [novel, requestedChapterIndex, fontSize]);
-
-  useEffect(() => {
-    if (!isChapterPanelOpen || !activeChapterRef.current) return;
     activeChapterRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [isChapterPanelOpen, chapterSearch]);
+  }, [chapterSearch, isChapterPanelOpen]);
 
   useEffect(() => {
     return () => {
-      if (longPressTimeoutRef.current) clearTimeout(longPressTimeoutRef.current);
+      if (longPressTimeoutRef.current !== null) {
+        clearTimeout(longPressTimeoutRef.current);
+      }
     };
   }, []);
 
-  // ── Derived values ────────────────────────────────────────────────────────
   const chapterIndex = novel
-    ? Math.min(requestedChapterIndex, novel.chapters.length - 1)
+    ? Math.min(requestedChapterIndex, Math.max(0, novel.chapters.length - 1))
     : requestedChapterIndex;
   const chapter = novel?.chapters[chapterIndex];
-  const textAlign: CSSProperties["textAlign"] = safeSettings.textAlign as CSSProperties["textAlign"];
-  const contentMaxWidth = Number(safeSettings.contentMaxWidth);
-  const showNovelName = safeSettings.showNovelName;
-  const showChapterName = safeSettings.showChapterName;
-  const showTopNav = safeSettings.showTopNav;
-  const showBottomNav = safeSettings.showBottomNav;
-  const showFooter = safeSettings.showFooter;
+  const totalChapters = novel?.chapters.length ?? 0;
+  const progressPercent =
+    totalChapters > 0 ? Math.round(((chapterIndex + 1) / totalChapters) * 100) : 0;
+  const textAlign = settings.textAlign as CSSProperties["textAlign"];
 
-  const normalizedContent = useMemo(
-    () =>
-      chapter
-        ? Array.isArray(chapter.content)
-          ? chapter.content.filter(Boolean)
-          : String(chapter.content ?? "")
-              .split(/\n+/)
-              .map((line) => line.trim())
-              .filter(Boolean)
-        : [],
-    [chapter],
-  );
+  const normalizedContent = useMemo(() => {
+    if (!chapter) {
+      return [];
+    }
 
-  const previousHref = novel && chapterIndex > 0 ? `/novel/${novel.id}/${chapterIndex}` : undefined;
+    const content = Array.isArray(chapter.content)
+      ? chapter.content.filter(Boolean)
+      : String(chapter.content ?? "")
+          .split(/\n+/)
+          .map((line) => line.trim())
+          .filter(Boolean);
+
+    return applyTermReplacements(content, settings.replacements);
+  }, [chapter, settings.replacements]);
+
+  const previousHref =
+    novel && chapterIndex > 0 ? `/reader?id=${novel.id}&chapter=${chapterIndex}` : undefined;
   const nextHref =
     novel && chapterIndex < novel.chapters.length - 1
-      ? `/novel/${novel.id}/${chapterIndex + 2}`
+      ? `/reader?id=${novel.id}&chapter=${chapterIndex + 2}`
       : undefined;
 
-  const chapterSearchQuery = chapterSearch.trim().toLowerCase();
-  const filteredChapters = (novel?.chapters ?? [])
-    .map((item, index) => ({ item, index }))
-    .filter(({ item, index }) => {
-      if (!chapterSearchQuery) return true;
-      const chapterNumber = String(index + 1);
-      const title = item.title.toLowerCase();
-      return chapterNumber.includes(chapterSearchQuery) || title.includes(chapterSearchQuery);
-    });
+  const filteredChapters = useMemo(() => {
+    const query = chapterSearch.trim().toLowerCase();
+    return (novel?.chapters ?? [])
+      .map((item, index) => ({ item, index }))
+      .filter(({ item, index }) => {
+        if (!query) {
+          return true;
+        }
 
-  // ── TTS ───────────────────────────────────────────────────────────────────
+        return String(index + 1).includes(query) || item.title.toLowerCase().includes(query);
+      });
+  }, [chapterSearch, novel?.chapters]);
+
   const startTtsFromParagraph = useCallback(
     async (startIndex: number) => {
       const partialText = normalizedContent.slice(startIndex).join("\n\n");
-
-      const started = await speak(partialText, safeSettings, {
+      const started = await speak(partialText, settings, {
         onStart: () => {
           setTtsState("playing");
           setStatusMessage(
             startIndex === 0
               ? "Reading chapter aloud."
-              : `Reading from paragraph ${startIndex + 1}.`
+              : `Reading from paragraph ${startIndex + 1}.`,
           );
         },
         onPause: () => setTtsState("paused"),
@@ -216,8 +226,8 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
           setTtsState("idle");
           setStatusMessage("Text-to-speech finished.");
 
-          if (autoNextEnabled && nextHref) {
-            if (autoPlayTtsEnabled) {
+          if (settings.autoNext && nextHref) {
+            if (settings.autoPlayTts) {
               window.sessionStorage.setItem("krvt-reader-autoplay-tts", "1");
             }
             router.push(nextHref);
@@ -233,56 +243,71 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
         setTtsState("idle");
       }
     },
-    [autoNextEnabled, autoPlayTtsEnabled, nextHref, normalizedContent, router, safeSettings],
+    [nextHref, normalizedContent, router, settings],
   );
 
   useEffect(() => {
-    if (!autoPlayTtsEnabled || loading || !novel) return;
-    const shouldAutoPlay = window.sessionStorage.getItem("krvt-reader-autoplay-tts");
-    if (shouldAutoPlay !== "1") return;
-    window.sessionStorage.removeItem("krvt-reader-autoplay-tts");
-    const timeout = window.setTimeout(() => { void startTtsFromParagraph(0); }, 0);
-    return () => clearTimeout(timeout);
-  }, [autoPlayTtsEnabled, loading, novel, startTtsFromParagraph]);
+    if (loading || !novel || !settings.autoPlayTts) {
+      return;
+    }
 
-  // ── Early returns ─────────────────────────────────────────────────────────
+    let shouldAutoPlay = "";
+    try {
+      shouldAutoPlay = window.sessionStorage.getItem("krvt-reader-autoplay-tts") ?? "";
+    } catch (e) {
+      return;
+    }
+
+    if (shouldAutoPlay !== "1") {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      void startTtsFromParagraph(0);
+    }, 0);
+
+    return () => clearTimeout(timeout);
+  }, [loading, novel, settings.autoPlayTts, startTtsFromParagraph]);
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="space-y-2 text-center">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-white/40" />
-          <p className="text-sm text-white/40">Loading chapter…</p>
+          <p className="text-sm text-white/40">Loading chapter...</p>
         </div>
       </div>
     );
   }
-  if (!novel) return <p className="p-6 text-red-400">Novel not found.</p>;
-  if (!chapter) return <div className="p-6">Chapter not found.</div>;
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
+  if (!novel) {
+    return <p className="p-6 text-red-400">Novel not found.</p>;
+  }
+
+  if (!chapter) {
+    return <p className="p-6 text-red-400">Chapter not found.</p>;
+  }
+
   const handleToggleTts = async () => {
-    try {
-      if (!window.speechSynthesis) {
-        setStatusMessage("TTS not supported");
-        return;
-      }
-      if (isSpeaking()) {
-        if (isPaused()) {
-          resume();
-          setTtsState("playing");
-          setStatusMessage("Text-to-speech resumed.");
-        } else {
-          pause();
-          setTtsState("paused");
-          setStatusMessage("Text-to-speech paused.");
-        }
-        return;
-      }
-      await startTtsFromParagraph(0);
-    } catch (e) {
-      console.error(e);
-      setStatusMessage("TTS failed");
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      setStatusMessage("TTS is not supported on this device.");
+      return;
     }
+
+    if (isSpeaking()) {
+      if (isPaused()) {
+        resume();
+        setTtsState("playing");
+        setStatusMessage("Text-to-speech resumed.");
+      } else {
+        pause();
+        setTtsState("paused");
+        setStatusMessage("Text-to-speech paused.");
+      }
+      return;
+    }
+
+    await startTtsFromParagraph(0);
   };
 
   const handleBookmarkToggle = () => {
@@ -291,81 +316,58 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
       setStatusMessage(result.removed ? "Bookmark removed." : "Bookmark not found.");
       return;
     }
+
     const result = saveNovelBookmark(novel.id, chapterIndex, chapter.title);
     setStatusMessage(result.added ? "Chapter bookmarked." : "Already bookmarked.");
   };
 
-  const handleSettingsChange = (next: ReaderSettings) => saveSettings(next);
+  const handleParagraphPointerDown =
+    (index: number) => (_event: ReactPointerEvent<HTMLParagraphElement>) => {
+      if (longPressTimeoutRef.current !== null) {
+        clearTimeout(longPressTimeoutRef.current);
+      }
 
-  const navBtnCls = "inline-flex items-center justify-center gap-2 rounded-lg sm:rounded-xl border border-white/10 bg-white/5 px-4 sm:px-6 py-2 sm:py-3 text-sm font-medium text-white/70 transition-all duration-150 hover:border-white/20 hover:bg-white/8 hover:text-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-30";
+      longPressTimeoutRef.current = window.setTimeout(() => {
+        void startTtsFromParagraph(index);
+      }, 450);
+    };
+
+  const clearLongPress = () => {
+    if (longPressTimeoutRef.current !== null) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+  };
+
+  const navButtonClass =
+    "inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white/70 transition-all duration-150 hover:border-white/20 hover:bg-white/8 hover:text-white disabled:cursor-not-allowed disabled:opacity-30";
 
   return (
     <>
-      {/* ── Top header ─────────────────────────────────────────────────────── */}
-      {showTopNav && (
-        <header className="fixed inset-x-0 top-0 z-40 border-b border-white/10 backdrop-blur-xl h-[60px] sm:h-[90px]">
-          <div
-            className="absolute inset-0 bg-cover bg-center opacity-20 sm:opacity-30"
-            style={{ backgroundImage: "url('/logo.png')" }}
-          />
-          <div className="absolute inset-0 bg-black/90 sm:bg-black/85" />
-
-          <div className="relative flex h-full items-center px-2 sm:px-4 gap-2 sm:gap-4">
-            {/* LEFT LOGO */}
-            <Link href="/" className="flex-shrink-0">
-              <div className="flex items-center justify-center h-12 w-12 sm:h-16 sm:w-16 rounded-lg sm:rounded-xl bg-white/5 border border-white/10 shadow-sm sm:shadow-[0_0_25px_rgba(212,177,106,0.15)]">
-                <img
-                  src="/logo.png"
-                  className="h-8 w-8 sm:h-11 sm:w-11 object-contain"
-                  alt="logo"
-                />
-              </div>
-            </Link>
-
-            {/* CENTER TITLE */}
-            <div className="flex-1 text-center min-w-0">
-              <span className="text-xl sm:text-2xl font-semibold bg-gradient-to-r from-[#d4b16a] via-[#fff3d6] to-[#d4b16a] bg-clip-text text-transparent truncate inline-block">
-                KRVT Library
-              </span>
-            </div>
-
-            {/* RIGHT SEARCH - hidden on mobile */}
-            <div className="hidden sm:block flex-shrink-0 w-[260px]">
-              <input
-                placeholder="Search…"
-                className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/20"
-              />
-            </div>
-          </div>
-        </header>
-      )}
-
-      {/* ── Chapter panel backdrop ────────────────────────────────────────── */}
-      {isChapterPanelOpen && (
+      {isChapterPanelOpen ? (
         <button
           type="button"
           aria-label="Close chapter panel"
           onClick={() => setIsChapterPanelOpen(false)}
           className="fixed inset-0 z-40 bg-black/80 backdrop-blur-[2px]"
         />
-      )}
+      ) : null}
 
-      {/* ── Chapter panel ─────────────────────────────────────────────────── */}
       <aside
         className={cn(
-          "fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-white/8 bg-[#0d0f13]/98 shadow-lg sm:shadow-[-24px_0_60px_rgba(0,0,0,0.4)] transition-transform duration-300",
+          "fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col border-l border-white/8 bg-[#0d0f13]/98 shadow-lg transition-transform duration-300 sm:shadow-[-24px_0_60px_rgba(0,0,0,0.4)]",
           isChapterPanelOpen ? "translate-x-0" : "translate-x-full",
         )}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-white/8 px-3 sm:px-5 py-3 sm:py-4 gap-2">
+        <div className="flex items-center justify-between gap-3 border-b border-white/8 px-4 py-4">
           <div className="min-w-0">
-            <p className="text-[9px] sm:text-[10px] uppercase tracking-widest text-[#d4b16a]">Chapters</p>
-            <h2 className="text-base sm:text-lg font-semibold text-white truncate">{novel.title}</h2>
+            <p className="text-[10px] uppercase tracking-widest text-[#d4b16a]">Chapters</p>
+            <h2 className="truncate text-base font-semibold text-white">{novel.title}</h2>
           </div>
           <button
             type="button"
             onClick={() => setIsChapterPanelOpen(false)}
-            className="flex-shrink-0 flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 text-white/50 hover:text-white hover:bg-white/5"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 text-white/50 hover:bg-white/5 hover:text-white"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12" />
@@ -373,42 +375,39 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
           </button>
         </div>
 
-        <div className="shrink-0 px-3 sm:px-5 pt-3 sm:pt-4">
+        <div className="px-4 pt-4">
           <input
             type="search"
             value={chapterSearch}
-            onChange={(e) => setChapterSearch(e.target.value)}
-            placeholder="Search…"
-            className="w-full rounded-lg sm:rounded-xl border border-white/8 bg-white/4 px-3 sm:px-4 py-2 sm:py-2.5 text-sm text-white outline-none placeholder:text-white/30 focus:border-white/20"
+            onChange={(event) => setChapterSearch(event.target.value)}
+            placeholder="Search chapters"
+            className="w-full rounded-xl border border-white/8 bg-white/4 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/30 focus:border-white/20"
           />
         </div>
 
-        <div className="mt-3 sm:mt-4 min-h-0 flex-1 space-y-2 sm:space-y-3 overflow-y-auto px-3 sm:px-5 pb-6 pr-2 sm:pr-4">
-          {filteredChapters.map(({ item, index: resolvedIndex }) => {
-            const href = `/novel/${novel.id}/${resolvedIndex + 1}`;
-            const isActive = resolvedIndex === chapterIndex;
+        <div className="mt-4 flex-1 space-y-3 overflow-y-auto px-4 pb-6">
+          {filteredChapters.map(({ item, index }) => {
+            const href = `/reader?id=${novel.id}&chapter=${index + 1}`;
+            const isActive = index === chapterIndex;
 
             return (
               <Link
-                key={item.id ?? `${novel.id}-${resolvedIndex}`}
+                key={item.id ?? `${novel.id}-${index}`}
                 href={href}
                 ref={isActive ? activeChapterRef : undefined}
                 onClick={() => setIsChapterPanelOpen(false)}
                 className={cn(
-                  "flex items-center justify-between gap-2 rounded-lg sm:rounded-xl border px-3 sm:px-4 py-2.5 sm:py-3 transition-all duration-150 text-xs sm:text-sm",
+                  "flex items-center justify-between gap-3 rounded-xl border px-4 py-3 transition-all duration-150",
                   isActive
                     ? "border-[#d4b16a]/30 bg-[#d4b16a]/8 text-[#d4b16a]"
-                    : "border-white/6 bg-white/3 text-white/70 hover:border-white/12 hover:bg-white/6 hover:text-white"
+                    : "border-white/6 bg-white/3 text-white/70 hover:border-white/12 hover:bg-white/6 hover:text-white",
                 )}
               >
                 <div className="min-w-0">
-                  <p className="text-[11px] sm:text-[12px] uppercase tracking-wider opacity-60">
-                    Ch. {resolvedIndex + 1}
-                  </p>
+                  <p className="text-[11px] uppercase tracking-wider opacity-60">Ch. {index + 1}</p>
                   <p className="truncate font-medium">{item.title}</p>
                 </div>
-
-                <span className="shrink-0 text-[11px] sm:text-[12px] uppercase tracking-wider opacity-50">
+                <span className="shrink-0 text-[11px] uppercase tracking-wider opacity-50">
                   {isActive ? "Now" : "Go"}
                 </span>
               </Link>
@@ -417,138 +416,149 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
         </div>
       </aside>
 
-      {/* ── Main content ───────────────────────────────────────────────────── */}
       <main
-        className={cn("min-h-screen", showTopNav ? "pt-[60px] sm:pt-[90px]" : "pt-0", showBottomNav ? "pb-20" : "")}
-        style={{ backgroundColor: safeSettings.backgroundColor, color: safeSettings.textColor }}
+        className={cn("min-h-screen", settings.showBottomNav ? "pb-20" : "pb-8")}
+        style={{ backgroundColor: settings.backgroundColor, color: settings.textColor }}
       >
-
-
-          {/* ── Control bar ───────────────────────────────────────────────── */}
-          {showTopNav && (
-            <ReaderControls
-              novel={novel}
-              chapterIndex={chapterIndex}
-              onOpenSettings={() => setIsSettingsOpen(true)}
-              onToggleTts={handleToggleTts}
-              onBookmark={handleBookmarkToggle}
-              onOpenChapters={() => setIsChapterPanelOpen((v) => !v)}
-              isBookmarked={bookmarked}
-              isChapterPanelOpen={isChapterPanelOpen}
-              ttsState={ttsState}
-              onPrev={() => {
-                if (chapterIndex > 0) {
-                  router.push(`/novel/${novel.id}/${chapterIndex}`);
-                }
-              }}
-              onNext={() => {
-                if (chapterIndex < novel.chapters.length - 1) {
-                  router.push(`/novel/${novel.id}/${chapterIndex + 2}`);
-                }
-              }}
-            />
-          )}
-
-        <div className="w-full px-3 sm:px-8 lg:px-12 py-6 sm:py-8">
-
-          {/* ── Novel & Chapter headers ───────────────────────────────────── */}
-          <div className="mb-3 sm:mb-4 text-center space-y-2">
-            <h2 className="text-xl font-bold tracking-wide text-white/90 sm:text-2xl">
-              {novel.title}
-            </h2>
-
-            {showChapterName && (
-              <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
-                <span className="bg-gradient-to-b from-white to-white/70 bg-clip-text text-transparent">
-                  {chapter.title}
-                </span>
-              </h1>
-            )}
+        {settings.showTopNav ? (
+          <div className="sticky top-0 z-40 border-b border-white/10 bg-[#0b0c10]/88 backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-3 px-4 py-3">
+              <Link
+                href={`/novel?id=${novel.id}`}
+                className="inline-flex h-10 items-center justify-center rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white/80 transition hover:bg-white/10 hover:text-white"
+              >
+                Back
+              </Link>
+              <p className="text-sm font-medium text-white/75">
+                {chapterIndex + 1} / {totalChapters} ({progressPercent}%)
+              </p>
+            </div>
           </div>
+        ) : null}
 
-          {/* ── Status message ────────────────────────────────────────────── */}
-          {statusMessage && (
-            <div className="mb-6 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80">
+        <div className="w-full px-3 py-6 sm:px-4 sm:py-8">
+          <ReaderControls
+            novel={novel}
+            chapterIndex={chapterIndex}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+            onToggleTts={handleToggleTts}
+            onBookmark={handleBookmarkToggle}
+            onOpenChapters={() => setIsChapterPanelOpen((current) => !current)}
+            isBookmarked={bookmarked}
+            isChapterPanelOpen={isChapterPanelOpen}
+            ttsState={ttsState}
+            onPrev={() => previousHref && router.push(previousHref)}
+            onNext={() => nextHref && router.push(nextHref)}
+          />
+
+          {statusMessage ? (
+            <div className="mb-5 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80">
               {statusMessage}
             </div>
-          )}
+          ) : null}
 
-          {/* ── Reading content ───────────────────────────────────────────── */}
           <article
+            className="w-full rounded-lg border border-white/10 bg-black/20 px-4 py-6"
             onDoubleClick={() => setIsSettingsOpen(true)}
             style={{
-              fontSize: `${safeSettings.fontSize}px`,
-              lineHeight: safeSettings.lineHeight,
-              fontFamily: safeSettings.fontFamily,
+              color: settings.textColor,
+              fontSize: `${settings.fontSize}px`,
+              lineHeight: settings.lineHeight,
+              fontFamily: settings.fontFamily,
               textAlign,
             }}
           >
-            <div className="w-full px-4 sm:px-6 transition-all duration-200">
-              {normalizedContent.map((line, index) => (
-                <p
-                  key={`${chapter.id}-${index}`}
-                  className="mb-5 sm:mb-6"
-                  style={{ color: safeSettings.textColor, opacity: 0.9 }}
-                  onPointerDown={() => {
-                    if (longPressTimeoutRef.current) clearTimeout(longPressTimeoutRef.current);
-                    longPressTimeoutRef.current = window.setTimeout(() => {
-                      void startTtsFromParagraph(index);
-                    }, 450);
-                  }}
-                  onPointerUp={() => {
-                    if (longPressTimeoutRef.current) {
-                      clearTimeout(longPressTimeoutRef.current);
-                      longPressTimeoutRef.current = null;
-                    }
-                  }}
-                  onPointerLeave={() => {
-                    if (longPressTimeoutRef.current) {
-                      clearTimeout(longPressTimeoutRef.current);
-                      longPressTimeoutRef.current = null;
-                    }
-                  }}
-                >
-                  {line}
-                </p>
-              ))}
-            </div>
+            {normalizedContent.map((line, index) => (
+              <p
+                key={`${chapter.id}-${index}`}
+                className="mb-6"
+                style={{ opacity: 0.92 }}
+                onPointerDown={handleParagraphPointerDown(index)}
+                onPointerUp={clearLongPress}
+                onPointerLeave={clearLongPress}
+                onPointerCancel={clearLongPress}
+              >
+                {line}
+              </p>
+            ))}
           </article>
 
-          {/* ── End-of-chapter navigation ─────────────────────────────────── */}
-          <div className="mt-12 sm:mt-16 w-full">
-            <div className="mb-4 sm:mb-6 border-t border-white/8" />
-            <div className="flex items-center justify-between gap-3 sm:gap-4">
-              {previousHref ? (
-                <Link href={previousHref} className={navBtnCls}>
-                  Previous
-                </Link>
-              ) : (
-                <button type="button" disabled className={navBtnCls}>
-                  Previous
-                </button>
-              )}
+          {settings.showFooter ? (
+            <div className="mt-12">
+              <div className="mb-6 border-t border-white/8" />
+              <div className="flex items-center justify-between gap-3">
+                {previousHref ? (
+                  <Link href={previousHref} className={navButtonClass}>
+                    Previous
+                  </Link>
+                ) : (
+                  <button type="button" disabled className={navButtonClass}>
+                    Previous
+                  </button>
+                )}
 
-              {nextHref ? (
-                <Link href={nextHref} className={navBtnCls}>
-                  Next
-                </Link>
-              ) : (
-                <button type="button" disabled className={navBtnCls}>
-                  Next
-                </button>
-              )}
+                {nextHref ? (
+                  <Link href={nextHref} className={navButtonClass}>
+                    Next
+                  </Link>
+                ) : (
+                  <button type="button" disabled className={navButtonClass}>
+                    Next
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
       </main>
-      {/* ── Settings modal ────────────────────────────────────────────────── */}
+
       <SettingsModal
         isOpen={isSettingsOpen}
-        settings={safeSettings}
+        settings={settings}
         onClose={() => setIsSettingsOpen(false)}
-        onChange={handleSettingsChange}
+        onChange={(next) => saveSettings(next)}
       />
     </>
   );
 }
 
+function applyTermReplacements(content: string[], replacements: ReplacementRule[]) {
+  return content.map((line) => {
+    let result = line
+      .replace(/&quot;/gi, '"')
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&#39;/gi, "'")
+      .replace(/\s{2,}/g, " ")
+      .replace(/\(To be continued.*?\)/gi, "")
+      .trim();
+
+    for (const rule of replacements) {
+      if (!rule.find) {
+        continue;
+      }
+
+      const flags = rule.caseSensitive ? "g" : "gi";
+      try {
+        result = result.replace(new RegExp(rule.find, flags), rule.replace || "");
+      } catch {
+        if (rule.caseSensitive) {
+          result = result.split(rule.find).join(rule.replace || "");
+        } else {
+          const lowerFind = rule.find.toLowerCase();
+          let nextValue = result;
+          let index = nextValue.toLowerCase().indexOf(lowerFind);
+          while (index !== -1) {
+            nextValue =
+              nextValue.slice(0, index) +
+              (rule.replace || "") +
+              nextValue.slice(index + rule.find.length);
+            index = nextValue.toLowerCase().indexOf(lowerFind, index + (rule.replace || "").length);
+          }
+          result = nextValue;
+        }
+      }
+    }
+
+    return result;
+  });
+}

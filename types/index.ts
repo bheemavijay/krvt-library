@@ -34,7 +34,10 @@ export type Novel = {
   chapters: Chapter[];
 };
 
-export type NovelSummary = Pick<Novel, "id" | "title" | "author"> & {
+export type NovelSummary = Pick<
+  Novel,
+  "id" | "title" | "author" | "isCompleted" | "status" | "image" | "description"
+> & {
   chapterCount: number;
 };
 
@@ -58,13 +61,22 @@ export type ReaderTheme = "dark" | "light" | "sepia";
 
 export type ReaderLineHeight = 1.6 | 1.8 | 1.9 | 2;
 
+export type TTSSettings = {
+  voiceURI: string;
+  rate: number;
+  pitch: number;
+};
+
 export type LibraryReadingState = {
   fontFamily: ReaderFontFamily;
   fontSize: number;
   lineHeight: ReaderLineHeight;
   theme: ReaderTheme;
+
   lastOpenedNovelId: string | null;
   progressByNovel: Record<string, NovelReadingProgress>;
+
+  tts: TTSSettings; // ✅ ADD THIS
 };
 
 export type AppAccentColor = "gold" | "purple" | "crimson";

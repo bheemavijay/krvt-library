@@ -14,6 +14,7 @@ type SpeakCallbacks = {
 
 let utterance: SpeechSynthesisUtterance | null = null;
 let lastCallbacks: SpeakCallbacks = {};
+let currentSpeechKey = "";
 
 function isSpeechSupported() {
   return typeof window !== "undefined" && "speechSynthesis" in window;
@@ -101,13 +102,30 @@ export async function speak(
 
   const content = Array.isArray(text) ? text.join("\n\n") : text;
   const normalizedText = content.trim();
+  const speechKey = JSON.stringify({
+    text: normalizedText,
+    voiceURI: settings.tts.voiceURI,
+    rate: settings.tts.rate,
+    pitch: settings.tts.pitch,
+  });
 
   if (!normalizedText) {
     callbacks.onError?.("There is no chapter text available to read.");
     return false;
   }
 
-  stop();
+  if (utterance && currentSpeechKey === speechKey) {
+    lastCallbacks = callbacks;
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
+    return true;
+  }
+
+  if (utterance) {
+    window.speechSynthesis.cancel();
+    utterance = null;
+  }
 
   const voices = await loadVoices();
   const synth = window.speechSynthesis;
@@ -129,11 +147,13 @@ export async function speak(
   nextUtterance.onresume = () => callbacks.onResume?.();
   nextUtterance.onend = () => {
     utterance = null;
+    currentSpeechKey = "";
     lastCallbacks = {};
     callbacks.onEnd?.();
   };
   nextUtterance.onerror = (event) => {
     utterance = null;
+    currentSpeechKey = "";
     lastCallbacks = {};
 
     if (event.error !== "interrupted" && event.error !== "canceled") {
@@ -142,6 +162,7 @@ export async function speak(
   };
 
   utterance = nextUtterance;
+  currentSpeechKey = speechKey;
   lastCallbacks = callbacks;
   synth.speak(nextUtterance);
 
@@ -153,7 +174,9 @@ export function pause() {
     return;
   }
 
-  window.speechSynthesis.pause();
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.pause();
+  }
   lastCallbacks.onPause?.();
 }
 
@@ -162,7 +185,9 @@ export function resume() {
     return;
   }
 
-  window.speechSynthesis.resume();
+  if (window.speechSynthesis.paused) {
+    window.speechSynthesis.resume();
+  }
   lastCallbacks.onResume?.();
 }
 
@@ -173,11 +198,12 @@ export function stop() {
 
   window.speechSynthesis.cancel();
   utterance = null;
+  currentSpeechKey = "";
   lastCallbacks = {};
 }
 
 export function isSpeaking() {
-  return isSpeechSupported() ? window.speechSynthesis.speaking || utterance !== null : false;
+  return isSpeechSupported() ? window.speechSynthesis.speaking : false;
 }
 
 export function isPaused() {

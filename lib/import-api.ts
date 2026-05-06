@@ -1,18 +1,14 @@
-const FALLBACK_IMPORT_API_URL = "https://YOUR_BACKEND_URL/api/import";
-
-function normalizeConfiguredApiUrl(value: string) {
-  const trimmed = value.trim().replace(/\/+$/, "");
-  return trimmed.endsWith("/api/import") ? trimmed : `${trimmed}/api/import`;
-}
-
-export function getImportApiUrl() {
+export function getImportApiUrl(): string {
   const configuredUrl = process.env.NEXT_PUBLIC_IMPORT_API_URL;
 
-  if (!configuredUrl?.trim()) {
-    return FALLBACK_IMPORT_API_URL;
+  if (configuredUrl?.trim()) {
+    const url = configuredUrl.trim().replace(/\/+$/, "");
+    return url.includes("/api/import") ? url : `${url}/api/import`;
   }
 
-  const url = configuredUrl.trim().replace(/\/+$/, "");
+  if (typeof window !== "undefined" && window.location.protocol === "file:") {
+    return "";
+  }
 
-  return url.includes("/api/import") ? url : `${url}/api/import`;
+  return "/api/import";
 }

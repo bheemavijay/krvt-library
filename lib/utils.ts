@@ -14,7 +14,12 @@ export function clampChapterIndex(index: number, chapterCount: number) {
 }
 
 export function getReadingProgress(currentChapter: number, totalChapters: number) {
-  return `Chapter ${currentChapter} of ${totalChapters}`;
+  if (totalChapters <= 0) {
+    return "0%";
+  }
+
+  const progress = Math.round((Math.min(currentChapter, totalChapters) / totalChapters) * 100);
+  return `${progress}%`;
 }
 
 export function isBrowser() {

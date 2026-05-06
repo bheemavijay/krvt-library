@@ -56,7 +56,7 @@ export function parseNovelDetails(html: string): MvlempyrNovelDetails {
   return {
     title,
     author,
-    description,
+    description: description || "No description available",
     tags,
     coverImage,
   };

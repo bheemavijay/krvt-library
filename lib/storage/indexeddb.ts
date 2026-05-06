@@ -23,7 +23,12 @@ type StoredChapterRecord = NonNullable<StoredNovelRecord["chapters"]>[number];
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 2); // Increased version for new store
+    if (typeof window === "undefined" || !("indexedDB" in window)) {
+      reject(new Error("IndexedDB not supported"));
+      return;
+    }
+
+    const req = indexedDB.open(DB_NAME, 2);
 
     req.onupgradeneeded = () => {
       const db = req.result;

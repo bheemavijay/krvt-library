@@ -192,7 +192,10 @@ export function normalizeNovelRecord(input: NovelInput): Novel {
     status: typeof input.status === "string" ? input.status.trim() : "",
     rating: Number.isFinite(rating) && rating > 0 ? rating : undefined,
     tags,
-    description: typeof input.description === "string" ? input.description.trim() : "",
+    description:
+      typeof input.description === "string" && input.description.trim()
+        ? input.description.trim()
+        : "No description available",
     chapters: mergeNovelChapters(id, [], input.chapters ?? []),
   };
 }

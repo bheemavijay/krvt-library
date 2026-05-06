@@ -70,6 +70,11 @@ export function ImportBox() {
     await enableWakeLock();
 
     try {
+      const importApiUrl = getImportApiUrl();
+      if (!importApiUrl) {
+        throw new Error("Import API is not available in this mobile build. Set NEXT_PUBLIC_IMPORT_API_URL before building the APK.");
+      }
+
       const normalizedUrl = normalizeImportUrl(url);
       const normalizedUrlKey = normalizeNovelUrlKey(normalizedUrl);
       const storedNovels = await getAllNovels();
@@ -107,7 +112,7 @@ export function ImportBox() {
         });
         const chapterCount = currentNovel?.chapters?.length ?? 0;
 
-        const response = await fetch(getImportApiUrl(), {
+        const response = await fetch(importApiUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

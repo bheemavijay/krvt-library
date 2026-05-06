@@ -4,9 +4,41 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="b17fc1dc-ac9a-491d-abb8-def7b5b914a1" name="Changes" comment="chore: clean repo and apply gitignore">
+    <list default="true" id="b17fc1dc-ac9a-491d-abb8-def7b5b914a1" name="Changes" comment="prepare frontend for vercel deployment">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/android/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/app/capacitor.build.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/android/app/capacitor.build.gradle" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/android/capacitor.settings.gradle" beforeDir="false" afterPath="$PROJECT_DIR$/android/capacitor.settings.gradle" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/globals.css" beforeDir="false" afterPath="$PROJECT_DIR$/app/globals.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/novel/[id]/[chapter]/page.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/novel/[id]/page.tsx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/page.tsx" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/capacitor.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/capacitor.config.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/continue-reading-card.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/continue-reading-card.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/import-box.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/import-box.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/layout/site-shell.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/layout/site-shell.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/novel-card.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/novel-card.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/novel-grid.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/novel-grid.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/novel/novel-page-client.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/novel/novel-page-client.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/reader/reader-controls.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/reader/reader-controls.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/reader/reader-page-client.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/reader/reader-page-client.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/reader/settings-modal.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/reader/settings-modal.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/settings/settings-modal.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/settings/settings-modal.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/eslint.config.mjs" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/db.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/server/db.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/import-api.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/import-api.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/import/importer.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/import/parsers/mvlempyr-parser.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/import/parsers/mvlempyr-parser.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/novels.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/novels.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/reader-storage.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/reader-storage.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/settings.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/settings.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/storage/indexeddb.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/storage/indexeddb.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/tts.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/tts.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/utils.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/utils.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/next.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/next.config.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tailwind.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/tailwind.config.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/types/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/types/index.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -40,27 +72,28 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "main",
-    "junie.onboarding.icon.badge.shown": "true",
-    "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "C:/practice/krvt-library",
-    "settings.editor.selected.configurable": "preferences.pluginManager",
-    "to.speed.mode.migration.done": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/practice/krvt-library&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\practice\krvt-library\public" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="C:\practice\krvt-library\lib\server" />
       <recent name="C:\practice\krvt-library\lib" />
       <recent name="C:\practice\krvt-library\lib\import" />
     </key>
@@ -129,7 +162,15 @@
       <option name="project" value="LOCAL" />
       <updated>1777780788577</updated>
     </task>
-    <option name="localTasksCounter" value="8" />
+    <task id="LOCAL-00008" summary="prepare frontend for vercel deployment">
+      <option name="closed" value="true" />
+      <created>1777815260702</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1777815260702</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -163,7 +204,8 @@
     <MESSAGE value="feat: normalize data model, fix resume logic, fix image handling, add dashboard and delete feature" />
     <MESSAGE value="feat: fixing bug for apk implemendation" />
     <MESSAGE value="chore: clean repo and apply gitignore" />
-    <option name="LAST_COMMIT_MESSAGE" value="chore: clean repo and apply gitignore" />
+    <MESSAGE value="prepare frontend for vercel deployment" />
+    <option name="LAST_COMMIT_MESSAGE" value="prepare frontend for vercel deployment" />
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>

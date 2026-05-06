@@ -8,12 +8,18 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        royal: {
-          purple: "#6C3BAA",
-          gold: "#D4AF37",
-          black: "#0B0B0F",
-          crimson: "#DC143C",
-        },
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+
+        muted: "hsl(var(--muted))",
+        "muted-foreground": "hsl(var(--muted-foreground))",
+
+        accent: "hsl(var(--accent))",
+        "accent-foreground": "hsl(var(--accent-foreground))",
+
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
       },
     },
   },

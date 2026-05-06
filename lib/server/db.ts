@@ -1,3 +1,4 @@
+"use server";
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -49,6 +50,9 @@ export async function getNovels(): Promise<NovelSummary[]> {
     }
 
     const index = await getNovelIndex();
+
+    if (!index) return [];
+
     const summaries = Array.from(index.values())
       .map((entry) => entry.summary)
       .sort((left, right) => left.title.localeCompare(right.title));
@@ -190,6 +194,9 @@ export async function upsertChapter(
 
 export async function getNovelSummaryById(id: string): Promise<NovelSummary | null> {
   const index = await getNovelIndex();
+
+  if (!index) return null;
+
   return index.get(id)?.summary ?? null;
 }
 
@@ -227,6 +234,12 @@ async function loadNovelIndexFromDisk() {
             title: meta.title ?? humanizeNovelId(novelId),
             author: meta.author ?? getFallbackAuthor(novelId),
             chapterCount: chapterNumbers.length,
+
+            // ✅ ADD THESE
+            image: "",
+            isCompleted: false,
+            status: "unknown",
+            description: meta.description ?? "",
           } satisfies NovelSummary,
           chapterNumbers,
         } satisfies IndexedNovelRecord,

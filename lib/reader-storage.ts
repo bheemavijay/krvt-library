@@ -10,6 +10,7 @@ import { isBrowser } from "@/lib/utils";
 
 const STORAGE_KEY = "krvt-library-reading-state";
 const STORAGE_EVENT = "krvt-library-reading-state-change";
+
 export const DEFAULT_FONT_FAMILY: ReaderFontFamily = "Times New Roman";
 export const DEFAULT_FONT_SIZE = 18;
 export const DEFAULT_LINE_HEIGHT: ReaderLineHeight = 1.9;
@@ -22,10 +23,19 @@ const defaultState: LibraryReadingState = {
   theme: DEFAULT_READER_THEME,
   lastOpenedNovelId: null,
   progressByNovel: {},
+  tts: {
+    voiceURI: "",
+    rate: 1,
+    pitch: 1,
+  },
 };
 
 let cachedState: LibraryReadingState = defaultState;
 let cachedStorageValue: string | null = null;
+
+// ─────────────────────────────────────────────────────────────
+// STATE GETTERS
+// ─────────────────────────────────────────────────────────────
 
 export function getReadingState(): LibraryReadingState {
   if (!isBrowser()) {
@@ -39,7 +49,13 @@ export function getReadingState(): LibraryReadingState {
   }
 
   cachedStorageValue = storedValue;
-  cachedState = normalizeReadingState(storedValue);
+  try {
+    cachedState = normalizeReadingState(storedValue);
+  } catch (e) {
+    console.error("Reading state corrupted, resetting:", e);
+    window.localStorage.removeItem(STORAGE_KEY); // 🔥 critical fix
+    cachedState = defaultState;
+  }
 
   return cachedState;
 }
@@ -72,6 +88,10 @@ export function subscribeToReadingState(onStoreChange: () => void) {
   };
 }
 
+// ─────────────────────────────────────────────────────────────
+// PROGRESS
+// ─────────────────────────────────────────────────────────────
+
 export function getNovelReadingProgress(
   novelId: string,
 ): NovelReadingProgress | undefined {
@@ -83,9 +103,7 @@ export function saveNovelReadingProgress(
   chapterIndex: number,
   fontSize: number,
 ) {
-  if (!isBrowser()) {
-    return;
-  }
+  if (!isBrowser()) return;
 
   const currentState = getReadingState();
   const currentProgress = currentState.progressByNovel[novelId];
@@ -125,12 +143,11 @@ export function saveChapterScrollPosition(
   chapterIndex: number,
   scrollTop: number,
 ) {
-  if (!isBrowser()) {
-    return;
-  }
+  if (!isBrowser()) return;
 
   const currentState = getReadingState();
   const currentProgress = currentState.progressByNovel[novelId];
+
   const chapterKey = String(chapterIndex);
   const normalizedScrollTop = Math.max(0, Math.round(scrollTop));
   const currentScrollTop = currentProgress?.chapterScrollPositions?.[chapterKey];
@@ -166,36 +183,56 @@ export function saveChapterScrollPosition(
   persistReadingState(nextState);
 }
 
+// ─────────────────────────────────────────────────────────────
+// SETTINGS (FIXED)
+// ─────────────────────────────────────────────────────────────
+
 export function saveReaderSettings(settings: {
   fontFamily?: ReaderFontFamily;
   fontSize?: number;
   lineHeight?: ReaderLineHeight;
   theme?: ReaderTheme;
+  tts?: {
+    voiceURI?: string;
+    rate?: number;
+    pitch?: number;
+  };
 }) {
-  if (!isBrowser()) {
-    return;
-  }
+  if (!isBrowser()) return;
 
   const currentState = getReadingState();
+
   const nextState: LibraryReadingState = {
     ...currentState,
     fontFamily: settings.fontFamily ?? currentState.fontFamily,
     fontSize: settings.fontSize ?? currentState.fontSize,
     lineHeight: settings.lineHeight ?? currentState.lineHeight,
     theme: settings.theme ?? currentState.theme,
+
+    // ✅ FIX: proper TTS merge
+    tts: {
+      ...currentState.tts,
+      ...(settings.tts || {}),
+    },
   };
 
+  // ✅ FIX: include TTS in comparison
   if (
     nextState.fontFamily === currentState.fontFamily &&
     nextState.fontSize === currentState.fontSize &&
     nextState.lineHeight === currentState.lineHeight &&
-    nextState.theme === currentState.theme
+    nextState.theme === currentState.theme &&
+    JSON.stringify(nextState.tts) === JSON.stringify(currentState.tts)
   ) {
     return;
   }
 
   persistReadingState(nextState);
 }
+
+// ─────────────────────────────────────────────────────────────
+// NORMALIZATION (FIXED)
+// ─────────────────────────────────────────────────────────────
 
 function normalizeReadingState(
   storedValue: string | null,
@@ -206,6 +243,7 @@ function normalizeReadingState(
 
   try {
     const parsedValue = JSON.parse(storedValue) as Partial<LibraryReadingState>;
+
     const progressByNovel =
       parsedValue.progressByNovel && typeof parsedValue.progressByNovel === "object"
         ? normalizeProgressByNovel(parsedValue.progressByNovel)
@@ -215,20 +253,42 @@ function normalizeReadingState(
       fontFamily: isValidFontFamily(parsedValue.fontFamily)
         ? parsedValue.fontFamily
         : DEFAULT_FONT_FAMILY,
+
       fontSize:
-        typeof parsedValue.fontSize === "number" ? parsedValue.fontSize : DEFAULT_FONT_SIZE,
+        typeof parsedValue.fontSize === "number"
+          ? parsedValue.fontSize
+          : DEFAULT_FONT_SIZE,
+
       lineHeight: isValidLineHeight(parsedValue.lineHeight)
         ? parsedValue.lineHeight
         : DEFAULT_LINE_HEIGHT,
-      theme: isValidTheme(parsedValue.theme) ? parsedValue.theme : DEFAULT_READER_THEME,
+
+      theme: isValidTheme(parsedValue.theme)
+        ? parsedValue.theme
+        : DEFAULT_READER_THEME,
+
       lastOpenedNovelId:
-        typeof parsedValue.lastOpenedNovelId === "string" ? parsedValue.lastOpenedNovelId : null,
+        typeof parsedValue.lastOpenedNovelId === "string"
+          ? parsedValue.lastOpenedNovelId
+          : null,
+
       progressByNovel,
+
+      // ✅ FIX: normalize TTS
+      tts: {
+        voiceURI: parsedValue.tts?.voiceURI ?? "",
+        rate: parsedValue.tts?.rate ?? 1,
+        pitch: parsedValue.tts?.pitch ?? 1,
+      },
     };
   } catch {
     return defaultState;
   }
 }
+
+// ─────────────────────────────────────────────────────────────
+// STORAGE
+// ─────────────────────────────────────────────────────────────
 
 function persistReadingState(nextState: LibraryReadingState) {
   cachedState = nextState;
@@ -236,6 +296,10 @@ function persistReadingState(nextState: LibraryReadingState) {
   window.localStorage.setItem(STORAGE_KEY, cachedStorageValue);
   window.dispatchEvent(new Event(STORAGE_EVENT));
 }
+
+// ─────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────
 
 function normalizeProgressByNovel(
   progressByNovel: LibraryReadingState["progressByNovel"],
@@ -260,7 +324,11 @@ function isValidTheme(value: unknown): value is ReaderTheme {
 }
 
 function isValidFontFamily(value: unknown): value is ReaderFontFamily {
-  return value === "Times New Roman" || value === "Georgia" || value === "Iowan Old Style";
+  return (
+    value === "Times New Roman" ||
+    value === "Georgia" ||
+    value === "Iowan Old Style"
+  );
 }
 
 function isValidLineHeight(value: unknown): value is ReaderLineHeight {

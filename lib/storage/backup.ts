@@ -1,5 +1,6 @@
 "use client";
 
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { addNovel, getNovel, getNovelSummaries } from "@/lib/storage/indexeddb";
 import type { Novel } from "@/types";
 
@@ -23,12 +24,33 @@ type ImportLibraryResult = {
   failedNovels: string[];
 };
 
-export async function exportLibrary() {
+type ExportLibraryOptions = {
+  onProgress?: (progress: {
+    processedNovels: number;
+    totalNovels: number;
+    writtenBytes: number;
+  }) => void;
+};
+
+type FilesystemPlugin = {
+  writeFile(options: {
+    path: string;
+    data: string;
+    directory?: string;
+    recursive?: boolean;
+  }): Promise<{ uri: string }>;
+};
+
+const Filesystem = registerPlugin<FilesystemPlugin>("Filesystem");
+const DIRECTORY_DOCUMENTS = "DOCUMENTS";
+
+export async function exportLibrary(options: ExportLibraryOptions = {}) {
   const summaries = await getNovelSummaries();
   const parts: BlobPart[] = [
     `{\n  "version": 1,\n  "exportedAt": ${JSON.stringify(new Date().toISOString())},\n  "novels": [\n`,
   ];
   let writtenNovels = 0;
+  let writtenBytes = String(parts[0]).length;
 
   for (let index = 0; index < summaries.length; index += 1) {
     const novel = await getNovel(summaries[index].id);
@@ -36,24 +58,60 @@ export async function exportLibrary() {
       continue;
     }
 
-    parts.push(`${writtenNovels > 0 ? ",\n" : ""}${JSON.stringify(novel)}`);
+    const serializedNovel = `${writtenNovels > 0 ? ",\n" : ""}${JSON.stringify(novel)}`;
+    parts.push(serializedNovel);
     writtenNovels += 1;
+    writtenBytes += serializedNovel.length;
+    options.onProgress?.({
+      processedNovels: writtenNovels,
+      totalNovels: summaries.length,
+      writtenBytes,
+    });
     await yieldToUi();
   }
 
   parts.push("\n  ]\n}");
+  writtenBytes += 6;
 
   const blob = new Blob(parts, { type: "application/json" });
+  const fileName = `krvt-library-backup-${new Date().toISOString().slice(0, 10)}.json`;
+
+  if (typeof window !== "undefined" && Capacitor.isNativePlatform()) {
+    const data = await blobToBase64(blob);
+    const result = await Filesystem.writeFile({
+      path: fileName,
+      data,
+      directory: DIRECTORY_DOCUMENTS,
+      recursive: true,
+    });
+
+    return {
+      fileName,
+      platform: "android" as const,
+      uri: result.uri,
+      novelCount: writtenNovels,
+    };
+  }
+
   const url = window.URL.createObjectURL(blob);
   const anchor = document.createElement("a");
 
   anchor.href = url;
-  anchor.download = `krvt-library-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  anchor.download = fileName;
+  anchor.rel = "noopener";
+  document.body.appendChild(anchor);
   anchor.click();
+  anchor.remove();
 
   window.setTimeout(() => {
     window.URL.revokeObjectURL(url);
   }, 1000);
+
+  return {
+    fileName,
+    platform: "web" as const,
+    novelCount: writtenNovels,
+  };
 }
 
 export async function importLibrary(
@@ -283,4 +341,16 @@ function getNovelLabel(novel: Partial<Novel> | undefined, fallbackIndex: number)
 
 function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function blobToBase64(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result ?? "");
+      resolve(result.includes(",") ? result.split(",")[1] : result);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
 }

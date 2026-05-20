@@ -11,7 +11,9 @@ import {
   Settings,
   SkipBack,
   SkipForward,
+  TextSelect,
   Volume2,
+  Wand2,
 } from "lucide-react";
 
 type ReaderControlsProps = {
@@ -28,8 +30,14 @@ type ReaderControlsProps = {
   onToggleTts?: () => void;
   onBookmark?: () => void;
   onOpenChapters?: () => void;
+  onToggleAutoScroll?: () => void;
+  onToggleHighlight?: () => void;
+  onToggleAutoNext?: () => void;
   isBookmarked?: boolean;
   isChapterPanelOpen?: boolean;
+  autoScroll?: boolean;
+  paragraphHighlight?: boolean;
+  autoNext?: boolean;
   ttsState?: "idle" | "playing" | "paused";
   onPrev?: () => void;
   onNext?: () => void;
@@ -76,8 +84,14 @@ export default function ReaderControls({
   onToggleTts,
   onBookmark,
   onOpenChapters,
+  onToggleAutoScroll,
+  onToggleHighlight,
+  onToggleAutoNext,
   isBookmarked = false,
   isChapterPanelOpen = false,
+  autoScroll = true,
+  paragraphHighlight = true,
+  autoNext = false,
   ttsState = "idle",
   onPrev,
   onNext,
@@ -176,9 +190,50 @@ export default function ReaderControls({
             </button>
           </div>
 
+          <div className="mt-2 grid grid-cols-3 gap-1.5 border-t border-white/8 pt-2">
+            <TogglePill active={autoScroll} label="Auto scroll" onClick={onToggleAutoScroll}>
+              <Wand2 size={14} />
+            </TogglePill>
+            <TogglePill active={paragraphHighlight} label="Highlight" onClick={onToggleHighlight}>
+              <TextSelect size={14} />
+            </TogglePill>
+            <TogglePill active={autoNext} label="Auto next" onClick={onToggleAutoNext}>
+              <SkipForward size={14} />
+            </TogglePill>
+          </div>
+
         </div>
       </div>
     </div>
+  );
+}
+
+function TogglePill({
+  active,
+  label,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  label: string;
+  onClick?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border px-2 text-[11px] font-medium transition",
+        active
+          ? "border-[#d4b16a]/35 bg-[#d4b16a]/12 text-[#f0d99a]"
+          : "border-white/8 bg-white/[0.03] text-white/45 hover:bg-white/[0.07] hover:text-white/70",
+      )}
+    >
+      {children}
+      <span className="truncate">{label}</span>
+    </button>
   );
 }
 

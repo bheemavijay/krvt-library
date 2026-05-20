@@ -251,7 +251,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   }, [normalizedContent.length]);
 
   useEffect(() => {
-    if (ttsState !== "playing" || currentParagraphIndex === null) {
+    if (!settings.autoScroll || ttsState !== "playing" || currentParagraphIndex === null) {
       return;
     }
 
@@ -259,7 +259,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
       block: "center",
       behavior: "smooth",
     });
-  }, [currentParagraphIndex, ttsState]);
+  }, [currentParagraphIndex, settings.autoScroll, ttsState]);
 
   useEffect(() => {
     ttsSessionRef.current.cancel();
@@ -292,11 +292,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
             return;
           }
           setTtsState("playing");
-          setStatusMessage(
-            paragraphIndex === 0
-              ? "Reading chapter aloud."
-              : `Reading from paragraph ${paragraphIndex + 1}.`,
-          );
+          setStatusMessage("Reading aloud.");
         },
         onPause: () => setTtsState("paused"),
         onResume: () => setTtsState("playing"),
@@ -385,6 +381,42 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
 
     return () => clearTimeout(timeout);
   }, [loading, novel, settings.autoPlayTts, startTtsFromParagraph]);
+
+  useEffect(() => {
+    if (isSettingsOpen || isChapterPanelOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName?.toLowerCase();
+      if (
+        tagName === "input" ||
+        tagName === "textarea" ||
+        tagName === "select" ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        window.scrollBy({ top: -Math.round(window.innerHeight * 0.72), behavior: "smooth" });
+      } else if (event.key === "ArrowDown") {
+        event.preventDefault();
+        window.scrollBy({ top: Math.round(window.innerHeight * 0.72), behavior: "smooth" });
+      } else if (event.key === "ArrowLeft" && previousHref) {
+        event.preventDefault();
+        router.push(previousHref);
+      } else if (event.key === "ArrowRight" && nextHref) {
+        event.preventDefault();
+        router.push(nextHref);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isChapterPanelOpen, isSettingsOpen, nextHref, previousHref, router]);
 
   if (loading) {
     return (
@@ -563,8 +595,16 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
             onToggleTts={handleToggleTts}
             onBookmark={handleBookmarkToggle}
             onOpenChapters={() => setIsChapterPanelOpen((current) => !current)}
+            onToggleAutoScroll={() => saveSettings({ autoScroll: !settings.autoScroll })}
+            onToggleHighlight={() =>
+              saveSettings({ paragraphHighlight: !settings.paragraphHighlight })
+            }
+            onToggleAutoNext={() => saveSettings({ autoNext: !settings.autoNext })}
             isBookmarked={bookmarked}
             isChapterPanelOpen={isChapterPanelOpen}
+            autoScroll={settings.autoScroll}
+            paragraphHighlight={settings.paragraphHighlight}
+            autoNext={settings.autoNext}
             ttsState={ttsState}
             onPrev={() => previousHref && router.push(previousHref)}
             onNext={() => nextHref && router.push(nextHref)}
@@ -599,11 +639,17 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
                 }}
                 className={cn(
                   "mb-6 rounded-md px-2 py-1.5 transition-[background-color,box-shadow,color] duration-300",
+                  settings.paragraphHighlight &&
                   currentParagraphIndex === index &&
                     ttsState !== "idle" &&
                     "bg-[#d4b16a]/14 shadow-[inset_3px_0_0_rgba(212,177,106,0.9),0_8px_24px_rgba(0,0,0,0.08)]",
                 )}
-                style={{ opacity: currentParagraphIndex === index && ttsState !== "idle" ? 1 : 0.92 }}
+                style={{
+                  opacity:
+                    settings.paragraphHighlight && currentParagraphIndex === index && ttsState !== "idle"
+                      ? 1
+                      : 0.92,
+                }}
                 onPointerDown={handleParagraphPointerDown(index)}
                 onPointerUp={clearLongPress}
                 onPointerLeave={clearLongPress}

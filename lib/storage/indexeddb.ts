@@ -133,6 +133,7 @@ export async function getNovelSummaries(options: { offset?: number; limit?: numb
     const migrations: StoredNovelRecord[] = [];
     let skipped = 0;
     let seen = 0;
+    let advanced = offset === 0;
     const req = store.openCursor();
 
     req.onsuccess = () => {
@@ -145,6 +146,12 @@ export async function getNovelSummaries(options: { offset?: number; limit?: numb
         return;
       }
 
+      if (!advanced) {
+        advanced = true;
+        cursor.advance(offset);
+        return;
+      }
+
       try {
         const record = cursor.value as StoredNovelRecord;
         if (Array.isArray(record.chapters)) {
@@ -152,9 +159,7 @@ export async function getNovelSummaries(options: { offset?: number; limit?: numb
         }
 
         const summary = normalizeNovelSummary(record);
-        if (seen >= offset) {
-          summaries.push(summary);
-        }
+        summaries.push(summary);
         seen += 1;
       } catch (error) {
         skipped += 1;

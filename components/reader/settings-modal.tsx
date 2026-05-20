@@ -72,11 +72,12 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
     };
   }, [isOpen]);
 
+  const visibleVoices = useMemo(() => getVisibleVoiceOptions(voices), [voices]);
   const selectedVoice = useMemo(
-    () => voices.find((voice) => voice.voiceURI === settings.tts.voiceURI) ?? null,
-    [settings.tts.voiceURI, voices],
+    () => visibleVoices.find((voice) => voice.voiceURI === settings.tts.voiceURI) ?? null,
+    [settings.tts.voiceURI, visibleVoices],
   );
-  const groupedVoices = useMemo(() => groupVoicesByCategory(voices), [voices]);
+  const groupedVoices = useMemo(() => groupVoicesByCategory(visibleVoices), [visibleVoices]);
 
   useEffect(() => {
     if (isOpen) {
@@ -85,7 +86,7 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen || voices.length === 0 || !settings.tts.voiceURI || selectedVoice) {
+    if (!isOpen || visibleVoices.length === 0 || !settings.tts.voiceURI || selectedVoice) {
       return;
     }
 
@@ -96,7 +97,7 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
         voiceURI: "",
       },
     });
-  }, [isOpen, onChange, selectedVoice, settings, voices.length]);
+  }, [isOpen, onChange, selectedVoice, settings, visibleVoices.length]);
 
   if (!isOpen) {
     return null;
@@ -299,6 +300,16 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
                 checked={settings.showBottomNav}
                 onChange={(value) => update({ showBottomNav: value })}
               />
+              <ToggleRow
+                label="Auto-scroll active paragraph"
+                checked={settings.autoScroll}
+                onChange={(value) => update({ autoScroll: value })}
+              />
+              <ToggleRow
+                label="Highlight active paragraph"
+                checked={settings.paragraphHighlight}
+                onChange={(value) => update({ paragraphHighlight: value })}
+              />
             </div>
           </section>
 
@@ -341,6 +352,9 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
                 ))}
               </Select>
               {voiceStatus ? <p className="text-xs text-white/40">{voiceStatus}</p> : null}
+              {!voiceStatus && isMobileVoiceSurface() ? (
+                <p className="text-xs text-white/40">Showing clean English device voices first.</p>
+              ) : null}
             </div>
 
             <Select
@@ -528,6 +542,23 @@ function groupVoicesByCategory(voices: TtsVoice[]) {
     category,
     voices: groupVoices,
   }));
+}
+
+function getVisibleVoiceOptions(voices: TtsVoice[]) {
+  if (!isMobileVoiceSurface()) {
+    return voices;
+  }
+
+  const englishVoices = voices.filter((voice) => voice.lang.toLowerCase().startsWith("en"));
+  return (englishVoices.length > 0 ? englishVoices : voices).slice(0, 24);
+}
+
+function isMobileVoiceSurface() {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  return /android|iphone|ipad|ipod|wv;/i.test(navigator.userAgent);
 }
 
 function ColorInput({

@@ -3,6 +3,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 
 import { GlobalHeader } from "@/components/layout/global-header";
+import { AndroidBackHandler } from "@/components/navigation/android-back-handler";
 import { SettingsModal } from "@/components/settings/settings-modal";
 import {
   SettingsModalProvider,
@@ -92,6 +93,7 @@ function SiteShellInner({ children }: SiteShellProps) {
   return (
     <div className="relative min-h-screen overflow-x-hidden">
       <GlobalHeader onOpenSettings={open} />
+      <AndroidBackHandler />
 
       <div className="relative min-h-screen w-full">{children}</div>
 

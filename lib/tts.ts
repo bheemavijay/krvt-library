@@ -95,7 +95,15 @@ function voicePriority(voice: SpeechSynthesisVoice | TtsVoice) {
 export function filterVoices(voices: Array<SpeechSynthesisVoice | TtsVoice>) {
   const seen = new Set<string>();
   const normalizedVoices = voices.map(normalizeVoice).filter((voice) => {
-    const key = `${voice.voiceURI}|${voice.lang}|${voice.name}`.toLowerCase();
+    if (isAndroidLikeEnvironment() && !voice.lang.toLowerCase().startsWith("en")) {
+      return false;
+    }
+
+    const key = [
+      normalizeVoiceIdentity(voice.voiceURI),
+      normalizeVoiceIdentity(voice.lang),
+      normalizeVoiceIdentity(voice.name),
+    ].join("|");
     if (seen.has(key)) {
       return false;
     }
@@ -568,7 +576,7 @@ function normalizeVoice(voice: SpeechSynthesisVoice | TtsVoice): TtsVoice {
 
   return {
     voiceURI: String(voice.voiceURI || voice.name || voice.lang || DEFAULT_LANG),
-    name: String(voice.name || voice.voiceURI || "Default voice"),
+    name: cleanVoiceName(String(voice.name || voice.voiceURI || "Default voice")),
     lang: normalizeLocale(voice.lang),
     localService: voice.localService,
     default: voice.default,
@@ -576,6 +584,20 @@ function normalizeVoice(voice: SpeechSynthesisVoice | TtsVoice): TtsVoice {
     category,
     nativeVoice,
   };
+}
+
+function cleanVoiceName(value: string) {
+  return value
+    .replace(/\s*\([^)]*(?:English|United States|United Kingdom|India|Australia)[^)]*\)\s*/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeVoiceIdentity(value: string) {
+  return cleanVoiceName(value)
+    .replace(/[_\s]+/g, "-")
+    .toLowerCase()
+    .trim();
 }
 
 function findSpeakableWebVoice(voices: TtsVoice[], voiceURI: string) {

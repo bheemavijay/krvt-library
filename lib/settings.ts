@@ -24,6 +24,8 @@ export type ReaderSettings = {
   showTopNav: boolean;
   showBottomNav: boolean;
   showFooter: boolean;
+  autoScroll: boolean;
+  paragraphHighlight: boolean;
   autoNext: boolean;
   autoPlayTts: boolean;
   replacements: ReplacementRule[];
@@ -36,54 +38,55 @@ export type ReaderSettings = {
 
 const STORAGE_KEY = "krvt-reader-settings";
 const STORAGE_EVENT = "krvt-reader-settings-change";
-const GOOGLE_FONT_URL =
-  "https://fonts.googleapis.com/css2?family=Crimson+Text:wght@400;600;700&family=Inter:wght@400;500;600;700&family=Lora:wght@400;500;600;700&family=Merriweather:wght@400;700&family=Nunito:wght@400;600;700&family=Playfair+Display:wght@400;600;700&family=Source+Serif+4:wght@400;600;700&display=swap";
-
 export const READER_FONT_OPTIONS = [
   {
     label: "Merriweather",
     value: "Merriweather",
-    stack: '"Merriweather", Georgia, "Times New Roman", serif',
+    stack: 'var(--font-merriweather), Georgia, "Times New Roman", serif',
   },
   {
     label: "Lora",
     value: "Lora",
-    stack: '"Lora", Georgia, "Times New Roman", serif',
+    stack: 'var(--font-lora), Georgia, "Times New Roman", serif',
   },
   {
     label: "Crimson Text",
     value: "Crimson Text",
-    stack: '"Crimson Text", Georgia, "Times New Roman", serif',
+    stack: 'var(--font-crimson), Georgia, "Times New Roman", serif',
   },
   {
     label: "Source Serif",
     value: "Source Serif",
-    stack: '"Source Serif 4", "Source Serif Pro", Georgia, "Times New Roman", serif',
+    stack: 'var(--font-source-serif), "Source Serif Pro", Georgia, "Times New Roman", serif',
   },
   {
     label: "Playfair Display",
     value: "Playfair Display",
-    stack: '"Playfair Display", Georgia, "Times New Roman", serif',
+    stack: 'var(--font-playfair), Georgia, "Times New Roman", serif',
   },
   {
     label: "Inter",
     value: "Inter",
-    stack: '"Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    stack: 'var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   },
   {
     label: "Nunito",
     value: "Nunito",
-    stack: '"Nunito", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    stack: 'var(--font-nunito), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   },
   {
     label: "Georgia",
     value: "Georgia",
     stack: 'Georgia, "Times New Roman", serif',
   },
+  {
+    label: "Times New Roman",
+    value: "Times New Roman",
+    stack: '"Times New Roman", Times, serif',
+  },
 ] as const;
 
 const FONT_ALIASES: Record<string, string> = {
-  "Times New Roman": "Georgia",
   Palatino: "Lora",
   "Palatino Linotype": "Lora",
   Garamond: "Crimson Text",
@@ -110,6 +113,8 @@ const defaultSettings: ReaderSettings = {
   showTopNav: true,
   showBottomNav: true,
   showFooter: true,
+  autoScroll: true,
+  paragraphHighlight: true,
   autoNext: false,
   autoPlayTts: false,
   replacements: [],
@@ -136,21 +141,7 @@ export function getReaderFontStack(fontFamily: string) {
 }
 
 export function ensureReaderFontsLoaded() {
-  if (!isBrowser() || document.getElementById("krvt-reader-fonts")) {
-    return;
-  }
-
-  const preconnect = document.createElement("link");
-  preconnect.rel = "preconnect";
-  preconnect.href = "https://fonts.gstatic.com";
-  preconnect.crossOrigin = "anonymous";
-  document.head.appendChild(preconnect);
-
-  const stylesheet = document.createElement("link");
-  stylesheet.id = "krvt-reader-fonts";
-  stylesheet.rel = "stylesheet";
-  stylesheet.href = GOOGLE_FONT_URL;
-  document.head.appendChild(stylesheet);
+  return;
 }
 
 export function getSettings(): ReaderSettings {
@@ -264,6 +255,8 @@ function normalizeSettings(storedValue: string | null): ReaderSettings {
         typeof parsed.contentMaxWidth === "number" && parsed.contentMaxWidth >= 480
           ? Math.min(Math.max(parsed.contentMaxWidth, 560), 9999)
           : defaultSettings.contentMaxWidth,
+      autoScroll: parsed.autoScroll !== false,
+      paragraphHighlight: parsed.paragraphHighlight !== false,
       autoNext: parsed.autoNext === true,
       autoPlayTts: parsed.autoPlayTts === true,
       replacements: Array.isArray(parsed.replacements)

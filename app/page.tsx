@@ -10,6 +10,7 @@ import { NovelCard } from "@/components/novel-card";
 import { getImportApiUrl } from "@/lib/import-api";
 import { mergeNovelChapters, normalizeNovelRecord } from "@/lib/novels";
 import { getReadingState } from "@/lib/reader-storage";
+import { getBookmarksState } from "@/lib/storage/bookmarks";
 import { exportLibrary, importLibrary } from "@/lib/storage/backup";
 import {
   addNovel,
@@ -110,7 +111,13 @@ function HomePageClient() {
   const searchParams = useSearchParams();
 
   const [novels, setNovels] = useState<NovelSummary[]>([]);
+  const [isLibraryHydrated, setIsLibraryHydrated] = useState(false);
   const [backupMessage, setBackupMessage] = useState("");
+  const [backupExportProgress, setBackupExportProgress] = useState<{
+    processedNovels: number;
+    totalNovels: number;
+    writtenBytes: number;
+  } | null>(null);
   const [selectedGenre, setSelectedGenre] = useState<string>("All");
   const [busyNovelId, setBusyNovelId] = useState<string | null>(null);
   const [isClearingLibrary, setIsClearingLibrary] = useState(false);
@@ -137,26 +144,32 @@ function HomePageClient() {
 
     const refresh = async () => {
       try {
-        const pageSize = 100;
+        const firstPageSize = 24;
+        const pageSize = 60;
         let offset = 0;
         let accumulated: NovelSummary[] = [];
-        setNovels([]);
 
         while (!cancelled) {
-          const page = await getNovelSummaries({ offset, limit: pageSize });
+          const limit = offset === 0 ? firstPageSize : pageSize;
+          const page = await getNovelSummaries({ offset, limit });
           if (page.length === 0) break;
           accumulated = uniqueById([...accumulated, ...page]);
           if (!cancelled) setNovels(accumulated);
-          if (page.length < pageSize) break;
-          offset += pageSize;
+          if (page.length < limit) break;
+          offset += limit;
           await new Promise((resolve) => window.setTimeout(resolve, 0));
         }
+        if (!cancelled) setIsLibraryHydrated(true);
       } catch {
-        if (!cancelled) setNovels([]);
+        if (!cancelled) {
+          setNovels([]);
+          setIsLibraryHydrated(true);
+        }
       }
     };
 
     const handleLibraryUpdated = () => {
+      setIsLibraryHydrated(false);
       void refresh();
     };
 
@@ -209,6 +222,31 @@ function HomePageClient() {
     return [...filteredNovels].reverse().slice(0, 12);
   }, [filteredNovels]);
 
+  const readingState = getReadingState();
+  const bookmarkState = getBookmarksState();
+  const continueReadingItems = useMemo(() => {
+    return novels
+      .map((novel) => {
+        const progress = readingState.progressByNovel[novel.id];
+        if (!progress) return null;
+        return { novel, progress };
+      })
+      .filter(Boolean)
+      .sort((left, right) => {
+        if (!left || !right) return 0;
+        return Date.parse(right.progress.updatedAt) - Date.parse(left.progress.updatedAt);
+      })
+      .slice(0, 8);
+  }, [novels, readingState.progressByNovel]);
+  const bookmarkItems = useMemo(() => {
+    return novels.flatMap((novel) =>
+      (bookmarkState[novel.id] ?? []).map((bookmark) => ({
+        novel,
+        bookmark,
+      })),
+    );
+  }, [bookmarkState, novels]);
+
   const managedLibraryNovels = useMemo(() => {
     const filtered = novels.filter((novel) => matchesChapterFilter(novel, chapterFilter));
     return filtered.sort((left, right) => {
@@ -232,10 +270,21 @@ function HomePageClient() {
   // ✅ BACKUP
   const handleExport = async () => {
     try {
-      await exportLibrary();
-      setBackupMessage("Backup exported");
-    } catch {
-      setBackupMessage("Export failed");
+      setBackupExportProgress({ processedNovels: 0, totalNovels: novels.length, writtenBytes: 0 });
+      setBackupMessage("Preparing export...");
+      const result = await exportLibrary({
+        onProgress: (progress) => setBackupExportProgress(progress),
+      });
+      setBackupMessage(
+        result.platform === "android"
+          ? `Export saved to Documents: ${result.fileName}`
+          : `Backup exported: ${result.fileName}`,
+      );
+    } catch (error) {
+      console.error("Export failed", error);
+      setBackupMessage(error instanceof Error ? error.message : "Export failed");
+    } finally {
+      setBackupExportProgress(null);
     }
   };
 
@@ -508,6 +557,30 @@ if (!response.ok) {
           </div>
 
           {backupMessage && <p className="mt-3 text-sm text-[#d4b16a]">{backupMessage}</p>}
+          {backupExportProgress ? (
+            <div className="mt-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75">
+              <p>
+                Exported {backupExportProgress.processedNovels} of{" "}
+                {backupExportProgress.totalNovels} novels
+              </p>
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-[#d4b16a] transition-[width] duration-300"
+                  style={{
+                    width: `${
+                      backupExportProgress.totalNovels > 0
+                        ? Math.round(
+                            (backupExportProgress.processedNovels /
+                              backupExportProgress.totalNovels) *
+                              100,
+                          )
+                        : 0
+                    }%`,
+                  }}
+                />
+              </div>
+            </div>
+          ) : null}
           {backupImportProgress ? (
             <div className="mt-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75">
               <p>
@@ -609,6 +682,23 @@ if (!response.ok) {
     );
   }
 
+  if (view === "history") {
+    return (
+      <div className="space-y-6 sm:space-y-8">
+        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6 shadow-xl backdrop-blur-sm">
+          <h1 className="text-xl sm:text-2xl font-semibold text-white">Reading History</h1>
+          <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-white/65">
+            Continue reading, bookmarks, and recent chapter activity from this device.
+          </p>
+        </section>
+
+        <HistorySection title="Continue Reading" items={continueReadingItems} />
+        <BookmarkSection items={bookmarkItems} />
+        <HistorySection title="Recent Chapters" items={continueReadingItems.slice(0, 6)} />
+      </div>
+    );
+  }
+
   // =========================
   // DEFAULT HOME
   // =========================
@@ -645,6 +735,23 @@ if (!response.ok) {
         novels={novels}
       />
 
+      <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5 shadow-xl backdrop-blur-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg sm:text-xl font-semibold text-white">Bookmarks & History</h2>
+            <p className="text-xs sm:text-sm text-white/60">
+              Resume from your latest chapter or jump back to saved places.
+            </p>
+          </div>
+          <Link
+            href="/?view=history"
+            className="inline-flex min-h-[40px] items-center justify-center rounded-lg border border-white/10 bg-white/5 px-4 text-sm text-white/80 transition hover:bg-white/10"
+          >
+            Open History
+          </Link>
+        </div>
+      </section>
+
       {featured && (
         <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5 shadow-xl backdrop-blur-sm">
           <h2 className="mb-3 sm:mb-4 text-lg sm:text-xl font-semibold text-white">Featured Spotlight</h2>
@@ -674,7 +781,7 @@ if (!response.ok) {
             Open Library Manager
           </Link>
         </div>
-        <Grid novels={filteredNovels.slice(0, 12)} />
+        <Grid novels={filteredNovels.slice(0, 12)} isLoading={!isLibraryHydrated && novels.length === 0} />
       </section>
     </div>
   );
@@ -684,7 +791,7 @@ if (!response.ok) {
 // GRID
 // =========================
 
-function Grid({ novels }: { novels: NovelSummary[] }) {
+function Grid({ novels, isLoading = false }: { novels: NovelSummary[]; isLoading?: boolean }) {
   const [showAll, setShowAll] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
     if (typeof window !== "undefined") {
@@ -704,6 +811,14 @@ function Grid({ novels }: { novels: NovelSummary[] }) {
       // ignore
     }
   };
+
+  if (!novels.length && isLoading) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-8 text-center">
+        <p className="text-white/45">Loading library...</p>
+      </div>
+    );
+  }
 
   if (!novels.length) {
     return (
@@ -750,6 +865,79 @@ function Grid({ novels }: { novels: NovelSummary[] }) {
         </div>
       )}
     </div>
+  );
+}
+
+function HistorySection({
+  title,
+  items,
+}: {
+  title: string;
+  items: Array<{
+    novel: NovelSummary;
+    progress: { chapterIndex: number; updatedAt: string };
+  } | null>;
+}) {
+  const safeItems = items.filter(Boolean) as Array<{
+    novel: NovelSummary;
+    progress: { chapterIndex: number; updatedAt: string };
+  }>;
+
+  return (
+    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5 shadow-xl backdrop-blur-sm">
+      <h2 className="text-lg font-semibold text-white">{title}</h2>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        {safeItems.length === 0 ? (
+          <p className="text-sm text-white/50">No reading activity yet.</p>
+        ) : (
+          safeItems.map(({ novel, progress }) => (
+            <Link
+              key={`${title}-${novel.id}`}
+              href={`/reader?id=${novel.id}&chapter=${progress.chapterIndex + 1}`}
+              className="rounded-xl border border-white/10 bg-white/[0.04] p-4 transition hover:bg-white/[0.08]"
+            >
+              <p className="line-clamp-1 font-medium text-white">{novel.title}</p>
+              <p className="mt-1 text-sm text-white/55">
+                Chapter {progress.chapterIndex + 1} of {novel.chapterCount}
+              </p>
+              <p className="mt-2 text-xs text-white/40">{formatRelativeDate(progress.updatedAt)}</p>
+            </Link>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+function BookmarkSection({
+  items,
+}: {
+  items: Array<{
+    novel: NovelSummary;
+    bookmark: { chapterIndex: number; title: string; createdAt: string };
+  }>;
+}) {
+  return (
+    <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5 shadow-xl backdrop-blur-sm">
+      <h2 className="text-lg font-semibold text-white">Bookmarks</h2>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        {items.length === 0 ? (
+          <p className="text-sm text-white/50">No bookmarks yet.</p>
+        ) : (
+          items.slice(0, 12).map(({ novel, bookmark }) => (
+            <Link
+              key={`${novel.id}-${bookmark.chapterIndex}`}
+              href={`/reader?id=${novel.id}&chapter=${bookmark.chapterIndex + 1}`}
+              className="rounded-xl border border-white/10 bg-white/[0.04] p-4 transition hover:bg-white/[0.08]"
+            >
+              <p className="line-clamp-1 font-medium text-white">{novel.title}</p>
+              <p className="mt-1 line-clamp-1 text-sm text-white/55">{bookmark.title}</p>
+              <p className="mt-2 text-xs text-white/40">{formatRelativeDate(bookmark.createdAt)}</p>
+            </Link>
+          ))
+        )}
+      </div>
+    </section>
   );
 }
 

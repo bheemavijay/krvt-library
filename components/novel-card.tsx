@@ -21,10 +21,20 @@ export function NovelCard({ novel, viewMode = "grid" }: NovelCardProps) {
         href={detailsHref}
         className="group flex gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-2 text-white transition hover:border-white/20 hover:bg-white/[0.06] sm:gap-4 sm:p-3"
       >
-        <div
-          className="h-[90px] w-[60px] sm:h-[110px] sm:w-[75px] shrink-0 rounded-lg bg-cover bg-center border border-white/10 overflow-hidden"
-          style={getCoverStyle(novel)}
-        />
+        <div className="relative h-[90px] w-[60px] shrink-0 overflow-hidden rounded-lg border border-white/10 sm:h-[110px] sm:w-[75px]">
+          {novel.image ? (
+            <Image
+              src={novel.image}
+              alt={novel.title}
+              fill
+              loading="lazy"
+              className="object-cover"
+              sizes="75px"
+            />
+          ) : (
+            <div className="h-full w-full" style={getCoverStyle(novel)} />
+          )}
+        </div>
         <div className="flex min-w-0 flex-1 flex-col justify-center space-y-1">
           <h2 className="truncate text-sm sm:text-base font-semibold group-hover:text-accent">
             {novel.title}
@@ -58,6 +68,7 @@ export function NovelCard({ novel, viewMode = "grid" }: NovelCardProps) {
             src={novel.image}
             alt={novel.title}
             fill
+            loading="lazy"
             className="object-cover"
             sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 16vw"
           />

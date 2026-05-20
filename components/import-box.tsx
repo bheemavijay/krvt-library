@@ -11,7 +11,7 @@ import {
   normalizeNovelRecord,
   normalizeNovelUrlKey,
 } from "@/lib/novels";
-import { addNovel, getAllNovels } from "@/lib/storage/indexeddb";
+import { addNovel, getNovel, getNovelSummaries } from "@/lib/storage/indexeddb";
 import type { Novel } from "@/types";
 
 type ImportResponse = {
@@ -94,11 +94,12 @@ export function ImportBox() {
 
       const normalizedUrl = normalizeImportUrl(url);
       const normalizedUrlKey = normalizeNovelUrlKey(normalizedUrl);
-      const storedNovels = await getAllNovels();
-      let currentNovel = storedNovels.find(
+      const storedNovels = await getNovelSummaries();
+      const currentSummary = storedNovels.find(
         (n) => normalizeNovelUrlKey(n.sourceUrl) === normalizedUrlKey,
       );
-      let baseChapterCount = currentNovel?.chapters.length ?? 0;
+      let currentNovel = currentSummary ? await getNovel(currentSummary.id) : null;
+      let baseChapterCount = currentSummary?.chapterCount ?? currentNovel?.chapters.length ?? 0;
       const batchSize = 50;
       const allChapters: NonNullable<ImportResponse["chapters"]> = [];
       let meta: ImportResponse | null = null;
@@ -110,9 +111,9 @@ export function ImportBox() {
         normalizedUrl,
         normalizedUrlKey,
         storedNovelCount: storedNovels.length,
-        matchedNovelId: currentNovel?.id ?? null,
-        matchedNovelSourceUrl: currentNovel?.sourceUrl ?? null,
-        existingChapterCount: currentNovel?.chapters.length ?? 0,
+        matchedNovelId: currentSummary?.id ?? null,
+        matchedNovelSourceUrl: currentSummary?.sourceUrl ?? null,
+        existingChapterCount: baseChapterCount,
       });
 
       while (true) {

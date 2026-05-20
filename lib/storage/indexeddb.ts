@@ -1,25 +1,48 @@
-import type { Novel } from "@/types";
-import { normalizeNovelRecord } from "@/lib/novels";
+import type { Chapter, Novel, NovelSummary } from "@/types";
+import { normalizeChapter, normalizeNovelRecord } from "@/lib/novels";
 
 const DB_NAME = "krvt-library";
-const STORE = "novels";
+const NOVELS_STORE = "novels";
+const CHAPTERS_STORE = "chapters";
 const BOOKMARKS_STORE = "bookmarks";
 const LIBRARY_UPDATED_EVENT = "library:updated";
+const DB_VERSION = 3;
+const SUMMARY_PAGE_SIZE = 60;
 
 type StoredNovelRecord = Partial<Novel> & {
   genre?: string | string[];
   rating?: number | string;
   categories?: string[] | string;
+  chapterCount?: number;
+  chapterTitles?: string[];
+  updatedAt?: string;
   lastChapterIndex?: number;
-  chapters?: Array<
-    Partial<Novel["chapters"][number]> & {
-      url?: string;
-      content?: string[] | string;
-    }
-  >;
+  chapters?: Array<Partial<Chapter> & { url?: string; content?: string[] | string }>;
 };
 
-type StoredChapterRecord = NonNullable<StoredNovelRecord["chapters"]>[number];
+type StoredChapterRecord = {
+  novelId: string;
+  chapterIndex: number;
+  id: string;
+  order: number;
+  title: string;
+  content: string[];
+  url?: string;
+};
+
+type StoredNovelMeta = Omit<Novel, "chapters"> & {
+  chapterCount: number;
+  chapterTitles: string[];
+  updatedAt: string;
+  categories?: string[];
+  chapters?: never;
+};
+
+type Bookmark = {
+  novelId: string;
+  chapterIndex: number;
+  createdAt: number;
+};
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -28,19 +51,26 @@ function openDB(): Promise<IDBDatabase> {
       return;
     }
 
-    const req = indexedDB.open(DB_NAME, 2);
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
 
     req.onupgradeneeded = () => {
       const db = req.result;
 
-      if (!db.objectStoreNames.contains(STORE)) {
-        db.createObjectStore(STORE, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(NOVELS_STORE)) {
+        db.createObjectStore(NOVELS_STORE, { keyPath: "id" });
+      }
+
+      if (!db.objectStoreNames.contains(CHAPTERS_STORE)) {
+        const chapterStore = db.createObjectStore(CHAPTERS_STORE, {
+          keyPath: ["novelId", "chapterIndex"],
+        });
+        chapterStore.createIndex("novelId", "novelId", { unique: false });
       }
 
       if (!db.objectStoreNames.contains(BOOKMARKS_STORE)) {
-        // Use a composite key path for uniqueness per novel chapter
-        const store = db.createObjectStore(BOOKMARKS_STORE, { keyPath: ["novelId", "chapterIndex"] });
-        // Add index to easily get all bookmarks for a specific novel
+        const store = db.createObjectStore(BOOKMARKS_STORE, {
+          keyPath: ["novelId", "chapterIndex"],
+        });
         store.createIndex("novelId", "novelId", { unique: false });
       }
     };
@@ -59,112 +89,446 @@ export async function saveNovelsBatch(novels: StoredNovelRecord[]) {
     return 0;
   }
 
-  const existingNovels = await getAllNovels();
-  const mergedById = new Map(existingNovels.map((novel) => [novel.id, novel] as const));
-
+  let saved = 0;
   for (const novel of novels) {
-    const normalizedIncoming = normalizeNovelRecord(novel);
-    const existingNovel = mergedById.get(normalizedIncoming.id) ?? null;
-    const mergedNovel = existingNovel
-      ? buildMergedNovelRecord(existingNovel, novel)
-      : normalizeNovelRecord({
-          ...novel,
-          ...normalizedIncoming,
-          sourceUrl: normalizedIncoming.sourceUrl,
-        });
-    const mergedNovelId = String(mergedNovel.id ?? normalizedIncoming.id);
-    const mergedNovelRecord = normalizeNovelRecord({
-      ...mergedNovel,
-      id: mergedNovelId,
-    });
-
-    mergedById.set(mergedNovelId, mergedNovelRecord);
+    try {
+      await saveOrUpdateNovel(novel);
+      saved += 1;
+      await yieldToUi();
+    } catch (error) {
+      console.error("Skipping invalid novel during batch save", getNovelLabel(novel), error);
+    }
   }
 
+  return saved;
+}
+
+export async function saveOrUpdateNovel(newNovel: StoredNovelRecord) {
+  const normalizedIncoming = normalizeNovelRecord(newNovel);
+  const existingNovel = await getNovel(normalizedIncoming.id);
+  const mergedNovel = existingNovel
+    ? buildMergedNovelRecord(existingNovel, newNovel)
+    : normalizedIncoming;
+
+  await putNovelRecord(mergedNovel);
+  return normalizeNovelRecord(mergedNovel);
+}
+
+export const saveNovel = saveOrUpdateNovel;
+
+export async function getAllNovels() {
+  const summaries = await getNovelSummaries();
+  return summaries.map(summaryToNovelShell);
+}
+
+export async function getNovelSummaries(options: { offset?: number; limit?: number } = {}) {
   const db = await openDB();
-  const tx = db.transaction(STORE, "readwrite");
-  const store = tx.objectStore(STORE);
+  const tx = db.transaction(NOVELS_STORE, "readonly");
+  const store = tx.objectStore(NOVELS_STORE);
+  const offset = Math.max(0, options.offset ?? 0);
+  const limit = Math.max(1, options.limit ?? Number.MAX_SAFE_INTEGER);
 
-  return new Promise<number>((resolve, reject) => {
-    const values = Array.from(mergedById.values());
-    let index = 0;
+  return new Promise<NovelSummary[]>((resolve) => {
+    const summaries: NovelSummary[] = [];
+    const migrations: StoredNovelRecord[] = [];
+    let skipped = 0;
+    let seen = 0;
+    const req = store.openCursor();
 
-    const writeNext = () => {
-      if (index >= values.length) {
-        notifyLibraryUpdated();
-        resolve(novels.length);
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (!cursor || summaries.length >= limit) {
+        if (migrations.length > 0) {
+          void migrateLegacyRecords(migrations);
+        }
+        resolve(summaries);
         return;
       }
 
-      const record = values[index] as StoredNovelRecord;
-      const normalizedNovel = normalizeNovelRecord(record) as Novel & {
-        lastChapterIndex?: number;
-      };
-      normalizedNovel.lastChapterIndex = Math.max(0, normalizedNovel.chapters.length - 1);
+      try {
+        const record = cursor.value as StoredNovelRecord;
+        if (Array.isArray(record.chapters)) {
+          migrations.push(record);
+        }
 
-      const req = store.put(normalizedNovel);
-      req.onsuccess = () => {
-        index += 1;
-        writeNext();
-      };
-      req.onerror = () => reject(req.error);
+        const summary = normalizeNovelSummary(record);
+        if (seen >= offset) {
+          summaries.push(summary);
+        }
+        seen += 1;
+      } catch (error) {
+        skipped += 1;
+        console.warn("Skipping corrupted novel metadata", cursor.key, error);
+      }
+
+      cursor.continue();
     };
 
-    writeNext();
+    req.onerror = () => {
+      console.error("Failed to read novel summaries", req.error);
+      resolve(summaries);
+    };
   });
+}
+
+export async function getNovel(id: string): Promise<Novel | null> {
+  if (!id?.trim()) {
+    console.error("getNovel called with invalid id:", id);
+    return null;
+  }
+
+  const meta = await getNovelMeta(id);
+  if (!meta) {
+    return null;
+  }
+
+  const chapters = await getNovelChapters(id, meta.chapterCount);
+  return normalizeNovelRecord({
+    ...meta,
+    chapters,
+  });
+}
+
+export async function getNovelSummary(id: string): Promise<NovelSummary | null> {
+  const meta = await getNovelMeta(id);
+  return meta ? metaToSummary(meta) : null;
+}
+
+export async function getNovelChapterList(id: string) {
+  const meta = await getNovelMeta(id);
+  if (!meta) {
+    return [];
+  }
+
+  return meta.chapterTitles.map((title, index) => ({
+    id: `${id}-chapter-${index + 1}`,
+    order: index + 1,
+    title: title || `Chapter ${index + 1}`,
+    content: [],
+  })) satisfies Chapter[];
+}
+
+export async function getChapter(novelId: string, chapterIndex: number): Promise<Chapter | null> {
+  const db = await openDB();
+  const tx = db.transaction(CHAPTERS_STORE, "readonly");
+  const store = tx.objectStore(CHAPTERS_STORE);
+
+  return new Promise((resolve) => {
+    const request = store.get([novelId, chapterIndex]);
+    request.onsuccess = () => {
+      try {
+        const record = request.result as StoredChapterRecord | undefined;
+        resolve(record ? storedChapterToChapter(record) : null);
+      } catch (error) {
+        console.warn("Skipping corrupted chapter", { novelId, chapterIndex, error });
+        resolve(null);
+      }
+    };
+    request.onerror = () => resolve(null);
+  });
+}
+
+export async function deleteNovel(id: string) {
+  const db = await openDB();
+  const deleteNovelTx = db.transaction(NOVELS_STORE, "readwrite");
+  await requestToPromise(deleteNovelTx.objectStore(NOVELS_STORE).delete(id));
+
+  const deleteChaptersTx = db.transaction(CHAPTERS_STORE, "readwrite");
+  const chapterIndex = deleteChaptersTx.objectStore(CHAPTERS_STORE).index("novelId");
+  await new Promise<void>((resolve) => {
+    const cursorRequest = chapterIndex.openCursor(IDBKeyRange.only(id));
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (!cursor) {
+        resolve();
+        return;
+      }
+      cursor.delete();
+      cursor.continue();
+    };
+    cursorRequest.onerror = () => resolve();
+  });
+
+  notifyLibraryUpdated();
+}
+
+export async function clearAllNovels() {
+  const db = await openDB();
+  const tx = db.transaction([NOVELS_STORE, CHAPTERS_STORE], "readwrite");
+  await Promise.all([
+    requestToPromise(tx.objectStore(NOVELS_STORE).clear()),
+    requestToPromise(tx.objectStore(CHAPTERS_STORE).clear()),
+  ]);
+  notifyLibraryUpdated();
+}
+
+export async function addBookmark(novelId: string, chapterIndex: number) {
+  const db = await openDB();
+  const tx = db.transaction(BOOKMARKS_STORE, "readwrite");
+  const store = tx.objectStore(BOOKMARKS_STORE);
+
+  await requestToPromise(
+    store.put({
+      novelId,
+      chapterIndex,
+      createdAt: Date.now(),
+    } satisfies Bookmark),
+  );
+}
+
+export async function removeBookmark(novelId: string, chapterIndex: number) {
+  const db = await openDB();
+  const tx = db.transaction(BOOKMARKS_STORE, "readwrite");
+  await requestToPromise(tx.objectStore(BOOKMARKS_STORE).delete([novelId, chapterIndex]));
+}
+
+export async function getBookmarks(novelId: string): Promise<Bookmark[]> {
+  const db = await openDB();
+  const tx = db.transaction(BOOKMARKS_STORE, "readonly");
+  const store = tx.objectStore(BOOKMARKS_STORE);
+  const index = store.index("novelId");
+
+  try {
+    return await requestToPromise<Bookmark[]>(index.getAll(novelId));
+  } catch {
+    return [];
+  }
 }
 
 async function putNovelRecord(novel: StoredNovelRecord) {
+  const normalized = normalizeNovelRecord(novel);
+  const chapters = normalized.chapters;
+  const meta = createNovelMeta(normalized);
   const db = await openDB();
-  const tx = db.transaction(STORE, "readwrite");
-  const store = tx.objectStore(STORE);
+  const tx = db.transaction([NOVELS_STORE, CHAPTERS_STORE], "readwrite");
+  const novelsStore = tx.objectStore(NOVELS_STORE);
+  const chaptersStore = tx.objectStore(CHAPTERS_STORE);
 
   return new Promise<void>((resolve, reject) => {
-    const normalizedNovel = normalizeNovelRecord(novel) as Novel & {
-      lastChapterIndex?: number;
-    };
-    normalizedNovel.lastChapterIndex = Math.max(0, normalizedNovel.chapters.length - 1);
-
-    const req = store.put(normalizedNovel);
-    req.onsuccess = () => {
+    tx.oncomplete = () => {
       notifyLibraryUpdated();
       resolve();
     };
-    req.onerror = () => reject(req.error);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+
+    novelsStore.put(meta);
+
+    for (let index = 0; index < chapters.length; index += 1) {
+      const chapter = chapters[index];
+      chaptersStore.put({
+        novelId: normalized.id,
+        chapterIndex: index,
+        id: chapter.id,
+        order: chapter.order,
+        title: chapter.title,
+        content: chapter.content,
+      } satisfies StoredChapterRecord);
+    }
   });
 }
 
-function getChapterUrl(chapter: StoredChapterRecord | undefined) {
-  const url = chapter && "url" in chapter ? chapter.url : undefined;
-  return typeof url === "string" ? url.trim() : "";
+async function getNovelMeta(id: string): Promise<StoredNovelMeta | null> {
+  const db = await openDB();
+  const tx = db.transaction(NOVELS_STORE, "readonly");
+  const store = tx.objectStore(NOVELS_STORE);
+
+  try {
+    const record = await requestToPromise<StoredNovelRecord | undefined>(store.get(id));
+    if (!record) {
+      return null;
+    }
+
+    if (Array.isArray(record.chapters)) {
+      await migrateLegacyRecords([record]);
+    }
+
+    return normalizeNovelMeta(record);
+  } catch (error) {
+    console.warn("Skipping corrupted novel metadata", id, error);
+    return null;
+  }
 }
 
-function getChapterKey(
-  chapter: StoredChapterRecord | undefined,
-  fallbackOrder: number
-) {
-  const chapterUrl = getChapterUrl(chapter);
+async function getNovelChapters(novelId: string, chapterCount: number) {
+  const chapters: Chapter[] = [];
+  for (let index = 0; index < chapterCount; index += 1) {
+    const chapter = await getChapter(novelId, index);
+    if (chapter) {
+      chapters.push(chapter);
+    }
+    if (index % 25 === 0) {
+      await yieldToUi();
+    }
+  }
+  return chapters;
+}
 
-  // BEST: URL
-  if (chapterUrl) {
-    return `url:${chapterUrl.toLowerCase()}`;
+async function migrateLegacyRecords(records: StoredNovelRecord[]) {
+  for (const record of records) {
+    try {
+      if (!Array.isArray(record.chapters)) {
+        continue;
+      }
+      await putNovelRecord(record);
+    } catch (error) {
+      console.warn("Legacy novel migration skipped", getNovelLabel(record), error);
+    }
+  }
+}
+
+function createNovelMeta(novel: Novel): StoredNovelMeta {
+  return {
+    id: novel.id,
+    title: novel.title,
+    author: novel.author,
+    sourceUrl: novel.sourceUrl,
+    isCompleted: novel.isCompleted,
+    lastUpdated: novel.lastUpdated,
+    updatedAt: novel.lastUpdated || new Date().toISOString(),
+    image: novel.image,
+    alternative: novel.alternative,
+    genres: novel.genres,
+    categories: novel.genres,
+    status: novel.status,
+    rating: novel.rating,
+    tags: novel.tags,
+    description: novel.description,
+    chapterCount: novel.chapters.length,
+    chapterTitles: novel.chapters.map((chapter, index) => chapter.title || `Chapter ${index + 1}`),
+  };
+}
+
+function normalizeNovelMeta(record: StoredNovelRecord): StoredNovelMeta {
+  const normalized = normalizeNovelRecord({
+    ...record,
+    chapters: [],
+  });
+  const { chapters: _chapters, ...normalizedMeta } = normalized;
+  const legacyChapters = Array.isArray(record.chapters) ? record.chapters : [];
+  const chapterTitles = Array.isArray(record.chapterTitles)
+    ? record.chapterTitles.map((title, index) => String(title || `Chapter ${index + 1}`))
+    : legacyChapters.map((chapter, index) => String(chapter?.title || `Chapter ${index + 1}`));
+  const chapterCount =
+    typeof record.chapterCount === "number" && record.chapterCount >= 0
+      ? record.chapterCount
+      : chapterTitles.length;
+  const lastUpdated =
+    typeof record.lastUpdated === "string" && record.lastUpdated
+      ? record.lastUpdated
+      : typeof record.updatedAt === "string" && record.updatedAt
+        ? record.updatedAt
+        : new Date().toISOString();
+
+  return {
+    ...normalizedMeta,
+    lastUpdated,
+    updatedAt: lastUpdated,
+    chapterCount,
+    chapterTitles:
+      chapterTitles.length > 0
+        ? chapterTitles
+        : Array.from({ length: chapterCount }, (_, index) => `Chapter ${index + 1}`),
+  };
+}
+
+function normalizeNovelSummary(record: StoredNovelRecord): NovelSummary {
+  return metaToSummary(normalizeNovelMeta(record));
+}
+
+function metaToSummary(meta: StoredNovelMeta): NovelSummary {
+  return {
+    id: meta.id,
+    title: meta.title,
+    author: meta.author,
+    sourceUrl: meta.sourceUrl,
+    chapterCount: meta.chapterCount,
+    image: meta.image,
+    isCompleted: meta.isCompleted,
+    status: meta.status,
+    description: meta.description,
+    genres: meta.genres,
+    tags: meta.tags,
+    lastUpdated: meta.lastUpdated,
+  };
+}
+
+function summaryToNovelShell(summary: NovelSummary): Novel {
+  return normalizeNovelRecord({
+    ...summary,
+    chapters: (summary.chapterTitles ?? []).map((title, index) => ({
+      id: `${summary.id}-chapter-${index + 1}`,
+      order: index + 1,
+      title,
+      content: [],
+    })),
+  });
+}
+
+function storedChapterToChapter(record: StoredChapterRecord): Chapter {
+  return normalizeChapter(
+    record.novelId,
+    {
+      id: record.id,
+      order: record.order || record.chapterIndex + 1,
+      title: record.title,
+      content: record.content,
+    },
+    record.chapterIndex + 1,
+  );
+}
+
+function buildMergedNovelRecord(existingNovel: Novel, newNovel: StoredNovelRecord): StoredNovelRecord {
+  const incoming = normalizeNovelRecord(newNovel);
+  const chaptersByOrder = new Map<number, Chapter>();
+
+  for (const chapter of existingNovel.chapters) {
+    chaptersByOrder.set(chapter.order, chapter);
   }
 
-  // SECOND: explicit order if present
-  const order = Number(chapter?.order);
-  if (order > 0) {
-    return `order:${order}`;
+  for (const chapter of incoming.chapters) {
+    const current = chaptersByOrder.get(chapter.order);
+    if (!current || chapter.content.length >= current.content.length) {
+      chaptersByOrder.set(chapter.order, chapter);
+    }
   }
 
-  // LAST fallback: title + index (force uniqueness)
-  const title = String(chapter?.title ?? "").trim().toLowerCase();
+  const chapters = Array.from(chaptersByOrder.values())
+    .sort((left, right) => left.order - right.order)
+    .map((chapter, index) => ({
+      ...chapter,
+      id: `${existingNovel.id}-chapter-${index + 1}`,
+      order: index + 1,
+    }));
 
-  return `fallback:${title}:${fallbackOrder}`;
+  return {
+    ...existingNovel,
+    ...newNovel,
+    id: existingNovel.id,
+    title: pickPreferredValue(newNovel.title, existingNovel.title) ?? existingNovel.title,
+    author: pickPreferredValue(newNovel.author, existingNovel.author) ?? existingNovel.author,
+    sourceUrl: pickPreferredValue(newNovel.sourceUrl, existingNovel.sourceUrl) ?? existingNovel.sourceUrl,
+    image: pickPreferredValue(newNovel.image, existingNovel.image) ?? existingNovel.image,
+    alternative: pickPreferredValue(newNovel.alternative, existingNovel.alternative) ?? existingNovel.alternative,
+    description: pickPreferredValue(newNovel.description, existingNovel.description) ?? existingNovel.description,
+    status: pickPreferredValue(newNovel.status, existingNovel.status) ?? existingNovel.status,
+    genres: pickPreferredValue(newNovel.genres, existingNovel.genres) ?? existingNovel.genres,
+    tags: pickPreferredValue(newNovel.tags, existingNovel.tags) ?? existingNovel.tags,
+    rating:
+      typeof newNovel.rating === "number"
+        ? newNovel.rating
+        : typeof existingNovel.rating === "number"
+          ? existingNovel.rating
+          : undefined,
+    isCompleted: Boolean(newNovel.isCompleted ?? existingNovel.isCompleted),
+    lastUpdated: new Date().toISOString(),
+    chapters,
+  };
 }
 
 function pickPreferredValue<T>(
   incoming: T | undefined | null,
-  existing: T | undefined | null
+  existing: T | undefined | null,
 ): T | undefined {
   if (typeof incoming === "string") {
     return incoming.trim() ? incoming : existing ?? undefined;
@@ -177,164 +541,10 @@ function pickPreferredValue<T>(
   return incoming ?? existing ?? undefined;
 }
 
-function mergeChapters(
-  existingChapters: StoredNovelRecord["chapters"],
-  incomingChapters: StoredNovelRecord["chapters"],
-) {
-  const mergedByKey = new Map<string, StoredChapterRecord>();
-  const ordered = [
-    ...(Array.isArray(existingChapters) ? existingChapters : []),
-    ...(Array.isArray(incomingChapters) ? incomingChapters : []),
-  ];
-
-  ordered.forEach((chapter, index) => {
-    const key = getChapterKey(chapter, index + 1);
-    const current = mergedByKey.get(key);
-
-    if (!current) {
-      mergedByKey.set(key, chapter);
-      return;
-    }
-
-const currentContent = current?.content as unknown;
-let currentLength = 0;
-
-if (Array.isArray(currentContent)) {
-  currentLength = currentContent.length;
-} else if (typeof currentContent === "string") {
-  currentLength = currentContent.length;
-}
-
-const nextContent = chapter?.content as unknown;
-let nextLength = 0;
-
-if (Array.isArray(nextContent)) {
-  nextLength = nextContent.length;
-} else if (typeof nextContent === "string") {
-  nextLength = nextContent.length;
-}
-    if (nextLength >= currentLength) {
-      mergedByKey.set(key, {
-        ...current,
-        ...chapter,
-        url: getChapterUrl(chapter) || getChapterUrl(current) || undefined,
-      });
-    }
-  });
-
-  return Array.from(mergedByKey.values())
-    .sort((left, right) => {
-      const leftOrder = Number(left.order) || 0;
-      const rightOrder = Number(right.order) || 0;
-      return leftOrder - rightOrder;
-    })
-    .map((chapter, index) => ({
-      ...chapter,
-      id: chapter.id ?? String(index + 1),
-      order: index + 1,
-      url: getChapterUrl(chapter) || undefined,
-    }));
-}
-
-export async function saveOrUpdateNovel(newNovel: StoredNovelRecord) {
-  const normalizedIncoming = normalizeNovelRecord(newNovel);
-  const existingNovel = await getNovel(normalizedIncoming.id);
-
-  if (!existingNovel) {
-    await putNovelRecord({
-      ...newNovel,
-      ...normalizedIncoming,
-      sourceUrl: normalizedIncoming.sourceUrl,
-      lastChapterIndex: Math.max(0, normalizedIncoming.chapters.length - 1),
-    });
-    return normalizedIncoming;
-  }
-
-  const mergedNovel = buildMergedNovelRecord(existingNovel, newNovel);
-
-  await putNovelRecord(mergedNovel);
-  return normalizeNovelRecord(mergedNovel);
-}
-
-export const saveNovel = saveOrUpdateNovel;
-
-export async function getAllNovels() {
-  const db = await openDB();
-  const tx = db.transaction(STORE, "readonly");
-  const store = tx.objectStore(STORE);
-
-  return new Promise<Novel[]>((resolve, reject) => {
-    const req = store.getAll();
-    req.onsuccess = () => {
-      const result = req.result as StoredNovelRecord[];
-      const normalized = result.map((novel) => {
-        try {
-          return normalizeNovelRecord(novel);
-        } catch (e) {
-          console.error("Error normalizing novel", novel, e);
-          return null;
-        }
-      }).filter((novel): novel is Novel => novel !== null);
-      resolve(normalized);
-    };
-    req.onerror = () => reject(req.error);
-  });
-}
-
-export async function getNovel(id: string): Promise<Novel | null> {
-  if (!id) {
-    console.error("❌ getNovel called with invalid id:", id);
-    return null;
-  }
-
-  const db = await openDB();
-
-  return new Promise((resolve, reject) => {
-    try {
-      const tx = db.transaction(STORE, "readonly");
-      const store = tx.objectStore(STORE);
-
-      const request = store.get(id);
-
-      request.onsuccess = () => {
-        const result = request.result as StoredNovelRecord | null;
-        resolve(result ? normalizeNovelRecord(result) : null);
-      };
-      request.onerror = () => reject(request.error);
-    } catch (err) {
-      console.error("DB error:", err);
-      resolve(null);
-    }
-  });
-}
-
-export async function deleteNovel(id: string) {
-  const db = await openDB();
-  const tx = db.transaction(STORE, "readwrite");
-  const store = tx.objectStore(STORE);
-
-  return new Promise<void>((resolve, reject) => {
-    const req = store.delete(id);
-    req.onsuccess = () => {
-      notifyLibraryUpdated();
-      resolve();
-    };
-    req.onerror = () => reject(req.error);
-  });
-}
-
-export async function clearAllNovels() {
-  const db = await openDB();
-  const tx = db.transaction(STORE, "readwrite");
-  const store = tx.objectStore(STORE);
-
-  return new Promise<void>((resolve, reject) => {
-    const req = store.clear();
-    req.onsuccess = () => {
-      notifyLibraryUpdated();
-      resolve();
-    };
-    req.onerror = () => reject(req.error);
+function requestToPromise<T = unknown>(request: IDBRequest<T>) {
+  return new Promise<T>((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
   });
 }
 
@@ -344,100 +554,16 @@ function notifyLibraryUpdated() {
   }
 }
 
-// --- BOOKMARKS API ---
-
-export type Bookmark = {
-  novelId: string;
-  chapterIndex: number;
-  createdAt: number;
-};
-
-export async function addBookmark(novelId: string, chapterIndex: number) {
-  const db = await openDB();
-  return new Promise<void>((resolve, reject) => {
-    try {
-      const tx = db.transaction(BOOKMARKS_STORE, "readwrite");
-      const store = tx.objectStore(BOOKMARKS_STORE);
-
-      const bookmark: Bookmark = {
-        novelId,
-        chapterIndex,
-        createdAt: Date.now(),
-      };
-
-      const request = store.put(bookmark);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    } catch (err) {
-      console.error("DB error adding bookmark:", err);
-      reject(err);
-    }
-  });
+function getNovelLabel(novel: Partial<Novel> | undefined) {
+  const title = typeof novel?.title === "string" ? novel.title.trim() : "";
+  return title || "Unknown novel";
 }
 
-export async function removeBookmark(novelId: string, chapterIndex: number) {
-  const db = await openDB();
-  return new Promise<void>((resolve, reject) => {
-    try {
-      const tx = db.transaction(BOOKMARKS_STORE, "readwrite");
-      const store = tx.objectStore(BOOKMARKS_STORE);
-
-      const request = store.delete([novelId, chapterIndex]);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    } catch (err) {
-      console.error("DB error removing bookmark:", err);
-      reject(err);
-    }
-  });
+async function yieldToUi() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  await new Promise((resolve) => window.setTimeout(resolve, 0));
 }
 
-export async function getBookmarks(novelId: string): Promise<Bookmark[]> {
-  const db = await openDB();
-  return new Promise((resolve, reject) => {
-    try {
-      const tx = db.transaction(BOOKMARKS_STORE, "readonly");
-      const store = tx.objectStore(BOOKMARKS_STORE);
-      const index = store.index("novelId");
-
-      const request = index.getAll(novelId);
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => reject(request.error);
-    } catch (err) {
-      console.error("DB error getting bookmarks:", err);
-      resolve([]);
-    }
-  });
-}
-
-function buildMergedNovelRecord(existingNovel: Novel, newNovel: StoredNovelRecord): StoredNovelRecord {
-  const mergedChapters = mergeChapters(
-    existingNovel.chapters as StoredNovelRecord["chapters"],
-    newNovel.chapters as StoredNovelRecord["chapters"],
-  );
-
-  return {
-    ...existingNovel,
-    ...newNovel,
-    id: existingNovel.id,
-    title: pickPreferredValue(newNovel.title, existingNovel.title),
-    author: pickPreferredValue(newNovel.author, existingNovel.author),
-    sourceUrl: pickPreferredValue(newNovel.sourceUrl, existingNovel.sourceUrl),
-    image: pickPreferredValue(newNovel.image, existingNovel.image),
-    alternative: pickPreferredValue(newNovel.alternative, existingNovel.alternative),
-    description: pickPreferredValue(newNovel.description, existingNovel.description),
-    status: pickPreferredValue(newNovel.status, existingNovel.status),
-    genres: pickPreferredValue(newNovel.genres, existingNovel.genres),
-    tags: pickPreferredValue(newNovel.tags, existingNovel.tags),
-    rating:
-      typeof newNovel.rating === "number"
-        ? newNovel.rating
-        : typeof existingNovel.rating === "number"
-          ? existingNovel.rating
-          : undefined,
-    isCompleted: Boolean(newNovel.isCompleted ?? existingNovel.isCompleted),
-    lastUpdated: new Date().toISOString(),
-    chapters: mergedChapters,
-    lastChapterIndex: Math.max(0, mergedChapters.length - 1),
-  };
-}
+export { SUMMARY_PAGE_SIZE };

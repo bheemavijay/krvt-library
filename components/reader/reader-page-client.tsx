@@ -9,7 +9,9 @@ import ReaderControls from "@/components/reader/reader-controls";
 import { SettingsModal } from "@/components/reader/settings-modal";
 import { saveChapterScrollPosition, saveNovelReadingProgress } from "@/lib/reader-storage";
 import {
+  ensureReaderFontsLoaded,
   getDefaultReaderSettings,
+  getReaderFontStack,
   saveSettings,
   useReaderSettings,
   type ReplacementRule,
@@ -20,8 +22,9 @@ import {
   saveNovelBookmark,
   subscribeToBookmarks,
 } from "@/lib/storage/bookmarks";
-import { getNovel } from "@/lib/storage/indexeddb";
-import { isPaused, isSpeaking, pause, resume, speak } from "@/lib/tts";
+import { getChapter, getNovelChapterList, getNovelSummary } from "@/lib/storage/indexeddb";
+import { initializeTts, isPaused, isSpeaking, pause, resume, speak, stop } from "@/lib/tts";
+import { createTtsSessionManager } from "@/features/tts/session";
 import { cn } from "@/lib/utils";
 import type { Novel } from "@/types";
 
@@ -39,11 +42,14 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   const [isChapterPanelOpen, setIsChapterPanelOpen] = useState(false);
   const [chapterSearch, setChapterSearch] = useState("");
   const [ttsState, setTtsState] = useState<"idle" | "playing" | "paused">("idle");
+  const [currentParagraphIndex, setCurrentParagraphIndex] = useState<number | null>(null);
   const [statusMessage, setStatusMessage] = useState("");
   const [bookmarked, setBookmarked] = useState(false);
 
   const longPressTimeoutRef = useRef<number | null>(null);
   const activeChapterRef = useRef<HTMLAnchorElement | null>(null);
+  const paragraphRefs = useRef<Array<HTMLParagraphElement | null>>([]);
+  const ttsSessionRef = useRef(createTtsSessionManager());
 
   const safeNovelId = decodeURIComponent(novelId).trim();
   const parsedChapterIndex = Number(chapterParam) - 1;
@@ -56,8 +62,26 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
 
     const load = async () => {
       try {
-        const nextNovel = await getNovel(safeNovelId);
+        const [summary, chapterList, activeChapter] = await Promise.all([
+          getNovelSummary(safeNovelId),
+          getNovelChapterList(safeNovelId),
+          getChapter(safeNovelId, requestedChapterIndex),
+        ]);
         if (!cancelled) {
+          const nextNovel = summary
+            ? {
+                ...summary,
+                sourceUrl: summary.sourceUrl ?? "",
+                alternative: "",
+                rating: undefined,
+                genres: summary.genres ?? [],
+                tags: summary.tags ?? [],
+                lastUpdated: summary.lastUpdated ?? new Date().toISOString(),
+                chapters: chapterList.map((item, index) =>
+                  index === requestedChapterIndex && activeChapter ? activeChapter : item,
+                ),
+              }
+            : null;
           setNovel(nextNovel);
           setLoading(false);
         }
@@ -157,10 +181,14 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   }, [chapterSearch, isChapterPanelOpen]);
 
   useEffect(() => {
+    const ttsSession = ttsSessionRef.current;
+
     return () => {
       if (longPressTimeoutRef.current !== null) {
         clearTimeout(longPressTimeoutRef.current);
       }
+      ttsSession.cancel();
+      stop();
     };
   }, []);
 
@@ -172,6 +200,12 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   const progressPercent =
     totalChapters > 0 ? Math.round(((chapterIndex + 1) / totalChapters) * 100) : 0;
   const textAlign = settings.textAlign as CSSProperties["textAlign"];
+  const readerMaxWidth = settings.contentMaxWidth >= 9999 ? "100%" : `${settings.contentMaxWidth}px`;
+  const readerFontFamily = getReaderFontStack(settings.fontFamily);
+
+  useEffect(() => {
+    ensureReaderFontsLoaded();
+  }, []);
 
   const normalizedContent = useMemo(() => {
     if (!chapter) {
@@ -187,6 +221,10 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
 
     return applyTermReplacements(content, settings.replacements);
   }, [chapter, settings.replacements]);
+  const paragraphProgressPercent =
+    currentParagraphIndex !== null && normalizedContent.length > 0
+      ? Math.round(((currentParagraphIndex + 1) / normalizedContent.length) * 100)
+      : 0;
 
   const previousHref =
     novel && chapterIndex > 0 ? `/reader?id=${novel.id}&chapter=${chapterIndex}` : undefined;
@@ -208,22 +246,76 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
       });
   }, [chapterSearch, novel?.chapters]);
 
-  const startTtsFromParagraph = useCallback(
-    async (startIndex: number) => {
-      const partialText = normalizedContent.slice(startIndex).join("\n\n");
-      const started = await speak(partialText, settings, {
+  useEffect(() => {
+    paragraphRefs.current = paragraphRefs.current.slice(0, normalizedContent.length);
+  }, [normalizedContent.length]);
+
+  useEffect(() => {
+    if (ttsState !== "playing" || currentParagraphIndex === null) {
+      return;
+    }
+
+    paragraphRefs.current[currentParagraphIndex]?.scrollIntoView({
+      block: "center",
+      behavior: "smooth",
+    });
+  }, [currentParagraphIndex, ttsState]);
+
+  useEffect(() => {
+    ttsSessionRef.current.cancel();
+    stop();
+    setTtsState("idle");
+    setCurrentParagraphIndex(null);
+  }, [chapter?.id]);
+
+  const playParagraph = useCallback(
+    async (paragraphIndex: number, runId: number) => {
+      const paragraph = normalizedContent[paragraphIndex]?.trim();
+      if (!paragraph) {
+        const nextIndex = normalizedContent.findIndex(
+          (line, index) => index > paragraphIndex && line.trim(),
+        );
+        if (nextIndex === -1) {
+          setTtsState("idle");
+          setCurrentParagraphIndex(null);
+          return;
+        }
+        await playParagraph(nextIndex, runId);
+        return;
+      }
+
+      ttsSessionRef.current.markParagraph(paragraphIndex);
+      setCurrentParagraphIndex(paragraphIndex);
+      const started = await speak(paragraph, settings, {
         onStart: () => {
+          if (!ttsSessionRef.current.isCurrent(runId)) {
+            return;
+          }
           setTtsState("playing");
           setStatusMessage(
-            startIndex === 0
+            paragraphIndex === 0
               ? "Reading chapter aloud."
-              : `Reading from paragraph ${startIndex + 1}.`,
+              : `Reading from paragraph ${paragraphIndex + 1}.`,
           );
         },
         onPause: () => setTtsState("paused"),
         onResume: () => setTtsState("playing"),
         onEnd: () => {
+          if (!ttsSessionRef.current.isCurrent(runId)) {
+            return;
+          }
+
+          const nextIndex = normalizedContent.findIndex(
+            (line, index) => index > paragraphIndex && line.trim(),
+          );
+
+          if (nextIndex !== -1) {
+            void playParagraph(nextIndex, runId);
+            return;
+          }
+
           setTtsState("idle");
+          setCurrentParagraphIndex(null);
           setStatusMessage("Text-to-speech finished.");
 
           if (settings.autoNext && nextHref) {
@@ -233,17 +325,42 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
             router.push(nextHref);
           }
         },
-        onError: () => {
+        onError: (error) => {
+          if (!ttsSessionRef.current.isCurrent(runId)) {
+            return;
+          }
+          if (ttsSessionRef.current.isPauseRequested()) {
+            return;
+          }
+          console.error("Reader TTS paragraph failed", { error, paragraphIndex });
           setTtsState("idle");
           setStatusMessage("Text-to-speech could not start.");
         },
       });
 
-      if (!started) {
+      if (!started && ttsSessionRef.current.isCurrent(runId)) {
+        if (ttsSessionRef.current.isPauseRequested()) {
+          return;
+        }
         setTtsState("idle");
       }
     },
     [nextHref, normalizedContent, router, settings],
+  );
+
+  const startTtsFromParagraph = useCallback(
+    async (startIndex: number) => {
+      if (normalizedContent.length === 0) {
+        setStatusMessage("There is no chapter text available to read.");
+        return;
+      }
+
+      const safeStartIndex = Math.min(Math.max(startIndex, 0), normalizedContent.length - 1);
+      const runId = ttsSessionRef.current.start(safeStartIndex);
+      setTtsState("playing");
+      await playParagraph(safeStartIndex, runId);
+    },
+    [normalizedContent.length, playParagraph],
   );
 
   useEffect(() => {
@@ -289,7 +406,8 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   }
 
   const handleToggleTts = async () => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+    const ready = await initializeTts();
+    if (!ready) {
       setStatusMessage("Text-to-speech could not start.");
       return;
     }
@@ -297,9 +415,11 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
     if (isSpeaking()) {
       if (isPaused()) {
         resume();
+        ttsSessionRef.current.setPauseRequested(false);
         setTtsState("playing");
         setStatusMessage("Text-to-speech resumed.");
       } else {
+        ttsSessionRef.current.setPauseRequested(true);
         pause();
         setTtsState("paused");
         setStatusMessage("Text-to-speech paused.");
@@ -307,7 +427,15 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
       return;
     }
 
-    await startTtsFromParagraph(0);
+    if (ttsState === "paused" && currentParagraphIndex !== null) {
+      resume();
+      ttsSessionRef.current.setPauseRequested(false);
+      await startTtsFromParagraph(currentParagraphIndex);
+      setStatusMessage("Text-to-speech resumed.");
+      return;
+    }
+
+    await startTtsFromParagraph(currentParagraphIndex ?? 0);
   };
 
   const handleBookmarkToggle = () => {
@@ -420,12 +548,16 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
         className={cn("min-h-screen", settings.showBottomNav ? "pb-20" : "pb-8")}
         style={{ backgroundColor: settings.backgroundColor, color: settings.textColor }}
       >
-        <div className="w-full px-3 py-6 sm:px-4 sm:py-8">
+        <div className="w-full px-3 py-3 sm:px-4 sm:py-5">
           <ReaderControls
             novel={novel}
             chapterIndex={chapterIndex}
             totalChapters={totalChapters}
             progressPercent={progressPercent}
+            contentMaxWidth={settings.contentMaxWidth}
+            paragraphIndex={currentParagraphIndex}
+            paragraphCount={normalizedContent.length}
+            paragraphProgressPercent={paragraphProgressPercent}
             showProgress={settings.showTopNav}
             onOpenSettings={() => setIsSettingsOpen(true)}
             onToggleTts={handleToggleTts}
@@ -439,27 +571,39 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
           />
 
           {statusMessage ? (
-            <div className="mb-5 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80">
+            <div
+              className="mx-auto mb-4 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80"
+              style={{ maxWidth: readerMaxWidth }}
+            >
               {statusMessage}
             </div>
           ) : null}
 
           <article
-            className="w-full rounded-lg border border-white/10 bg-black/20 px-4 py-6"
+            className="mx-auto w-full rounded-lg border border-white/10 bg-black/20 px-3 py-6 sm:px-5"
             onDoubleClick={() => setIsSettingsOpen(true)}
             style={{
               color: settings.textColor,
               fontSize: `${settings.fontSize}px`,
               lineHeight: settings.lineHeight,
-              fontFamily: settings.fontFamily,
+              maxWidth: readerMaxWidth,
+              fontFamily: readerFontFamily,
               textAlign,
             }}
           >
             {normalizedContent.map((line, index) => (
               <p
                 key={`${chapter.id}-${index}`}
-                className="mb-6"
-                style={{ opacity: 0.92 }}
+                ref={(element) => {
+                  paragraphRefs.current[index] = element;
+                }}
+                className={cn(
+                  "mb-6 rounded-md px-2 py-1.5 transition-[background-color,box-shadow,color] duration-300",
+                  currentParagraphIndex === index &&
+                    ttsState !== "idle" &&
+                    "bg-[#d4b16a]/14 shadow-[inset_3px_0_0_rgba(212,177,106,0.9),0_8px_24px_rgba(0,0,0,0.08)]",
+                )}
+                style={{ opacity: currentParagraphIndex === index && ttsState !== "idle" ? 1 : 0.92 }}
                 onPointerDown={handleParagraphPointerDown(index)}
                 onPointerUp={clearLongPress}
                 onPointerLeave={clearLongPress}

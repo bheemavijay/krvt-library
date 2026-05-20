@@ -2,13 +2,27 @@
 
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Bookmark, Info, Volume2, Settings, List } from "lucide-react";
+import {
+  Bookmark,
+  Info,
+  List,
+  Pause,
+  Play,
+  Settings,
+  SkipBack,
+  SkipForward,
+  Volume2,
+} from "lucide-react";
 
 type ReaderControlsProps = {
   novel: { id: string; title: string; chapters: Array<unknown> };
   chapterIndex: number;
   totalChapters: number;
   progressPercent: number;
+  contentMaxWidth: number;
+  paragraphIndex?: number | null;
+  paragraphCount?: number;
+  paragraphProgressPercent?: number;
   showProgress?: boolean;
   onOpenSettings: () => void;
   onToggleTts?: () => void;
@@ -38,10 +52,10 @@ const IconBtn = ({
     title={label}
     className={cn(
       "flex shrink-0 items-center justify-center rounded-lg sm:rounded-xl",
-      "h-9 w-9 sm:h-11 sm:w-11",
+      "h-10 w-10 sm:h-11 sm:w-11",
       "text-white/70 transition-all duration-200",
       "hover:bg-white/10 hover:text-white active:scale-95",
-      active && "text-[#d4b16a] bg-white/5"
+      active && "bg-white/5 text-[#d4b16a]",
     )}
   >
     {children}
@@ -53,6 +67,10 @@ export default function ReaderControls({
   chapterIndex,
   totalChapters,
   progressPercent,
+  contentMaxWidth,
+  paragraphIndex = null,
+  paragraphCount = 0,
+  paragraphProgressPercent = 0,
   showProgress = true,
   onOpenSettings,
   onToggleTts,
@@ -65,41 +83,78 @@ export default function ReaderControls({
   onNext,
 }: ReaderControlsProps) {
   const isTtsActive = ttsState === "playing" || ttsState === "paused";
+  const hasPrev = chapterIndex > 0;
+  const hasNext = chapterIndex < totalChapters - 1;
+  const controlMaxWidth = contentMaxWidth >= 9999 ? "100%" : `${contentMaxWidth}px`;
+  const ttsLabel =
+    ttsState === "playing" ? "Pause reading" : ttsState === "paused" ? "Resume reading" : "Read aloud";
 
   return (
-    <div className="sticky top-14 z-40 sm:top-16">
-      <div className="w-full">
-        <div className="w-full rounded-xl border border-white/10 bg-[#0b0c10]/80 px-2 py-2 shadow-lg shadow-black/30 backdrop-blur-xl sm:px-6 sm:py-3">
+    <div className="sticky z-40 -mx-3 mb-4 sm:-mx-4" style={{ top: "env(safe-area-inset-top, 0px)" }}>
+      <div className="w-full px-3 py-2 sm:px-4">
+        <div
+          className="mx-auto w-full rounded-xl border border-white/10 bg-[#0b0c10]/90 px-2.5 py-2.5 shadow-lg shadow-black/25 backdrop-blur-xl sm:px-4"
+          style={{ maxWidth: controlMaxWidth }}
+        >
           {showProgress ? (
-            <div className="mb-2 flex items-center justify-center text-xs font-medium text-white/60">
-              Chapter {chapterIndex + 1} of {totalChapters} ({progressPercent}%)
+            <div className="mb-2 space-y-1.5">
+              <div className="flex items-center justify-between gap-3 text-[11px] font-medium text-white/55">
+                <span className="truncate">Chapter {chapterIndex + 1} of {totalChapters}</span>
+                <span className="shrink-0">{progressPercent}%</span>
+              </div>
+              <div className="h-1 overflow-hidden rounded-full bg-white/8">
+                <div
+                  className="h-full rounded-full bg-[#d4b16a] transition-[width] duration-300"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              {paragraphIndex !== null && paragraphCount > 0 ? (
+                <div className="flex items-center gap-2 text-[11px] text-white/45">
+                  <span className="shrink-0">Paragraph {paragraphIndex + 1}/{paragraphCount}</span>
+                  <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/8">
+                    <div
+                      className="h-full rounded-full bg-white/45 transition-[width] duration-300"
+                      style={{ width: `${paragraphProgressPercent}%` }}
+                    />
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : null}
 
-          <div className="flex w-full items-center justify-between gap-2 overflow-x-auto no-scrollbar">
-            {/* LEFT */}
+          <div className="flex min-h-10 w-full items-center justify-between gap-2">
             <button
               onClick={onPrev}
-              className="h-9 sm:h-11 px-3 sm:px-4 text-xs sm:text-base text-white/70 border border-white/10 rounded-lg hover:bg-white/10 transition shrink-0"
+              disabled={!hasPrev}
+              aria-label="Previous chapter"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 text-white/70 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35 sm:w-11"
             >
-              Prev
+              <SkipBack size={17} />
             </button>
 
-            {/* CENTER */}
-            <div className="flex items-center gap-1 sm:gap-6 flex-1 justify-center shrink-0">
+            <div className="flex min-w-0 flex-1 items-center justify-center gap-1 sm:gap-3">
 
               <IconBtn onClick={onBookmark} label="Bookmark" active={isBookmarked}>
                 <Bookmark size={18} className="sm:w-5 sm:h-5" />
               </IconBtn>
 
-              <Link href={`/novel?id=${novel.id}`}>
-                <IconBtn label="Info">
-                  <Info size={18} className="sm:w-5 sm:h-5" />
-                </IconBtn>
+              <Link
+                href={`/novel?id=${novel.id}`}
+                aria-label="Novel details"
+                title="Novel details"
+                className={iconButtonClass(false)}
+              >
+                <Info size={18} className="sm:w-5 sm:h-5" />
               </Link>
 
-              <IconBtn onClick={onToggleTts} label="TTS" active={isTtsActive}>
-                <Volume2 size={18} className="sm:w-5 sm:h-5" />
+              <IconBtn onClick={onToggleTts} label={ttsLabel} active={isTtsActive}>
+                {ttsState === "playing" ? (
+                  <Pause size={18} className="sm:w-5 sm:h-5" />
+                ) : ttsState === "paused" ? (
+                  <Play size={18} className="sm:w-5 sm:h-5" />
+                ) : (
+                  <Volume2 size={18} className="sm:w-5 sm:h-5" />
+                )}
               </IconBtn>
 
               <IconBtn onClick={onOpenSettings} label="Settings">
@@ -111,18 +166,28 @@ export default function ReaderControls({
               </IconBtn>
 
             </div>
-
-            {/* RIGHT */}
             <button
               onClick={onNext}
-              className="h-9 sm:h-11 px-3 sm:px-4 text-xs sm:text-base text-white/70 border border-white/10 rounded-lg hover:bg-white/10 transition shrink-0"
+              disabled={!hasNext}
+              aria-label="Next chapter"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 text-white/70 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35 sm:w-11"
             >
-              Next
+              <SkipForward size={17} />
             </button>
           </div>
 
         </div>
       </div>
     </div>
+  );
+}
+
+function iconButtonClass(active?: boolean) {
+  return cn(
+    "flex shrink-0 items-center justify-center rounded-lg sm:rounded-xl",
+    "h-10 w-10 sm:h-11 sm:w-11",
+    "text-white/70 transition-all duration-200",
+    "hover:bg-white/10 hover:text-white active:scale-95",
+    active && "bg-white/5 text-[#d4b16a]",
   );
 }

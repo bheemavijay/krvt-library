@@ -1,6 +1,6 @@
 "use client";
 
-import { addNovel, getAllNovels } from "@/lib/storage/indexeddb";
+import { addNovel, getNovel, getNovelSummaries } from "@/lib/storage/indexeddb";
 import type { Novel } from "@/types";
 
 type LibraryBackupPayload = {
@@ -24,16 +24,26 @@ type ImportLibraryResult = {
 };
 
 export async function exportLibrary() {
-  const novels = await getAllNovels();
-  const payload: LibraryBackupPayload = {
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    novels,
-  };
+  const summaries = await getNovelSummaries();
+  const parts: BlobPart[] = [
+    `{\n  "version": 1,\n  "exportedAt": ${JSON.stringify(new Date().toISOString())},\n  "novels": [\n`,
+  ];
+  let writtenNovels = 0;
 
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: "application/json",
-  });
+  for (let index = 0; index < summaries.length; index += 1) {
+    const novel = await getNovel(summaries[index].id);
+    if (!novel) {
+      continue;
+    }
+
+    parts.push(`${writtenNovels > 0 ? ",\n" : ""}${JSON.stringify(novel)}`);
+    writtenNovels += 1;
+    await yieldToUi();
+  }
+
+  parts.push("\n  ]\n}");
+
+  const blob = new Blob(parts, { type: "application/json" });
   const url = window.URL.createObjectURL(blob);
   const anchor = document.createElement("a");
 

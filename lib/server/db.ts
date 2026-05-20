@@ -342,6 +342,7 @@ async function loadChapterContentFromDisk(novelId: string, chapterNumber: number
 
 async function getIndexedNovel(novelId: string) {
   const index = await getNovelIndex();
+  if (!index) return null;
   return index.get(novelId) ?? null;
 }
 

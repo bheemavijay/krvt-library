@@ -38,7 +38,14 @@ export type NovelSummary = Pick<
   Novel,
   "id" | "title" | "author" | "isCompleted" | "status" | "image" | "description"
 > & {
+  sourceUrl?: string;
+  genres?: string[];
+  tags?: string[];
+  rating?: number;
+  alternative?: string;
   chapterCount: number;
+  lastUpdated?: string;
+  chapterTitles?: string[];
 };
 
 export type NovelReadingProgress = {
@@ -81,7 +88,7 @@ export type LibraryReadingState = {
 
 export type AppAccentColor = "gold" | "purple" | "crimson";
 
-export type AppThemeMode = "dark" | "black";
+export type AppThemeMode = "dark" | "black" | "gold-black" | "silver-graphite";
 
 export type AppSettingsState = {
   accentColor: AppAccentColor;

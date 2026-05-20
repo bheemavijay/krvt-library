@@ -1,8 +1,18 @@
 "use client";
 
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import type { ReaderSettings } from "@/lib/settings";
 
-export type TtsVoice = SpeechSynthesisVoice;
+export type TtsVoice = {
+  voiceURI: string;
+  name: string;
+  lang: string;
+  localService?: boolean;
+  default?: boolean;
+  voiceIndex?: number;
+  category?: string;
+  nativeVoice?: SpeechSynthesisVoice;
+};
 
 type SpeakCallbacks = {
   onStart?: () => void;
@@ -12,17 +22,37 @@ type SpeakCallbacks = {
   onError?: (error: string) => void;
 };
 
+type NativeTextToSpeechPlugin = {
+  speak(options: {
+    text: string;
+    lang?: string;
+    rate?: number;
+    pitch?: number;
+    volume?: number;
+    queueStrategy?: number;
+    voice?: number;
+  }): Promise<void>;
+  stop(): Promise<void>;
+  getSupportedVoices?: () => Promise<{ voices: TtsVoice[] }>;
+};
+
+const NativeTextToSpeech = registerPlugin<NativeTextToSpeechPlugin>("TextToSpeech");
+
 let utterance: SpeechSynthesisUtterance | null = null;
 let lastCallbacks: SpeakCallbacks = {};
 let currentSpeechKey = "";
 let voicesCache: TtsVoice[] = [];
 let voicesPromise: Promise<TtsVoice[]> | null = null;
 let bootPromise: Promise<boolean> | null = null;
+let nativeSpeaking = false;
+let nativePaused = false;
+let speakRunId = 0;
 
 const DEFAULT_LANG = "en-US";
 const BASE_VOICE_TIMEOUT_MS = 1800;
 const ANDROID_VOICE_TIMEOUT_MS = 5000;
 const VOICE_POLL_INTERVAL_MS = 250;
+const MAX_NATIVE_CHUNK_LENGTH = 3000;
 
 function isBrowserWithSpeechApis() {
   return (
@@ -40,6 +70,10 @@ function getSpeechSynthesisInstance() {
   return window.speechSynthesis ?? null;
 }
 
+function isNativeTtsEnvironment() {
+  return typeof window !== "undefined" && Capacitor.isNativePlatform();
+}
+
 function isAndroidLikeEnvironment() {
   if (typeof window === "undefined") {
     return false;
@@ -49,7 +83,7 @@ function isAndroidLikeEnvironment() {
   return userAgent.includes("android") || userAgent.includes("wv;");
 }
 
-function voicePriority(voice: SpeechSynthesisVoice) {
+function voicePriority(voice: SpeechSynthesisVoice | TtsVoice) {
   const lang = voice.lang.toLowerCase();
 
   if (lang.startsWith("en-gb")) return 0;
@@ -58,18 +92,27 @@ function voicePriority(voice: SpeechSynthesisVoice) {
   return 3;
 }
 
-export function filterVoices(voices: SpeechSynthesisVoice[]) {
-  const englishVoices = [...voices]
-    .filter((voice) => voice.lang.toLowerCase().startsWith("en"))
-    .sort((left, right) => {
+export function filterVoices(voices: Array<SpeechSynthesisVoice | TtsVoice>) {
+  const seen = new Set<string>();
+  const normalizedVoices = voices.map(normalizeVoice).filter((voice) => {
+    const key = `${voice.voiceURI}|${voice.lang}|${voice.name}`.toLowerCase();
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+
+  return [...normalizedVoices].sort((left, right) => {
       const priorityDifference = voicePriority(left) - voicePriority(right);
       if (priorityDifference !== 0) {
         return priorityDifference;
       }
+      if (left.category !== right.category) {
+        return (left.category ?? "").localeCompare(right.category ?? "");
+      }
       return left.name.localeCompare(right.name);
     });
-
-  return englishVoices.length > 0 ? englishVoices : [...voices];
 }
 
 export async function initializeTts() {
@@ -80,6 +123,10 @@ export async function initializeTts() {
   bootPromise = (async () => {
     const startedAt = Date.now();
     const timeoutMs = isAndroidLikeEnvironment() ? ANDROID_VOICE_TIMEOUT_MS : BASE_VOICE_TIMEOUT_MS;
+
+    if (isNativeTtsEnvironment()) {
+      return true;
+    }
 
     while (Date.now() - startedAt < timeoutMs) {
       const synth = getSpeechSynthesisInstance();
@@ -104,6 +151,20 @@ export async function initializeTts() {
 }
 
 export async function loadVoices(forceRefresh = false): Promise<TtsVoice[]> {
+  if (isNativeTtsEnvironment()) {
+    try {
+      const result = await NativeTextToSpeech.getSupportedVoices?.();
+      const voices = (result?.voices ?? []).map((voice, index) => ({
+        ...voice,
+        voiceIndex: index,
+      }));
+      return filterVoices(voices);
+    } catch (error) {
+      console.warn("TextToSpeech.getSupportedVoices failed", error);
+      return [];
+    }
+  }
+
   if (!forceRefresh && voicesCache.length > 0) {
     return voicesCache;
   }
@@ -131,7 +192,7 @@ export async function loadVoices(forceRefresh = false): Promise<TtsVoice[]> {
       let intervalId: number | undefined;
       let timeoutId: number | undefined;
 
-      const finish = (voices: TtsVoice[]) => {
+      const finish = (voices: Array<SpeechSynthesisVoice | TtsVoice>) => {
         if (settled) {
           return;
         }
@@ -198,10 +259,22 @@ export async function speak(
   settings: ReaderSettings,
   callbacks: SpeakCallbacks = {},
 ) {
+  const content = Array.isArray(text) ? text.join("\n\n") : text;
+  const normalizedText = content.trim();
+
+  if (!normalizedText) {
+    callbacks.onError?.("There is no chapter text available to read.");
+    return false;
+  }
+
   const ready = await initializeTts();
   if (!ready) {
     callbacks.onError?.("Speech synthesis is not available yet. Please try again in a moment.");
     return false;
+  }
+
+  if (isNativeTtsEnvironment()) {
+    return speakWithNativeTts(normalizedText, settings, callbacks);
   }
 
   const synth = getSpeechSynthesisInstance();
@@ -214,19 +287,12 @@ export async function speak(
     return false;
   }
 
-  const content = Array.isArray(text) ? text.join("\n\n") : text;
-  const normalizedText = content.trim();
   const speechKey = JSON.stringify({
     text: normalizedText,
     voiceURI: settings.tts.voiceURI,
     rate: settings.tts.rate,
     pitch: settings.tts.pitch,
   });
-
-  if (!normalizedText) {
-    callbacks.onError?.("There is no chapter text available to read.");
-    return false;
-  }
 
   if (utterance && currentSpeechKey === speechKey) {
     lastCallbacks = callbacks;
@@ -241,18 +307,22 @@ export async function speak(
     utterance = null;
   }
 
-  const voices = await loadVoices();
+  const voices = await loadVoices(true);
   const nextUtterance = new SpeechSynthesisUtterance(normalizedText);
-  const selectedVoice =
-    voices.find((voice) => voice.voiceURI === settings.tts.voiceURI) ??
-    voices[0] ??
-    null;
+  const selectedVoice = findSpeakableWebVoice(voices, settings.tts.voiceURI);
 
-  if (selectedVoice) {
-    nextUtterance.voice = selectedVoice;
-    nextUtterance.lang = selectedVoice.lang || DEFAULT_LANG;
-  } else {
-    nextUtterance.lang = DEFAULT_LANG;
+  nextUtterance.lang = normalizeLocale(selectedVoice?.lang);
+  if (selectedVoice?.nativeVoice) {
+    try {
+      nextUtterance.voice = selectedVoice.nativeVoice;
+    } catch (error) {
+      console.warn("Ignoring unavailable TTS voice", {
+        voiceURI: selectedVoice.voiceURI,
+        name: selectedVoice.name,
+        error,
+      });
+      nextUtterance.lang = DEFAULT_LANG;
+    }
   }
 
   nextUtterance.rate = settings.tts.rate;
@@ -272,6 +342,14 @@ export async function speak(
     lastCallbacks = {};
 
     if (event.error !== "interrupted" && event.error !== "canceled") {
+      console.error("TextToSpeech.speak failed", {
+        engine: "web",
+        error: event.error,
+        textLength: normalizedText.length,
+        lang: nextUtterance.lang,
+        rate: nextUtterance.rate,
+        pitch: nextUtterance.pitch,
+      });
       callbacks.onError?.(event.error);
     }
   };
@@ -284,11 +362,36 @@ export async function speak(
     synth.resume();
   }
 
-  synth.speak(nextUtterance);
-  return true;
+  try {
+    synth.speak(nextUtterance);
+    return true;
+  } catch (error) {
+    utterance = null;
+    currentSpeechKey = "";
+    lastCallbacks = {};
+    console.error("TextToSpeech.speak failed", {
+      engine: "web",
+      error,
+      textLength: normalizedText.length,
+      lang: nextUtterance.lang,
+      rate: nextUtterance.rate,
+      pitch: nextUtterance.pitch,
+    });
+    callbacks.onError?.("Text to speech could not start.");
+    return false;
+  }
 }
 
 export function pause() {
+  if (isNativeTtsEnvironment()) {
+    speakRunId += 1;
+    const callbacks = lastCallbacks;
+    void stopNativeSpeech(true);
+    nativePaused = true;
+    callbacks.onPause?.();
+    return;
+  }
+
   const synth = getSpeechSynthesisInstance();
   if (!synth) {
     return;
@@ -301,6 +404,11 @@ export function pause() {
 }
 
 export function resume() {
+  if (isNativeTtsEnvironment()) {
+    lastCallbacks.onResume?.();
+    return;
+  }
+
   const synth = getSpeechSynthesisInstance();
   if (!synth) {
     return;
@@ -313,6 +421,13 @@ export function resume() {
 }
 
 export function stop() {
+  speakRunId += 1;
+
+  if (isNativeTtsEnvironment()) {
+    void stopNativeSpeech();
+    return;
+  }
+
   const synth = getSpeechSynthesisInstance();
   if (!synth) {
     return;
@@ -325,13 +440,242 @@ export function stop() {
 }
 
 export function isSpeaking() {
+  if (isNativeTtsEnvironment()) {
+    return nativeSpeaking;
+  }
+
   const synth = getSpeechSynthesisInstance();
   return synth ? synth.speaking : false;
 }
 
 export function isPaused() {
+  if (isNativeTtsEnvironment()) {
+    return nativePaused;
+  }
+
   const synth = getSpeechSynthesisInstance();
   return synth ? synth.paused : false;
+}
+
+async function speakWithNativeTts(
+  normalizedText: string,
+  settings: ReaderSettings,
+  callbacks: SpeakCallbacks,
+) {
+  const runId = speakRunId + 1;
+  speakRunId = runId;
+  await stopNativeSpeech();
+
+  const chunks = chunkText(normalizedText, MAX_NATIVE_CHUNK_LENGTH);
+  if (chunks.length === 0) {
+    callbacks.onError?.("There is no chapter text available to read.");
+    return false;
+  }
+
+  nativeSpeaking = true;
+  nativePaused = false;
+  currentSpeechKey = JSON.stringify({
+    text: normalizedText,
+    voiceURI: settings.tts.voiceURI,
+    rate: settings.tts.rate,
+    pitch: settings.tts.pitch,
+  });
+  lastCallbacks = callbacks;
+  callbacks.onStart?.();
+
+  try {
+    const voices = await loadVoices();
+    const selectedVoice = voices.find((voice) => voice.voiceURI === settings.tts.voiceURI) ?? null;
+    const selectedVoiceIndex =
+      typeof selectedVoice?.voiceIndex === "number" ? selectedVoice.voiceIndex : undefined;
+    const selectedLang = normalizeLocale(selectedVoice?.lang);
+
+    for (const [index, chunk] of chunks.entries()) {
+      if (runId !== speakRunId) {
+        return false;
+      }
+
+      await NativeTextToSpeech.speak({
+        text: chunk,
+        lang: selectedLang,
+        rate: clampSpeechNumber(settings.tts.rate, 0.1, 2, 1),
+        pitch: clampSpeechNumber(settings.tts.pitch, 0.1, 2, 1),
+        volume: 1,
+        queueStrategy: 1,
+        ...(selectedVoiceIndex !== undefined ? { voice: selectedVoiceIndex } : {}),
+      });
+
+      if (runId !== speakRunId) {
+        return false;
+      }
+
+      if (index < chunks.length - 1) {
+        await wait(80);
+      }
+    }
+
+    clearSpeechState();
+    callbacks.onEnd?.();
+    return true;
+  } catch (error) {
+    clearSpeechState();
+    console.error("TextToSpeech.speak failed", {
+      engine: "native",
+      error,
+      textLength: normalizedText.length,
+      chunkCount: chunks.length,
+      lang: DEFAULT_LANG,
+      rate: settings.tts.rate,
+      pitch: settings.tts.pitch,
+    });
+    callbacks.onError?.("Text to speech could not start.");
+    return false;
+  }
+}
+
+async function stopNativeSpeech(keepPaused = false) {
+  try {
+    await NativeTextToSpeech.stop();
+  } catch (error) {
+    console.warn("TextToSpeech.stop failed", error);
+  } finally {
+    nativeSpeaking = false;
+    nativePaused = keepPaused;
+    clearSpeechState();
+  }
+}
+
+function clearSpeechState() {
+  utterance = null;
+  currentSpeechKey = "";
+  lastCallbacks = {};
+  nativeSpeaking = false;
+}
+
+function normalizeLocale(value: string | undefined) {
+  const locale = (value || DEFAULT_LANG).replace(/_/g, "-");
+  try {
+    return Intl.getCanonicalLocales(locale)[0] || DEFAULT_LANG;
+  } catch {
+    return DEFAULT_LANG;
+  }
+}
+
+function normalizeVoice(voice: SpeechSynthesisVoice | TtsVoice): TtsVoice {
+  const nativeVoice =
+    "voiceIndex" in voice || "nativeVoice" in voice ? voice.nativeVoice : (voice as SpeechSynthesisVoice);
+  const category = getVoiceCategory(voice);
+
+  return {
+    voiceURI: String(voice.voiceURI || voice.name || voice.lang || DEFAULT_LANG),
+    name: String(voice.name || voice.voiceURI || "Default voice"),
+    lang: normalizeLocale(voice.lang),
+    localService: voice.localService,
+    default: voice.default,
+    voiceIndex: "voiceIndex" in voice ? voice.voiceIndex : undefined,
+    category,
+    nativeVoice,
+  };
+}
+
+function findSpeakableWebVoice(voices: TtsVoice[], voiceURI: string) {
+  const selectedVoice = voices.find((voice) => voice.voiceURI === voiceURI);
+  if (isValidWebVoice(selectedVoice)) {
+    return selectedVoice;
+  }
+
+  const defaultVoice = voices.find((voice) => voice.default && isValidWebVoice(voice));
+  if (defaultVoice) {
+    return defaultVoice;
+  }
+
+  return voices.find(isValidWebVoice) ?? null;
+}
+
+function isValidWebVoice(voice: TtsVoice | undefined): voice is TtsVoice & { nativeVoice: SpeechSynthesisVoice } {
+  return Boolean(
+    voice?.nativeVoice &&
+      typeof voice.nativeVoice.name === "string" &&
+      typeof voice.nativeVoice.lang === "string",
+  );
+}
+
+function getVoiceCategory(voice: SpeechSynthesisVoice | TtsVoice) {
+  const lang = normalizeLocale(voice.lang);
+  if (lang.startsWith("en-US")) return "English - US";
+  if (lang.startsWith("en-GB")) return "English - UK";
+  if (lang.startsWith("en-AU")) return "English - AU";
+  if (lang.startsWith("en-IN")) return "English - India";
+  if (lang.startsWith("en")) return "English";
+  return lang || "Other";
+}
+
+function chunkText(text: string, maxLength: number) {
+  const paragraphs = text
+    .split(/\n{2,}/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const chunks: string[] = [];
+  let current = "";
+
+  const pushCurrent = () => {
+    if (current.trim()) {
+      chunks.push(current.trim());
+      current = "";
+    }
+  };
+
+  for (const paragraph of paragraphs) {
+    if (paragraph.length > maxLength) {
+      pushCurrent();
+      chunks.push(...splitLongText(paragraph, maxLength));
+      continue;
+    }
+
+    const next = current ? `${current}\n\n${paragraph}` : paragraph;
+    if (next.length > maxLength) {
+      pushCurrent();
+      current = paragraph;
+    } else {
+      current = next;
+    }
+  }
+
+  pushCurrent();
+  return chunks;
+}
+
+function splitLongText(text: string, maxLength: number) {
+  const chunks: string[] = [];
+  let remaining = text.trim();
+
+  while (remaining.length > maxLength) {
+    const slice = remaining.slice(0, maxLength);
+    const splitAt = Math.max(
+      slice.lastIndexOf(". "),
+      slice.lastIndexOf("? "),
+      slice.lastIndexOf("! "),
+      slice.lastIndexOf(", "),
+      slice.lastIndexOf(" "),
+    );
+    const safeSplitAt = splitAt > maxLength * 0.5 ? splitAt + 1 : maxLength;
+    chunks.push(remaining.slice(0, safeSplitAt).trim());
+    remaining = remaining.slice(safeSplitAt).trim();
+  }
+
+  if (remaining) {
+    chunks.push(remaining);
+  }
+
+  return chunks;
+}
+
+function clampSpeechNumber(value: number, min: number, max: number, fallback: number) {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.min(Math.max(value, min), max);
 }
 
 function wait(ms: number) {

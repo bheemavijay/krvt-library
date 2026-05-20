@@ -13,6 +13,7 @@ import {
   getServerAppSettingsState,
   subscribeToAppSettings,
 } from "@/lib/app-settings";
+import { getAppThemeTokens } from "@/features/themes/tokens";
 import { startAutoNovelUpdates } from "@/lib/update/autoUpdate";
 
 type SiteShellProps = {
@@ -40,6 +41,11 @@ function SiteShellInner({ children }: SiteShellProps) {
     try {
       if (typeof document === "undefined") return;
 
+      const themeTokens = getAppThemeTokens(
+        appSettings?.themeMode ?? "dark",
+        appSettings?.accentColor ?? "gold",
+      );
+
       document.documentElement.dataset.appThemeMode =
         appSettings?.themeMode ?? "dark";
 
@@ -48,15 +54,14 @@ function SiteShellInner({ children }: SiteShellProps) {
         appSettings?.fontFamily ?? "serif",
       );
 
-      document.documentElement.style.setProperty(
-        "--accent",
-        appSettings?.accentColor ?? "gold",
-      );
-
-      document.documentElement.style.setProperty(
-        "--accent-soft",
-        "rgba(224, 188, 82, 0.18)",
-      );
+      document.documentElement.style.setProperty("--krvt-bg", themeTokens.background);
+      document.documentElement.style.setProperty("--krvt-fg", themeTokens.foreground);
+      document.documentElement.style.setProperty("--krvt-panel", themeTokens.panel);
+      document.documentElement.style.setProperty("--krvt-panel-strong", themeTokens.panelStrong);
+      document.documentElement.style.setProperty("--krvt-border", themeTokens.border);
+      document.documentElement.style.setProperty("--krvt-accent", themeTokens.accent);
+      document.documentElement.style.setProperty("--krvt-accent-soft", themeTokens.accentSoft);
+      document.documentElement.style.setProperty("--krvt-shadow", themeTokens.shadow);
     } catch (e) {
       console.error("Theme apply error:", e);
     }
@@ -86,8 +91,6 @@ function SiteShellInner({ children }: SiteShellProps) {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.08),transparent_22%),radial-gradient(circle_at_bottom_left,rgba(212,177,106,0.12),transparent_26%)]" />
-
       <GlobalHeader onOpenSettings={open} />
 
       <div className="relative min-h-screen w-full">{children}</div>

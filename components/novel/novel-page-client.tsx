@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { getNovel } from "@/lib/storage/indexeddb";
-import type { Novel } from "@/types";
+import { getNovelChapterList, getNovelSummary } from "@/lib/storage/indexeddb";
+import type { Chapter, NovelSummary } from "@/types";
 
 export default function NovelPageClient({ novelId }: { novelId: string }) {
-  const [novel, setNovel] = useState<Novel | null>(null);
+  const [novel, setNovel] = useState<NovelSummary | null>(null);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
   useEffect(() => {
@@ -15,9 +16,10 @@ export default function NovelPageClient({ novelId }: { novelId: string }) {
 
     const safeId = decodeURIComponent(novelId.trim());
 
-    getNovel(safeId).then((data) => {
+    Promise.all([getNovelSummary(safeId), getNovelChapterList(safeId)]).then(([data, nextChapters]) => {
       if (!cancelled) {
         setNovel(data);
+        setChapters(nextChapters);
       }
     });
 
@@ -26,7 +28,7 @@ export default function NovelPageClient({ novelId }: { novelId: string }) {
     };
   }, [novelId]);
 
-  const chapterCount = novel?.chapters.length ?? 0;
+  const chapterCount = novel?.chapterCount ?? chapters.length;
   const hasLongDescription = (novel?.description?.length ?? 0) > 280;
   const visibleDescription = !novel?.description
     ? "No description available"
@@ -68,9 +70,6 @@ export default function NovelPageClient({ novelId }: { novelId: string }) {
                 {novel.title}
               </h1>
               <p className="mt-2 sm:mt-3 text-sm sm:text-base text-white/80">by {novel.author}</p>
-              {novel.alternative ? (
-                <p className="mt-1 sm:mt-2 text-xs sm:text-sm italic text-white/60">{novel.alternative}</p>
-              ) : null}
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -142,7 +141,7 @@ export default function NovelPageClient({ novelId }: { novelId: string }) {
             </div>
 
             <div className="mt-4 sm:mt-6 max-h-[500px] sm:max-h-[720px] space-y-2 sm:space-y-3 overflow-y-auto pr-1">
-              {novel.chapters.map((chapter, index) => (
+              {chapters.map((chapter, index) => (
                 <Link
                   key={chapter.id ?? `${novel.id}-${index}`}
                   href={`/reader?id=${novel.id}&chapter=${index + 1}`}
@@ -229,7 +228,7 @@ function renderStars(rating: number) {
   return `${"\u2605".repeat(filled)}${"\u2606".repeat(Math.max(0, 5 - filled))}`;
 }
 
-function getNovelCoverStyle(novel: Novel) {
+function getNovelCoverStyle(novel: NovelSummary) {
   if (novel.image?.trim()) {
     return {
       backgroundImage: `linear-gradient(180deg, rgba(7,7,10,0.08), rgba(7,7,10,0.68)), url("${novel.image}")`,

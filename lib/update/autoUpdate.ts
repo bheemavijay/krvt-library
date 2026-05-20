@@ -2,7 +2,7 @@
 
 import { getImportApiUrl } from "@/lib/import-api";
 import { mergeNovelChapters, normalizeNovelRecord } from "@/lib/novels";
-import { addNovel, getAllNovels } from "@/lib/storage/indexeddb";
+import { addNovel, getNovel, getNovelSummaries } from "@/lib/storage/indexeddb";
 import type { Chapter, Novel } from "@/types";
 
 type ImportApiResponse = {
@@ -143,8 +143,10 @@ async function updateSingleNovel(novel: Novel) {
 
 export async function updateAllNovels() {
   try {
-    const novels = await getAllNovels();
-    for (const novel of novels) {
+    const summaries = await getNovelSummaries();
+    for (const summary of summaries) {
+      const novel = await getNovel(summary.id);
+      if (!novel) continue;
       await updateSingleNovel(novel);
     }
     if (typeof window !== "undefined") {

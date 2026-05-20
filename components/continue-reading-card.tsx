@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 import Link from "next/link";
 
-import type { Novel, NovelSummary } from "@/types";
+import type { NovelSummary } from "@/types";
 
 import { Card } from "@/components/ui/card";
 import {
@@ -15,10 +15,9 @@ import { getReadingProgress } from "@/lib/utils";
 
 type ContinueReadingCardProps = {
   novels: NovelSummary[];
-  novelDetails: Novel[];
 };
 
-export function ContinueReadingCard({ novels, novelDetails }: ContinueReadingCardProps) {
+export function ContinueReadingCard({ novels }: ContinueReadingCardProps) {
   const readingState = useSyncExternalStore(
     subscribeToReadingState,
     getReadingState,
@@ -35,8 +34,7 @@ export function ContinueReadingCard({ novels, novelDetails }: ContinueReadingCar
     return null;
   }
 
-  const detailedNovel = novelDetails.find((item) => item.id === novel.id) ?? null;
-  const lastChapter = detailedNovel?.chapters[chapterIndex] ?? null;
+  const chapterTitle = novel.chapterTitles?.[chapterIndex] ?? "";
   const progress = getReadingProgress(chapterIndex + 1, novel.chapterCount);
 
   return (
@@ -56,8 +54,8 @@ export function ContinueReadingCard({ novels, novelDetails }: ContinueReadingCar
             <div className="rounded-xl sm:rounded-[1.25rem] border border-white/10 bg-white/6 p-3 sm:p-4">
               <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-accent">Last Chapter Read</p>
               <p className="mt-1 sm:mt-2 text-sm sm:text-base text-foreground lg:text-lg line-clamp-1">
-                {lastChapter
-                  ? `Chapter ${lastChapter.order}: ${lastChapter.title}`
+                {chapterTitle
+                  ? `Chapter ${chapterIndex + 1}: ${chapterTitle}`
                   : `Chapter ${chapterIndex + 1}`}
               </p>
             </div>

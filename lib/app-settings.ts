@@ -111,5 +111,5 @@ function isValidAccentColor(value: unknown): value is AppAccentColor {
 }
 
 function isValidThemeMode(value: unknown): value is AppThemeMode {
-  return value === "dark" || value === "black";
+  return value === "dark" || value === "black" || value === "gold-black" || value === "silver-graphite";
 }

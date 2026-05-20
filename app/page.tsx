@@ -15,22 +15,10 @@ import {
   addNovel,
   clearAllNovels,
   deleteNovel,
-  getAllNovels,
+  getNovel,
+  getNovelSummaries,
 } from "@/lib/storage/indexeddb";
 import type { Novel, NovelSummary } from "@/types";
-
-function toNovelSummary(n: Novel): NovelSummary {
-  return {
-    id: n.id,
-    title: n.title,
-    author: n.author,
-    chapterCount: n.chapters.length,
-    image: n.image,
-    isCompleted: n.isCompleted,
-    status: n.status,
-    description: n.description,
-  };
-}
 
 type LibrarySort = "lastImported" | "lastRead" | "chapterCount";
 type ChapterFilter = "all" | "short" | "medium" | "long";
@@ -100,8 +88,8 @@ function shouldWarnForMeteredConnection(network: NetworkInformation) {
   );
 }
 
-function matchesChapterFilter(novel: Novel, filter: ChapterFilter) {
-  const count = novel.chapters.length;
+function matchesChapterFilter(novel: NovelSummary, filter: ChapterFilter) {
+  const count = novel.chapterCount;
   if (filter === "short") return count < 50;
   if (filter === "medium") return count >= 50 && count < 200;
   if (filter === "long") return count >= 200;
@@ -121,7 +109,7 @@ export default function HomePage() {
 function HomePageClient() {
   const searchParams = useSearchParams();
 
-  const [novels, setNovels] = useState<Novel[]>([]);
+  const [novels, setNovels] = useState<NovelSummary[]>([]);
   const [backupMessage, setBackupMessage] = useState("");
   const [selectedGenre, setSelectedGenre] = useState<string>("All");
   const [busyNovelId, setBusyNovelId] = useState<string | null>(null);
@@ -139,31 +127,44 @@ function HomePageClient() {
 
   const searchQuery = searchParams.get("q") ?? "";
   const view = searchParams.get("view") ?? "home";
-
-  // ✅ LOAD NOVELS (single clean useEffect)
   useEffect(() => {
     let cancelled = false;
-    const uniqueById = (list: Novel[]) => {
-      const map = new Map();
+    const uniqueById = (list: NovelSummary[]) => {
+      const map = new Map<string, NovelSummary>();
       list.forEach((n) => map.set(n.id, n));
       return Array.from(map.values());
     };
 
-    const refresh = () => {
-      getAllNovels()
-        .then((data) => {
-          if (!cancelled) {
-            setNovels(uniqueById(data ?? [])); // ✅ FIXED
-          }
-        })
-        .catch(() => setNovels([]));
+    const refresh = async () => {
+      try {
+        const pageSize = 100;
+        let offset = 0;
+        let accumulated: NovelSummary[] = [];
+        setNovels([]);
+
+        while (!cancelled) {
+          const page = await getNovelSummaries({ offset, limit: pageSize });
+          if (page.length === 0) break;
+          accumulated = uniqueById([...accumulated, ...page]);
+          if (!cancelled) setNovels(accumulated);
+          if (page.length < pageSize) break;
+          offset += pageSize;
+          await new Promise((resolve) => window.setTimeout(resolve, 0));
+        }
+      } catch {
+        if (!cancelled) setNovels([]);
+      }
     };
 
-    refresh();
-    window.addEventListener("library:updated", refresh);
+    const handleLibraryUpdated = () => {
+      void refresh();
+    };
+
+    void refresh();
+    window.addEventListener("library:updated", handleLibraryUpdated);
     return () => {
       cancelled = true;
-      window.removeEventListener("library:updated", refresh);
+      window.removeEventListener("library:updated", handleLibraryUpdated);
     };
   }, []);
 
@@ -192,7 +193,7 @@ function HomePageClient() {
 
   const popular = useMemo(() => {
     return [...filteredNovels]
-      .sort((a, b) => (b.chapters.length ?? 0) - (a.chapters.length ?? 0))
+      .sort((a, b) => b.chapterCount - a.chapterCount)
       .slice(0, 8);
   }, [filteredNovels]);
 
@@ -212,7 +213,7 @@ function HomePageClient() {
     const filtered = novels.filter((novel) => matchesChapterFilter(novel, chapterFilter));
     return filtered.sort((left, right) => {
       if (librarySort === "chapterCount") {
-        return right.chapters.length - left.chapters.length;
+        return right.chapterCount - left.chapterCount;
       }
 
       if (librarySort === "lastRead") {
@@ -260,7 +261,7 @@ function HomePageClient() {
           ? `Imported ${result.importedCount} novels. ${result.failedNovels.length} failed.`
           : `Imported ${result.importedCount} novels`,
       );
-      setNovels(await getAllNovels());
+      setNovels(await getNovelSummaries());
     } catch (error) {
       setBackupMessage(error instanceof Error ? error.message : "Import failed");
     } finally {
@@ -269,7 +270,7 @@ function HomePageClient() {
     }
   };
 
-  const handleDeleteNovel = async (novel: Novel) => {
+  const handleDeleteNovel = async (novel: NovelSummary) => {
     if (!window.confirm("Delete this novel?")) return;
     try {
       setBusyNovelId(novel.id);
@@ -283,7 +284,13 @@ function HomePageClient() {
     }
   };
 
-  const handleUpdateNovel = async (novel: Novel) => {
+  const handleUpdateNovel = async (summary: NovelSummary) => {
+    const novel = await getNovel(summary.id);
+    if (!novel) {
+      setBackupMessage("Update failed: novel content missing");
+      return;
+    }
+
     if (!/^https?:/i.test(novel.sourceUrl)) {
       setBackupMessage("Update failed: source URL missing");
       return;
@@ -337,8 +344,8 @@ try {
         title: novel.title,
         novelUrl: novel.sourceUrl,
         lastChapterIndex:
-          novel.chapters.length > 0 ? novel.chapters.length - 1 : -1,
-        chapterCount: novel.chapters.length,
+          summary.chapterCount > 0 ? summary.chapterCount - 1 : -1,
+        chapterCount: summary.chapterCount,
       },
     }),
   });
@@ -383,8 +390,8 @@ if (!response.ok) {
         for (let i = 0; i < fetched.length; i++) {
           const chapter = fetched[i];
           incoming.push({
-            id: chapter.id ?? String(novel.chapters.length + incoming.length + 1),
-            order: novel.chapters.length + incoming.length + 1,
+            id: chapter.id ?? String(summary.chapterCount + incoming.length + 1),
+            order: summary.chapterCount + incoming.length + 1,
             title: chapter.title,
             content: Array.isArray(chapter.content)
               ? chapter.content
@@ -416,7 +423,7 @@ if (!response.ok) {
       });
 
       await addNovel(nextNovel);
-      setNovels((prev) => prev.map((n) => (n.id === novel.id ? nextNovel : n)));
+      setNovels(await getNovelSummaries());
       setBackupMessage(
         addedCount > 0
           ? `Updated "${novel.title}" with ${addedCount} new chapters`
@@ -635,8 +642,7 @@ if (!response.ok) {
       </section>
 
       <ContinueReadingCard
-        novels={novels.map(toNovelSummary)}
-        novelDetails={novels}
+        novels={novels}
       />
 
       {featured && (
@@ -678,7 +684,7 @@ if (!response.ok) {
 // GRID
 // =========================
 
-function Grid({ novels }: { novels: Novel[] }) {
+function Grid({ novels }: { novels: NovelSummary[] }) {
   const [showAll, setShowAll] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
     if (typeof window !== "undefined") {
@@ -730,7 +736,7 @@ function Grid({ novels }: { novels: Novel[] }) {
         }`}
       >
         {displayNovels.map((n) => (
-          <NovelCard key={n.id} novel={toNovelSummary(n)} viewMode={viewMode} />
+          <NovelCard key={n.id} novel={n} viewMode={viewMode} />
         ))}
       </div>
       {novels.length > 12 && !showAll && (
@@ -793,10 +799,10 @@ function LibraryManagementGrid({
   page,
   onPageChange,
 }: {
-  novels: Novel[];
+  novels: NovelSummary[];
   busyNovelId: string | null;
-  onDelete: (novel: Novel) => void;
-  onUpdate: (novel: Novel) => void;
+  onDelete: (novel: NovelSummary) => void;
+  onUpdate: (novel: NovelSummary) => void;
   page: number;
   onPageChange: (page: number) => void;
 }) {
@@ -821,7 +827,7 @@ function LibraryManagementGrid({
       <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {displayNovels.map((novel) => {
           const isBusy = busyNovelId === novel.id;
-          const canUpdate = /^https?:/i.test(novel.sourceUrl);
+          const canUpdate = /^https?:/i.test(novel.sourceUrl ?? "");
           return (
             <div
               key={novel.id}
@@ -837,7 +843,7 @@ function LibraryManagementGrid({
                 <h3 className="line-clamp-2 text-sm sm:text-base font-semibold">{novel.title}</h3>
                 <p className="text-xs text-white/70 mt-1">{novel.author}</p>
                 <div className="flex flex-wrap gap-2 text-[10px] sm:text-xs text-white/60 mt-2">
-                  <span>{novel.chapters.length} ch</span>
+                  <span>{novel.chapterCount} ch</span>
                   <span>{novel.isCompleted ? "Completed" : novel.status || "Ongoing"}</span>
                 </div>
                 <div className="mt-2 space-y-1 text-[11px] text-white/45">

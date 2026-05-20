@@ -2,8 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import type { ReaderSettings, ReplacementRule } from "@/lib/settings";
-import { filterVoices, loadVoices, speak } from "@/lib/tts";
+import {
+  ensureReaderFontsLoaded,
+  getReaderFontStack,
+  READER_FONT_OPTIONS,
+  type ReaderSettings,
+  type ReplacementRule,
+} from "@/lib/settings";
+import { filterVoices, loadVoices, speak, type TtsVoice } from "@/lib/tts";
 import { cn } from "@/lib/utils";
 
 type SettingsModalProps = {
@@ -24,33 +30,42 @@ const COLOR_PRESETS = [
   { label: "Slate", text: "#E6EDF7", bg: "#121A26" },
 ] as const;
 
-const FONT_OPTIONS = [
-  "Georgia",
-  "Times New Roman",
-  "Garamond",
-  "Palatino Linotype",
-  "Book Antiqua",
-  "Merriweather",
-  "Lora",
-];
-
 const LINE_HEIGHT_OPTIONS = [1.2, 1.5, 1.8, 2.0, 2.2] as const;
-const FONT_SIZES = [14, 16, 18, 20, 22, 24, 28, 32] as const;
+const FONT_SIZES = [10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40] as const;
+const WIDTH_MODES = [
+  { label: "Narrow", value: 620 },
+  { label: "Standard", value: 760 },
+  { label: "Wide", value: 960 },
+  { label: "Full Width", value: 9999 },
+] as const;
 const TTS_RATES = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0] as const;
 const TTS_PITCHES = [0.75, 1.0, 1.25, 1.5] as const;
 
 export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsModalProps) {
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [voices, setVoices] = useState<TtsVoice[]>([]);
+  const [voiceStatus, setVoiceStatus] = useState("Loading voices...");
 
   useEffect(() => {
     if (!isOpen) return;
 
     let cancelled = false;
-    loadVoices().then((nextVoices) => {
-      if (!cancelled) {
-        setVoices(filterVoices(nextVoices));
-      }
-    });
+    setVoiceStatus("Loading voices...");
+    loadVoices()
+      .then((nextVoices) => {
+        if (cancelled) {
+          return;
+        }
+        const filtered = filterVoices(nextVoices);
+        setVoices(filtered);
+        setVoiceStatus(filtered.length > 0 ? "" : "Voice list is unavailable. The device default will be used.");
+      })
+      .catch((error) => {
+        console.warn("Failed to load TTS voices", error);
+        if (!cancelled) {
+          setVoices([]);
+          setVoiceStatus("Voice list is unavailable. The device default will be used.");
+        }
+      });
 
     return () => {
       cancelled = true;
@@ -58,12 +73,19 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
   }, [isOpen]);
 
   const selectedVoice = useMemo(
-    () => voices.find((voice) => voice.voiceURI === settings.tts.voiceURI) ?? voices[0] ?? null,
+    () => voices.find((voice) => voice.voiceURI === settings.tts.voiceURI) ?? null,
     [settings.tts.voiceURI, voices],
   );
+  const groupedVoices = useMemo(() => groupVoicesByCategory(voices), [voices]);
 
   useEffect(() => {
-    if (!isOpen || settings.tts.voiceURI || !selectedVoice) {
+    if (isOpen) {
+      ensureReaderFontsLoaded();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || voices.length === 0 || !settings.tts.voiceURI || selectedVoice) {
       return;
     }
 
@@ -71,10 +93,10 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
       ...settings,
       tts: {
         ...settings.tts,
-        voiceURI: selectedVoice.voiceURI,
+        voiceURI: "",
       },
     });
-  }, [isOpen, onChange, selectedVoice, settings]);
+  }, [isOpen, onChange, selectedVoice, settings, voices.length]);
 
   if (!isOpen) {
     return null;
@@ -117,7 +139,7 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
     <div className="fixed inset-0 z-[70] flex justify-end bg-black/55 backdrop-blur-sm">
       <button type="button" aria-label="Close settings" onClick={onClose} className="absolute inset-0" />
 
-      <aside className="relative z-10 h-full w-full overflow-y-auto border-l border-white/10 bg-[#121318] px-4 py-4 shadow-lg sm:max-w-[480px] sm:px-6 sm:py-6 sm:shadow-[-24px_0_80px_rgba(0,0,0,0.45)]">
+      <aside className="relative z-10 h-full w-full overflow-y-auto border-l border-white/10 bg-[#121318] px-4 py-4 shadow-lg sm:max-w-[520px] sm:px-6 sm:py-6 sm:shadow-[-24px_0_80px_rgba(0,0,0,0.45)]">
         <div className="flex items-center justify-between border-b border-white/8 pb-4">
           <div>
             <p className="text-[10px] uppercase tracking-[0.32em] text-[#d4b16a]">Reader Settings</p>
@@ -168,15 +190,21 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
               value={settings.fontFamily}
               onChange={(value) => update({ fontFamily: value })}
             >
-              {FONT_OPTIONS.map((font) => (
-                <option key={font} value={font} className="bg-[#111319]">
-                  {font}
+              {READER_FONT_OPTIONS.map((font) => (
+                <option
+                  key={font.value}
+                  value={font.value}
+                  className="bg-[#111319]"
+                  style={{ fontFamily: font.stack }}
+                >
+                  {font.label}
                 </option>
               ))}
             </Select>
 
             <ChoiceGroup
               label={`Font size - ${settings.fontSize}px`}
+              layout="grid"
               options={FONT_SIZES.map((size) => ({
                 key: String(size),
                 label: String(size),
@@ -184,6 +212,26 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
                 onClick: () => update({ fontSize: size }),
               }))}
             />
+
+            <div
+              className="rounded-lg border border-white/10 bg-white/4 px-4 py-3 text-base leading-relaxed text-white/75"
+              style={{ fontFamily: getReaderFontStack(settings.fontFamily) }}
+            >
+              A quiet paragraph should feel easy to stay inside.
+            </div>
+
+            <label className="block space-y-2">
+              <span className="text-xs text-white/40">Fine tune font size</span>
+              <input
+                type="range"
+                min={10}
+                max={40}
+                step={1}
+                value={settings.fontSize}
+                onChange={(event) => update({ fontSize: Number(event.target.value) })}
+                className="w-full accent-[#d4b16a]"
+              />
+            </label>
 
             <div className="grid grid-cols-2 gap-3">
               <ColorInput
@@ -231,6 +279,16 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
             </div>
 
             <div className="space-y-2">
+              <ChoiceGroup
+                label={`Reader width - ${getWidthModeLabel(settings.contentMaxWidth)}`}
+                layout="grid"
+                options={WIDTH_MODES.map((mode) => ({
+                  key: mode.label,
+                  label: mode.label,
+                  active: settings.contentMaxWidth === mode.value,
+                  onClick: () => update({ contentMaxWidth: mode.value }),
+                }))}
+              />
               <ToggleRow
                 label="Show chapter progress"
                 checked={settings.showTopNav}
@@ -260,18 +318,30 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
               />
             </div>
 
-            {voices.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-xs text-white/40">Voice</p>
               <Select
-                value={settings.tts.voiceURI}
+                value={selectedVoice?.voiceURI ?? ""}
                 onChange={(value) => update({ tts: { ...settings.tts, voiceURI: value } })}
               >
-                {voices.map((voice) => (
-                  <option key={voice.voiceURI} value={voice.voiceURI} className="bg-[#111319]">
-                    {voice.name} ({voice.lang})
-                  </option>
+                <option value="" className="bg-[#111319]">
+                  Device default voice
+                </option>
+                {groupedVoices.map((group) => (
+                  <optgroup key={group.category} label={group.category}>
+                    {group.voices.map((voice) => (
+                      <option key={voice.voiceURI} value={voice.voiceURI} className="bg-[#111319]">
+                        {voice.name}
+                        {voice.default ? " - default" : ""}
+                        {voice.localService ? " - local" : ""}
+                        {` (${voice.lang})`}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </Select>
-            ) : null}
+              {voiceStatus ? <p className="text-xs text-white/40">{voiceStatus}</p> : null}
+            </div>
 
             <Select
               value={settings.tts.rate}
@@ -413,21 +483,23 @@ function Select({
 function ChoiceGroup({
   label,
   options,
+  layout = "wrap",
 }: {
   label: string;
   options: Array<{ key: string; label: string; active: boolean; onClick: () => void }>;
+  layout?: "wrap" | "grid";
 }) {
   return (
     <div>
       <p className="mb-2 text-xs text-white/40">{label}</p>
-      <div className="flex flex-wrap gap-1.5">
+      <div className={cn(layout === "grid" ? "grid grid-cols-4 gap-1.5 sm:grid-cols-6" : "flex flex-wrap gap-1.5")}>
         {options.map((option) => (
           <button
             key={option.key}
             type="button"
             onClick={option.onClick}
             className={cn(
-              "rounded-lg px-3 py-1.5 text-sm transition-all",
+              "min-h-9 rounded-lg px-2 py-1.5 text-center text-sm transition-all",
               option.active
                 ? "bg-white/15 text-white ring-1 ring-white/30"
                 : "bg-white/4 text-white/50 hover:bg-white/8 hover:text-white/80",
@@ -439,6 +511,23 @@ function ChoiceGroup({
       </div>
     </div>
   );
+}
+
+function getWidthModeLabel(width: number) {
+  return WIDTH_MODES.find((mode) => mode.value === width)?.label ?? `${width}px`;
+}
+
+function groupVoicesByCategory(voices: TtsVoice[]) {
+  const groups = new Map<string, TtsVoice[]>();
+  for (const voice of voices) {
+    const category = voice.category || "Other";
+    groups.set(category, [...(groups.get(category) ?? []), voice]);
+  }
+
+  return Array.from(groups.entries()).map(([category, groupVoices]) => ({
+    category,
+    voices: groupVoices,
+  }));
 }
 
 function ColorInput({

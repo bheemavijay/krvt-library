@@ -164,7 +164,10 @@ export function mergeNovelChapters(
 
 export function normalizeNovelRecord(input: NovelInput): Novel {
   const title = String(input.title ?? "").trim() || "Unknown Title";
-  const id = slugifyNovelId(title);
+  const id =
+    typeof input.id === "string" && input.id.trim()
+      ? input.id.trim()
+      : slugifyNovelId(title);
   const normalizedSourceUrl =
     typeof input.sourceUrl === "string" && input.sourceUrl.trim()
       ? normalizeNovelUrlKey(input.sourceUrl)

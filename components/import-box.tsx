@@ -26,6 +26,8 @@ type ImportResponse = {
   rating?: number | null;
   description?: string;
   sourceUrl?: string;
+  totalChapters?: number;
+  importedFrom?: number;
   chapters?: Array<{
     id?: string;
     title: string;
@@ -53,6 +55,13 @@ export function ImportBox() {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; isError: boolean } | null>(null);
   const [preview, setPreview] = useState<PreviewState | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<{
+    downloadedChapters: number;
+    totalChapters: number | null;
+    batchStart: number;
+    batchEnd: number;
+    complete: boolean;
+  } | null>(null);
 
   const isNovelFullUrl = useMemo(() => /novelfull\.(com|net)/i.test(url), [url]);
 
@@ -84,6 +93,7 @@ export function ImportBox() {
     setIsLoading(true);
     setMessage({ text: "Starting download...", isError: false });
     setPreview(null);
+    setDownloadProgress(null);
     await enableWakeLock();
 
     try {
@@ -121,6 +131,13 @@ export function ImportBox() {
         setMessage({
           text: `Downloading chapters ${batchStart} to ${batchStart + batchSize - 1}...`,
           isError: false,
+        });
+        setDownloadProgress({
+          downloadedChapters: currentNovel?.chapters.length ?? baseChapterCount,
+          totalChapters: latestData?.totalChapters ?? null,
+          batchStart,
+          batchEnd: batchStart + batchSize - 1,
+          complete: false,
         });
 
         console.info("[import-box] request-batch", {
@@ -182,6 +199,20 @@ export function ImportBox() {
             : [chapter.content],
         }));
 
+        const mergedChapters = mergeNovelChapters(
+          currentNovel?.id ?? normalizeNovelRecord({ title: data.title ?? meta?.title ?? "Unknown Title" }).id,
+          currentNovel?.chapters ?? [],
+          nextBatch,
+        );
+
+        if (currentNovel && mergedChapters.length < currentNovel.chapters.length) {
+          setMessage({
+            text: "Skipped older import batch because it had fewer chapters than your saved copy.",
+            isError: false,
+          });
+          break;
+        }
+
         const persistedNovel: Novel = normalizeNovelRecord({
           ...currentNovel,
           title: data.title ?? meta?.title ?? currentNovel?.title ?? "Unknown Title",
@@ -207,11 +238,7 @@ export function ImportBox() {
           isCompleted:
             currentNovel?.isCompleted ||
             /\b(completed|complete|full)\b/i.test(data.status ?? meta?.status ?? ""),
-          chapters: mergeNovelChapters(
-            currentNovel?.id ?? normalizeNovelRecord({ title: data.title ?? meta?.title ?? "Unknown Title" }).id,
-            currentNovel?.chapters ?? [],
-            nextBatch,
-          ),
+          chapters: mergedChapters,
         });
 
         await addNovel(persistedNovel);
@@ -231,6 +258,13 @@ export function ImportBox() {
           status: persistedNovel.status ?? "Unknown",
           rating: persistedNovel.rating,
           chapters: persistedNovel.chapters.length,
+        });
+        setDownloadProgress({
+          downloadedChapters: persistedNovel.chapters.length,
+          totalChapters: data.totalChapters ?? null,
+          batchStart,
+          batchEnd: batchStart + chapters.length - 1,
+          complete: data.totalChapters ? persistedNovel.chapters.length >= data.totalChapters : chapters.length < batchSize,
         });
 
         if (chapters.length < batchSize) {
@@ -253,6 +287,9 @@ export function ImportBox() {
             text: "Download complete",
             isError: false,
           });
+          setDownloadProgress((current) =>
+            current ? { ...current, complete: true } : current,
+          );
           return;
         }
         throw new Error("No chapters fetched");
@@ -290,6 +327,16 @@ export function ImportBox() {
         text: `Imported ${mappedChapters.length} new chapters successfully.`,
         isError: false,
       });
+      setDownloadProgress((current) =>
+        current
+          ? {
+              ...current,
+              downloadedChapters: novel.chapters.length,
+              totalChapters: current.totalChapters ?? novel.chapters.length,
+              complete: true,
+            }
+          : current,
+      );
 
       setUrl("");
 
@@ -340,12 +387,56 @@ export function ImportBox() {
         </div>
       )}
 
+      {downloadProgress ? (
+        <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+          <div className="flex items-center justify-between gap-3 text-sm text-white/75">
+            <span>
+              Chapters {downloadProgress.batchStart}-{downloadProgress.batchEnd}
+            </span>
+            <span>
+              {getImportPercent(downloadProgress)}%
+            </span>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-[#d4b16a] transition-[width] duration-300"
+              style={{ width: `${getImportPercent(downloadProgress)}%` }}
+            />
+          </div>
+          <p className="mt-2 text-xs text-white/50">
+            {downloadProgress.totalChapters
+              ? `${downloadProgress.downloadedChapters} of ${downloadProgress.totalChapters} chapters saved`
+              : `${downloadProgress.downloadedChapters} chapters saved`}
+            {downloadProgress.complete ? " - Complete" : ""}
+          </p>
+        </div>
+      ) : null}
+
       {message && (
         <p className={message.isError ? "text-red-400" : "text-green-400"}>
           {message.text}
         </p>
       )}
     </div>
+  );
+}
+
+function getImportPercent(progress: {
+  downloadedChapters: number;
+  totalChapters: number | null;
+  complete: boolean;
+}) {
+  if (progress.complete) {
+    return 100;
+  }
+
+  if (!progress.totalChapters || progress.totalChapters <= 0) {
+    return Math.min(95, Math.max(5, progress.downloadedChapters > 0 ? 55 : 8));
+  }
+
+  return Math.min(
+    100,
+    Math.max(1, Math.round((progress.downloadedChapters / progress.totalChapters) * 100)),
   );
 }
 

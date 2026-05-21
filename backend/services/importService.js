@@ -191,23 +191,40 @@ function extractNovelMetadata($, normalizedUrl, novelBaseUrl) {
       .replace(/[-_]+/g, " ")
       .trim() || "novel";
 
-  const title = $("h3.title").first().text().trim() || titleFromSlug;
-  const author = $('.info a[href*="author"]').first().text().trim() || "Unknown";
+  const title =
+    $("h3.title, h1.title, .bookname h1, [itemprop='name']").first().text().trim() ||
+    $("meta[property='og:title']").attr("content")?.trim() ||
+    titleFromSlug;
+  const author =
+    $('.info a[href*="author"], [itemprop="author"], a[href*="/author/"]').first().text().trim() ||
+    $(".info div:contains('Author') a, .info p:contains('Author') a").first().text().trim() ||
+    "Unknown";
   const genres = normalizeStringArray(
-    $('.info a[href*="genre"]')
+    $('.info a[href*="genre"], a[href*="/genre/"], .genres a, [class*="genre"] a')
       .map((_, el) => $(el).text().trim())
       .get(),
   );
   const tags = normalizeStringArray(
-    $(".info a[href*='/tag/'], a[href*='/tag/']")
+    $(".info a[href*='/tag/'], a[href*='/tag/'], .tags a, [class*='tag'] a")
       .map((_, el) => $(el).text().trim())
       .get(),
   );
   const infoText = $(".info").text();
-  const status = infoText.includes("Completed") ? "Completed" : "Ongoing";
-  const description = $("#noidungm").first().text().trim() || "";
-  const image =
-    $(".book img, .info-image img, .cover img").first().attr("src")?.trim() || DEFAULT_COVER;
+  const status =
+    /completed|complete|full/i.test(infoText)
+      ? "Completed"
+      : /ongoing|updating|in progress/i.test(infoText)
+        ? "Ongoing"
+        : "";
+  const description =
+    $("#noidungm, #tab-description, .desc, .description, [itemprop='description']").first().text().trim() ||
+    $("meta[name='description']").attr("content")?.trim() ||
+    "";
+  const rawImage =
+    $(".book img, .info-image img, .cover img, [itemprop='image'], meta[property='og:image']").first().attr("src")?.trim() ||
+    $("meta[property='og:image']").attr("content")?.trim() ||
+    DEFAULT_COVER;
+  const image = rawImage.startsWith("http") ? rawImage : toAbsoluteLink(rawImage, baseUrlFrom(novelBaseUrl));
   const alternative =
     $(".other-name, .info h3:contains('Alternative') + p").first().text().trim() || "";
   const ratingRaw =
@@ -355,8 +372,18 @@ async function importNovel(payload) {
 
   return {
     ...metadata,
+    totalChapters: links.length,
+    importedFrom: incrementalStart,
     chapters,
   };
+}
+
+function baseUrlFrom(url) {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return "https://novelfull.com";
+  }
 }
 
 module.exports = {

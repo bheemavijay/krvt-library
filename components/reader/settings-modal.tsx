@@ -300,16 +300,6 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
                 checked={settings.showBottomNav}
                 onChange={(value) => update({ showBottomNav: value })}
               />
-              <ToggleRow
-                label="Auto-scroll active paragraph"
-                checked={settings.autoScroll}
-                onChange={(value) => update({ autoScroll: value })}
-              />
-              <ToggleRow
-                label="Highlight active paragraph"
-                checked={settings.paragraphHighlight}
-                onChange={(value) => update({ paragraphHighlight: value })}
-              />
             </div>
           </section>
 
@@ -550,7 +540,10 @@ function getVisibleVoiceOptions(voices: TtsVoice[]) {
   }
 
   const englishVoices = voices.filter((voice) => voice.lang.toLowerCase().startsWith("en"));
-  return (englishVoices.length > 0 ? englishVoices : voices).slice(0, 24);
+  const preferred = englishVoices.filter((voice) =>
+    /google|microsoft|samsung|english|default/i.test(voice.name),
+  );
+  return (preferred.length > 0 ? preferred : englishVoices.length > 0 ? englishVoices : voices).slice(0, 12);
 }
 
 function isMobileVoiceSurface() {

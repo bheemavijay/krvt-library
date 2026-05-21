@@ -197,7 +197,9 @@ function HomePageClient() {
     if (selectedGenre === "All") return filteredBySearch;
     const genreQuery = selectedGenre.toLowerCase();
     return filteredBySearch.filter((novel) =>
-      (novel.genres ?? []).some((genre) => genre.toLowerCase() === genreQuery)
+      [...(novel.genres ?? []), ...(novel.tags ?? [])].some(
+        (genre) => genre.toLowerCase() === genreQuery,
+      )
     );
   }, [filteredBySearch, selectedGenre]);
 
@@ -214,6 +216,7 @@ function HomePageClient() {
     return ["All", ...Array.from(
       new Set(
         novels.flatMap((n) => n.genres ?? []).filter(Boolean)
+          .concat(novels.flatMap((n) => n.tags ?? []).filter(Boolean))
       )
     ).slice(0, 12)];
   }, [novels]);
@@ -734,23 +737,6 @@ if (!response.ok) {
       <ContinueReadingCard
         novels={novels}
       />
-
-      <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5 shadow-xl backdrop-blur-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg sm:text-xl font-semibold text-white">Bookmarks & History</h2>
-            <p className="text-xs sm:text-sm text-white/60">
-              Resume from your latest chapter or jump back to saved places.
-            </p>
-          </div>
-          <Link
-            href="/?view=history"
-            className="inline-flex min-h-[40px] items-center justify-center rounded-lg border border-white/10 bg-white/5 px-4 text-sm text-white/80 transition hover:bg-white/10"
-          >
-            Open History
-          </Link>
-        </div>
-      </section>
 
       {featured && (
         <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5 shadow-xl backdrop-blur-sm">

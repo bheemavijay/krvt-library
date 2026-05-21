@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
@@ -423,6 +424,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
       <div className="flex min-h-screen items-center justify-center">
         <div className="space-y-2 text-center">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-white/40" />
+          <Image src="/krvt-shield.svg" alt="KRVT" width={56} height={56} className="mx-auto h-14 w-14" priority />
           <p className="text-sm text-white/40">Loading chapter...</p>
         </div>
       </div>
@@ -521,8 +523,8 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
       >
         <div className="flex items-center justify-between gap-3 border-b border-white/8 px-4 py-4">
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-widest text-[#d4b16a]">Chapters</p>
-            <h2 className="truncate text-base font-semibold text-white">{novel.title}</h2>
+            <p className="text-[10px] uppercase tracking-widest text-[#d4b16a]">{novel.title}</p>
+            <h2 className="truncate text-lg font-semibold text-white">Chapter Index</h2>
           </div>
           <button
             type="button"
@@ -563,9 +565,10 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
                     : "border-white/6 bg-white/3 text-white/70 hover:border-white/12 hover:bg-white/6 hover:text-white",
                 )}
               >
-                <div className="min-w-0">
-                  <p className="text-[11px] uppercase tracking-wider opacity-60">Ch. {index + 1}</p>
-                  <p className="truncate font-medium">{item.title}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold sm:text-base">
+                    {index + 1}. {formatChapterIndexTitle(item.title, index)}
+                  </p>
                 </div>
                 <span className="shrink-0 text-[11px] uppercase tracking-wider opacity-50">
                   {isActive ? "Now" : "Go"}
@@ -756,4 +759,9 @@ function replaceWithoutRegex(value: string, rule: ReplacementRule) {
 
 function escapeRegex(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function formatChapterIndexTitle(title: string, index: number) {
+  const trimmed = title.trim();
+  return trimmed || `Chapter ${index + 1}`;
 }

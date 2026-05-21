@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import {
   Bookmark,
@@ -113,7 +114,10 @@ export default function ReaderControls({
           {showProgress ? (
             <div className="mb-2 space-y-1.5">
               <div className="flex items-center justify-between gap-3 text-[11px] font-medium text-white/55">
-                <span className="truncate">Chapter {chapterIndex + 1} of {totalChapters}</span>
+                <span className="flex min-w-0 items-center gap-2 truncate">
+                  <Image src="/krvt-shield.svg" alt="" width={18} height={18} className="h-4 w-4 shrink-0" />
+                  <span className="truncate">Chapter {chapterIndex + 1} of {totalChapters}</span>
+                </span>
                 <span className="shrink-0">{progressPercent}%</span>
               </div>
               <div className="h-1 overflow-hidden rounded-full bg-white/8">
@@ -227,7 +231,7 @@ function TogglePill({
       className={cn(
         "inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border px-2 text-[11px] font-medium transition",
         active
-          ? "border-[#d4b16a]/35 bg-[#d4b16a]/12 text-[#f0d99a]"
+          ? "border-[#d4b16a]/35 bg-[#d4b16a]/12 text-[#f0d99a] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
           : "border-white/8 bg-white/[0.03] text-white/45 hover:bg-white/[0.07] hover:text-white/70",
       )}
     >

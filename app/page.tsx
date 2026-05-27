@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { ContinueReadingCard } from "@/components/continue-reading-card";
+import { KrvtLoader } from "@/components/brand/krvt-loader";
 import { NovelCard } from "@/components/novel-card";
 import { getImportApiUrl } from "@/lib/import-api";
 import { mergeNovelChapters, normalizeNovelRecord } from "@/lib/novels";
@@ -99,7 +100,7 @@ function matchesChapterFilter(novel: NovelSummary, filter: ChapterFilter) {
 
 export default function HomePage() {
   return (
-    <Suspense fallback={<div className="text-center mt-10">Loading...</div>}>
+    <Suspense fallback={<KrvtLoader />}>
       <div className="mx-auto w-full max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-8">
         <HomePageClient />
       </div>
@@ -689,14 +690,14 @@ if (!response.ok) {
     return (
       <div className="space-y-6 sm:space-y-8">
         <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6 shadow-xl backdrop-blur-sm">
-          <h1 className="text-xl sm:text-2xl font-semibold text-white">Reading History</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold text-white">Bookmarks</h1>
           <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-white/65">
-            Continue reading, bookmarks, and recent chapter activity from this device.
+            Saved chapters, continue reading, and recent activity from this device.
           </p>
         </section>
 
-        <HistorySection title="Continue Reading" items={continueReadingItems} />
         <BookmarkSection items={bookmarkItems} />
+        <HistorySection title="Continue Reading" items={continueReadingItems} />
         <HistorySection title="Recent Chapters" items={continueReadingItems.slice(0, 6)} />
       </div>
     );
@@ -800,8 +801,8 @@ function Grid({ novels, isLoading = false }: { novels: NovelSummary[]; isLoading
 
   if (!novels.length && isLoading) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-8 text-center">
-        <p className="text-white/45">Loading library...</p>
+      <div className="overflow-hidden rounded-2xl border border-[#d4b16a]/15 bg-black/30">
+        <KrvtLoader compact className="min-h-[260px] bg-transparent" />
       </div>
     );
   }

@@ -2,6 +2,7 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { KrvtLoader } from "@/components/brand/krvt-loader";
 import { ReaderPageClient } from "@/components/reader/reader-page-client";
 
 function ReaderPage() {
@@ -18,7 +19,7 @@ function ReaderPage() {
 
 export default function ReaderPageWrapper() {
   return (
-    <Suspense fallback={<div className="p-6 text-white/50">Loading reader...</div>}>
+    <Suspense fallback={<KrvtLoader />}>
       <ReaderPage />
     </Suspense>
   );

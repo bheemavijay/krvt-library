@@ -308,6 +308,16 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
 
             <div className="space-y-2">
               <ToggleRow
+                label="Auto scroll"
+                checked={settings.autoScroll}
+                onChange={(value) => update({ autoScroll: value })}
+              />
+              <ToggleRow
+                label="Paragraph highlight"
+                checked={settings.paragraphHighlight}
+                onChange={(value) => update({ paragraphHighlight: value })}
+              />
+              <ToggleRow
                 label="Auto next chapter"
                 checked={settings.autoNext}
                 onChange={(value) => update({ autoNext: value })}

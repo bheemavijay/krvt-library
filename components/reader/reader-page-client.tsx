@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 
+import { KrvtLoader } from "@/components/brand/krvt-loader";
 import ReaderControls from "@/components/reader/reader-controls";
 import { SettingsModal } from "@/components/reader/settings-modal";
 import { saveChapterScrollPosition, saveNovelReadingProgress } from "@/lib/reader-storage";
@@ -42,21 +42,25 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isChapterPanelOpen, setIsChapterPanelOpen] = useState(false);
   const [chapterSearch, setChapterSearch] = useState("");
-  const [ttsState, setTtsState] = useState<"idle" | "playing" | "paused">("idle");
+  const [ttsState, setTtsState] = useState<"idle" | "playing" | "paused" | "stopped">("idle");
   const [currentParagraphIndex, setCurrentParagraphIndex] = useState<number | null>(null);
-  const [statusMessage, setStatusMessage] = useState("");
+  const [, setStatusMessage] = useState("");
   const [bookmarked, setBookmarked] = useState(false);
 
   const longPressTimeoutRef = useRef<number | null>(null);
   const activeChapterRef = useRef<HTMLAnchorElement | null>(null);
   const paragraphRefs = useRef<Array<HTMLParagraphElement | null>>([]);
   const ttsSessionRef = useRef(createTtsSessionManager());
+  const settingsRef = useRef(settings);
+  const nextHrefRef = useRef<string | undefined>(undefined);
+  const lastPlaybackParagraphIndexRef = useRef<number | null>(null);
 
   const safeNovelId = decodeURIComponent(novelId).trim();
   const parsedChapterIndex = Number(chapterParam) - 1;
   const requestedChapterIndex =
     Number.isNaN(parsedChapterIndex) || parsedChapterIndex < 0 ? 0 : parsedChapterIndex;
   const progressKey = `progress_${safeNovelId}`;
+  const topNavigationKey = "krvt-reader-open-chapter-at-top";
 
   useEffect(() => {
     let cancelled = false;
@@ -98,6 +102,16 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
       }
 
       window.setTimeout(() => {
+        const topRequest = readTopNavigationRequest(topNavigationKey);
+        const shouldOpenAtTop =
+          topRequest?.novelId === safeNovelId && topRequest.chapterIndex === requestedChapterIndex;
+
+        window.scrollTo({ top: 0, behavior: "auto" });
+        if (shouldOpenAtTop) {
+          clearTopNavigationRequest(topNavigationKey);
+          return;
+        }
+
         try {
           const saved = window.localStorage.getItem(progressKey);
           if (!saved) {
@@ -105,8 +119,8 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
           }
 
           const parsed = JSON.parse(saved) as { chapterIndex?: number; scrollY?: number };
-          if (parsed.chapterIndex === requestedChapterIndex) {
-            window.scrollTo({ top: parsed.scrollY || 0, behavior: "auto" });
+          if (parsed.chapterIndex === requestedChapterIndex && parsed.scrollY) {
+            window.scrollTo({ top: parsed.scrollY, behavior: "auto" });
           }
         } catch {
           // Ignore corrupted scroll progress.
@@ -234,6 +248,22 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
       ? `/reader?id=${novel.id}&chapter=${chapterIndex + 2}`
       : undefined;
 
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
+
+  useEffect(() => {
+    nextHrefRef.current = nextHref;
+  }, [nextHref]);
+
+  const navigateToChapter = useCallback(
+    (href: string, targetChapterIndex: number) => {
+      markTopNavigation(topNavigationKey, safeNovelId, targetChapterIndex);
+      router.push(href);
+    },
+    [safeNovelId, router],
+  );
+
   const filteredChapters = useMemo(() => {
     const query = chapterSearch.trim().toLowerCase();
     return (novel?.chapters ?? [])
@@ -256,10 +286,21 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
       return;
     }
 
-    paragraphRefs.current[currentParagraphIndex]?.scrollIntoView({
-      block: "center",
-      behavior: "smooth",
-    });
+    const paragraph = paragraphRefs.current[currentParagraphIndex];
+    if (!paragraph) {
+      return;
+    }
+
+    const rect = paragraph.getBoundingClientRect();
+    const topComfort = Math.round(window.innerHeight * 0.22);
+    const bottomComfort = Math.round(window.innerHeight * 0.78);
+
+    if (rect.top < topComfort || rect.bottom > bottomComfort) {
+      paragraph.scrollIntoView({
+        block: "nearest",
+        behavior: "smooth",
+      });
+    }
   }, [currentParagraphIndex, settings.autoScroll, ttsState]);
 
   useEffect(() => {
@@ -267,6 +308,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
     stop();
     setTtsState("idle");
     setCurrentParagraphIndex(null);
+    lastPlaybackParagraphIndexRef.current = null;
   }, [chapter?.id]);
 
   const playParagraph = useCallback(
@@ -286,14 +328,14 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
       }
 
       ttsSessionRef.current.markParagraph(paragraphIndex);
+      lastPlaybackParagraphIndexRef.current = paragraphIndex;
       setCurrentParagraphIndex(paragraphIndex);
-      const started = await speak(paragraph, settings, {
+      const started = await speak(paragraph, settingsRef.current, {
         onStart: () => {
           if (!ttsSessionRef.current.isCurrent(runId)) {
             return;
           }
           setTtsState("playing");
-          setStatusMessage("Reading aloud.");
         },
         onPause: () => setTtsState("paused"),
         onResume: () => setTtsState("playing"),
@@ -313,13 +355,15 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
 
           setTtsState("idle");
           setCurrentParagraphIndex(null);
-          setStatusMessage("Text-to-speech finished.");
 
-          if (settings.autoNext && nextHref) {
-            if (settings.autoPlayTts) {
+          const latestSettings = settingsRef.current;
+          const latestNextHref = nextHrefRef.current;
+          if (latestSettings.autoNext && latestNextHref) {
+            if (latestSettings.autoPlayTts) {
               window.sessionStorage.setItem("krvt-reader-autoplay-tts", "1");
             }
-            router.push(nextHref);
+            markTopNavigation(topNavigationKey, safeNovelId, chapterIndex + 1);
+            router.push(latestNextHref);
           }
         },
         onError: (error) => {
@@ -342,7 +386,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
         setTtsState("idle");
       }
     },
-    [nextHref, normalizedContent, router, settings],
+    [chapterIndex, normalizedContent, router, safeNovelId],
   );
 
   const startTtsFromParagraph = useCallback(
@@ -353,6 +397,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
       }
 
       const safeStartIndex = Math.min(Math.max(startIndex, 0), normalizedContent.length - 1);
+      lastPlaybackParagraphIndexRef.current = safeStartIndex;
       const runId = ttsSessionRef.current.start(safeStartIndex);
       setTtsState("playing");
       await playParagraph(safeStartIndex, runId);
@@ -375,6 +420,8 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
     if (shouldAutoPlay !== "1") {
       return;
     }
+
+    window.sessionStorage.removeItem("krvt-reader-autoplay-tts");
 
     const timeout = window.setTimeout(() => {
       void startTtsFromParagraph(0);
@@ -402,33 +449,25 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
 
       if (event.key === "ArrowUp") {
         event.preventDefault();
-        window.scrollBy({ top: -Math.round(window.innerHeight * 0.72), behavior: "smooth" });
+        window.scrollBy({ top: -Math.round(window.innerHeight * 0.24), behavior: "smooth" });
       } else if (event.key === "ArrowDown") {
         event.preventDefault();
-        window.scrollBy({ top: Math.round(window.innerHeight * 0.72), behavior: "smooth" });
+        window.scrollBy({ top: Math.round(window.innerHeight * 0.24), behavior: "smooth" });
       } else if (event.key === "ArrowLeft" && previousHref) {
         event.preventDefault();
-        router.push(previousHref);
+        navigateToChapter(previousHref, chapterIndex - 1);
       } else if (event.key === "ArrowRight" && nextHref) {
         event.preventDefault();
-        router.push(nextHref);
+        navigateToChapter(nextHref, chapterIndex + 1);
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isChapterPanelOpen, isSettingsOpen, nextHref, previousHref, router]);
+  }, [chapterIndex, isChapterPanelOpen, isSettingsOpen, navigateToChapter, nextHref, previousHref]);
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="space-y-2 text-center">
-          <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-white/40" />
-          <Image src="/krvt-shield.svg" alt="KRVT" width={56} height={56} className="mx-auto h-14 w-14" priority />
-          <p className="text-sm text-white/40">Loading chapter...</p>
-        </div>
-      </div>
-    );
+    return <KrvtLoader />;
   }
 
   if (!novel) {
@@ -451,25 +490,30 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
         resume();
         ttsSessionRef.current.setPauseRequested(false);
         setTtsState("playing");
-        setStatusMessage("Text-to-speech resumed.");
       } else {
         ttsSessionRef.current.setPauseRequested(true);
         pause();
         setTtsState("paused");
-        setStatusMessage("Text-to-speech paused.");
       }
       return;
     }
 
-    if (ttsState === "paused" && currentParagraphIndex !== null) {
+    if (ttsState === "paused") {
       resume();
       ttsSessionRef.current.setPauseRequested(false);
-      await startTtsFromParagraph(currentParagraphIndex);
-      setStatusMessage("Text-to-speech resumed.");
+      setTtsState("playing");
       return;
     }
 
-    await startTtsFromParagraph(currentParagraphIndex ?? 0);
+    await startTtsFromParagraph(ttsState === "stopped" ? 0 : currentParagraphIndex ?? lastPlaybackParagraphIndexRef.current ?? 0);
+  };
+
+  const handleStopTts = () => {
+    ttsSessionRef.current.cancel();
+    stop();
+    lastPlaybackParagraphIndexRef.current = null;
+    setTtsState("stopped");
+    setCurrentParagraphIndex(null);
   };
 
   const handleBookmarkToggle = () => {
@@ -485,6 +529,10 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
 
   const handleParagraphPointerDown =
     (index: number) => (_event: ReactPointerEvent<HTMLParagraphElement>) => {
+      if (ttsState !== "playing" && ttsState !== "paused") {
+        return;
+      }
+
       if (longPressTimeoutRef.current !== null) {
         clearTimeout(longPressTimeoutRef.current);
       }
@@ -557,7 +605,10 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
                 key={item.id ?? `${novel.id}-${index}`}
                 href={href}
                 ref={isActive ? activeChapterRef : undefined}
-                onClick={() => setIsChapterPanelOpen(false)}
+                onClick={() => {
+                  markTopNavigation(topNavigationKey, novel.id, index);
+                  setIsChapterPanelOpen(false);
+                }}
                 className={cn(
                   "flex items-center justify-between gap-3 rounded-xl border px-4 py-3 transition-all duration-150",
                   isActive
@@ -598,29 +649,13 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
             onToggleTts={handleToggleTts}
             onBookmark={handleBookmarkToggle}
             onOpenChapters={() => setIsChapterPanelOpen((current) => !current)}
-            onToggleAutoScroll={() => saveSettings({ autoScroll: !settings.autoScroll })}
-            onToggleHighlight={() =>
-              saveSettings({ paragraphHighlight: !settings.paragraphHighlight })
-            }
-            onToggleAutoNext={() => saveSettings({ autoNext: !settings.autoNext })}
             isBookmarked={bookmarked}
             isChapterPanelOpen={isChapterPanelOpen}
-            autoScroll={settings.autoScroll}
-            paragraphHighlight={settings.paragraphHighlight}
-            autoNext={settings.autoNext}
             ttsState={ttsState}
-            onPrev={() => previousHref && router.push(previousHref)}
-            onNext={() => nextHref && router.push(nextHref)}
+            onPrev={() => previousHref && navigateToChapter(previousHref, chapterIndex - 1)}
+            onNext={() => nextHref && navigateToChapter(nextHref, chapterIndex + 1)}
+            onStopTts={handleStopTts}
           />
-
-          {statusMessage ? (
-            <div
-              className="mx-auto mb-4 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80"
-              style={{ maxWidth: readerMaxWidth }}
-            >
-              {statusMessage}
-            </div>
-          ) : null}
 
           <article
             className="mx-auto w-full rounded-lg border border-white/10 bg-black/20 px-3 py-6 sm:px-5"
@@ -644,12 +679,14 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
                   "mb-6 rounded-md px-2 py-1.5 transition-[background-color,box-shadow,color] duration-300",
                   settings.paragraphHighlight &&
                   currentParagraphIndex === index &&
-                    ttsState !== "idle" &&
+                    (ttsState === "playing" || ttsState === "paused") &&
                     "bg-[#d4b16a]/14 shadow-[inset_3px_0_0_rgba(212,177,106,0.9),0_8px_24px_rgba(0,0,0,0.08)]",
                 )}
                 style={{
                   opacity:
-                    settings.paragraphHighlight && currentParagraphIndex === index && ttsState !== "idle"
+                    settings.paragraphHighlight &&
+                    currentParagraphIndex === index &&
+                    (ttsState === "playing" || ttsState === "paused")
                       ? 1
                       : 0.92,
                 }}
@@ -668,7 +705,11 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
               <div className="mb-6 border-t border-white/8" />
               <div className="flex items-center justify-between gap-3">
                 {previousHref ? (
-                  <Link href={previousHref} className={navButtonClass}>
+                  <Link
+                    href={previousHref}
+                    onClick={() => markTopNavigation(topNavigationKey, novel.id, chapterIndex - 1)}
+                    className={navButtonClass}
+                  >
                     Previous
                   </Link>
                 ) : (
@@ -678,7 +719,11 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
                 )}
 
                 {nextHref ? (
-                  <Link href={nextHref} className={navButtonClass}>
+                  <Link
+                    href={nextHref}
+                    onClick={() => markTopNavigation(topNavigationKey, novel.id, chapterIndex + 1)}
+                    className={navButtonClass}
+                  >
                     Next
                   </Link>
                 ) : (
@@ -700,6 +745,43 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
       />
     </>
   );
+}
+
+function markTopNavigation(storageKey: string, novelId: string, chapterIndex: number) {
+  try {
+    window.sessionStorage.setItem(storageKey, JSON.stringify({ novelId, chapterIndex }));
+  } catch {
+    // Ignore unavailable session storage.
+  }
+}
+
+function readTopNavigationRequest(storageKey: string) {
+  try {
+    const storedValue = window.sessionStorage.getItem(storageKey);
+    if (!storedValue) {
+      return null;
+    }
+
+    const parsed = JSON.parse(storedValue) as { novelId?: unknown; chapterIndex?: unknown };
+    if (typeof parsed.novelId !== "string" || typeof parsed.chapterIndex !== "number") {
+      return null;
+    }
+
+    return {
+      novelId: parsed.novelId,
+      chapterIndex: parsed.chapterIndex,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function clearTopNavigationRequest(storageKey: string) {
+  try {
+    window.sessionStorage.removeItem(storageKey);
+  } catch {
+    // Ignore unavailable session storage.
+  }
 }
 
 function applyTermReplacements(content: string[], replacements: ReplacementRule[]) {

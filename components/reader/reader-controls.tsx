@@ -12,9 +12,8 @@ import {
   Settings,
   SkipBack,
   SkipForward,
-  TextSelect,
+  Square,
   Volume2,
-  Wand2,
 } from "lucide-react";
 
 type ReaderControlsProps = {
@@ -31,28 +30,25 @@ type ReaderControlsProps = {
   onToggleTts?: () => void;
   onBookmark?: () => void;
   onOpenChapters?: () => void;
-  onToggleAutoScroll?: () => void;
-  onToggleHighlight?: () => void;
-  onToggleAutoNext?: () => void;
   isBookmarked?: boolean;
   isChapterPanelOpen?: boolean;
-  autoScroll?: boolean;
-  paragraphHighlight?: boolean;
-  autoNext?: boolean;
-  ttsState?: "idle" | "playing" | "paused";
+  ttsState?: "idle" | "playing" | "paused" | "stopped";
   onPrev?: () => void;
   onNext?: () => void;
+  onStopTts?: () => void;
 };
 
 const IconBtn = ({
   onClick,
   label,
   active,
+  priority = "tertiary",
   children,
 }: {
   onClick?: () => void;
   label: string;
   active?: boolean;
+  priority?: "primary" | "tertiary";
   children: React.ReactNode;
 }) => (
   <button
@@ -60,11 +56,11 @@ const IconBtn = ({
     aria-label={label}
     title={label}
     className={cn(
-      "flex shrink-0 items-center justify-center rounded-lg sm:rounded-xl",
-      "h-10 w-10 sm:h-11 sm:w-11",
-      "text-white/70 transition-all duration-200",
-      "hover:bg-white/10 hover:text-white active:scale-95",
-      active && "bg-white/5 text-[#d4b16a]",
+      "flex shrink-0 items-center justify-center rounded-lg transition-all duration-200 active:scale-95",
+      priority === "primary"
+        ? "h-11 w-11 border border-[#d4b16a]/35 bg-[#d4b16a]/14 text-[#f4d98d] shadow-[0_0_22px_rgba(212,177,106,0.13)] hover:bg-[#d4b16a]/20 hover:text-[#ffe9a8] sm:h-12 sm:w-12"
+        : "h-9 w-9 text-white/55 hover:bg-white/[0.07] hover:text-white sm:h-10 sm:w-10",
+      active && priority !== "primary" && "bg-white/5 text-[#d4b16a]",
     )}
   >
     {children}
@@ -85,17 +81,12 @@ export default function ReaderControls({
   onToggleTts,
   onBookmark,
   onOpenChapters,
-  onToggleAutoScroll,
-  onToggleHighlight,
-  onToggleAutoNext,
   isBookmarked = false,
   isChapterPanelOpen = false,
-  autoScroll = true,
-  paragraphHighlight = true,
-  autoNext = false,
   ttsState = "idle",
   onPrev,
   onNext,
+  onStopTts,
 }: ReaderControlsProps) {
   const isTtsActive = ttsState === "playing" || ttsState === "paused";
   const hasPrev = chapterIndex > 0;
@@ -145,7 +136,7 @@ export default function ReaderControls({
               onClick={onPrev}
               disabled={!hasPrev}
               aria-label="Previous chapter"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 text-white/70 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35 sm:w-11"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.025] text-white/62 transition hover:border-[#d4b16a]/25 hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-35 sm:w-11"
             >
               <SkipBack size={17} />
             </button>
@@ -165,15 +156,21 @@ export default function ReaderControls({
                 <Info size={18} className="sm:w-5 sm:h-5" />
               </Link>
 
-              <IconBtn onClick={onToggleTts} label={ttsLabel} active={isTtsActive}>
+              <IconBtn onClick={onToggleTts} label={ttsLabel} active={isTtsActive} priority="primary">
                 {ttsState === "playing" ? (
-                  <Pause size={18} className="sm:w-5 sm:h-5" />
+                  <Pause size={20} className="sm:h-[22px] sm:w-[22px]" />
                 ) : ttsState === "paused" ? (
-                  <Play size={18} className="sm:w-5 sm:h-5" />
+                  <Play size={20} className="sm:h-[22px] sm:w-[22px]" />
                 ) : (
-                  <Volume2 size={18} className="sm:w-5 sm:h-5" />
+                  <Volume2 size={20} className="sm:h-[22px] sm:w-[22px]" />
                 )}
               </IconBtn>
+
+              {isTtsActive && onStopTts ? (
+                <IconBtn onClick={onStopTts} label="Stop reading">
+                  <Square size={16} className="sm:w-4 sm:h-4 fill-current" />
+                </IconBtn>
+              ) : null}
 
               <IconBtn onClick={onOpenSettings} label="Settings">
                 <Settings size={18} className="sm:w-5 sm:h-5" />
@@ -188,65 +185,23 @@ export default function ReaderControls({
               onClick={onNext}
               disabled={!hasNext}
               aria-label="Next chapter"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 text-white/70 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35 sm:w-11"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.025] text-white/62 transition hover:border-[#d4b16a]/25 hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-35 sm:w-11"
             >
               <SkipForward size={17} />
             </button>
           </div>
-
-          <div className="mt-2 grid grid-cols-3 gap-1.5 border-t border-white/8 pt-2">
-            <TogglePill active={autoScroll} label="Auto scroll" onClick={onToggleAutoScroll}>
-              <Wand2 size={14} />
-            </TogglePill>
-            <TogglePill active={paragraphHighlight} label="Highlight" onClick={onToggleHighlight}>
-              <TextSelect size={14} />
-            </TogglePill>
-            <TogglePill active={autoNext} label="Auto next" onClick={onToggleAutoNext}>
-              <SkipForward size={14} />
-            </TogglePill>
-          </div>
-
         </div>
       </div>
     </div>
   );
 }
 
-function TogglePill({
-  active,
-  label,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  label: string;
-  onClick?: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={cn(
-        "inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border px-2 text-[11px] font-medium transition",
-        active
-          ? "border-[#d4b16a]/35 bg-[#d4b16a]/12 text-[#f0d99a] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-          : "border-white/8 bg-white/[0.03] text-white/45 hover:bg-white/[0.07] hover:text-white/70",
-      )}
-    >
-      {children}
-      <span className="truncate">{label}</span>
-    </button>
-  );
-}
-
 function iconButtonClass(active?: boolean) {
   return cn(
     "flex shrink-0 items-center justify-center rounded-lg sm:rounded-xl",
-    "h-10 w-10 sm:h-11 sm:w-11",
-    "text-white/70 transition-all duration-200",
-    "hover:bg-white/10 hover:text-white active:scale-95",
+    "h-9 w-9 sm:h-10 sm:w-10",
+    "text-white/55 transition-all duration-200",
+    "hover:bg-white/[0.07] hover:text-white active:scale-95",
     active && "bg-white/5 text-[#d4b16a]",
   );
 }

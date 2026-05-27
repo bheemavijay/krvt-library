@@ -1,5 +1,5 @@
 const CACHE_NAME = "krvt-library-shell-v1";
-const APP_SHELL = ["/", "/manifest.json", "/logo.png"];
+const APP_SHELL = ["/", "/manifest.json", "/krvt-shield.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));

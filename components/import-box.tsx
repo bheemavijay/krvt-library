@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { KrvtLoader } from "@/components/brand/krvt-loader";
 import { Button } from "@/components/ui/button";
 import { getImportApiUrl } from "@/lib/import-api";
 import { enableWakeLock, releaseWakeLock } from "@/lib/wake-lock";
@@ -409,6 +410,12 @@ export function ImportBox() {
               : `${downloadProgress.downloadedChapters} chapters saved`}
             {downloadProgress.complete ? " - Complete" : ""}
           </p>
+        </div>
+      ) : null}
+
+      {isLoading && !downloadProgress ? (
+        <div className="overflow-hidden rounded-xl border border-[#d4b16a]/15 bg-black/30">
+          <KrvtLoader compact className="min-h-[220px] bg-transparent" />
         </div>
       ) : null}
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { KrvtLoader } from "@/components/brand/krvt-loader";
 import { getNovelChapterList, getNovelSummary } from "@/lib/storage/indexeddb";
 import type { Chapter, NovelSummary } from "@/types";
 
@@ -37,7 +38,7 @@ export default function NovelPageClient({ novelId }: { novelId: string }) {
       : `${novel.description.slice(0, 280).trim()}...`;
 
   if (!novel) {
-    return <p className="p-6">Loading...</p>;
+    return <KrvtLoader />;
   }
 
   return (

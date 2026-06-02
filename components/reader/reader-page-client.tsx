@@ -569,10 +569,10 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
           isChapterPanelOpen ? "translate-x-0" : "translate-x-full",
         )}
       >
-        <div className="flex items-center justify-between gap-3 border-b border-white/8 px-4 py-4">
+        <div className="flex items-center justify-between gap-3 border-b border-white/8 px-3 py-3">
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-widest text-[#d4b16a]">{novel.title}</p>
-            <h2 className="truncate text-lg font-semibold text-white">Chapter Index</h2>
+            <p className="text-[9px] uppercase tracking-widest text-[#d4b16a]">{novel.title}</p>
+            <h2 className="truncate text-base font-semibold text-white">Chapter Index</h2>
           </div>
           <button
             type="button"
@@ -585,17 +585,17 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
           </button>
         </div>
 
-        <div className="px-4 pt-4">
+        <div className="px-3 pt-3">
           <input
             type="search"
             value={chapterSearch}
             onChange={(event) => setChapterSearch(event.target.value)}
             placeholder="Search chapters"
-            className="w-full rounded-xl border border-white/8 bg-white/4 px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/30 focus:border-white/20"
+            className="w-full rounded-lg border border-white/8 bg-white/4 px-3 py-1.5 text-xs text-white outline-none placeholder:text-white/30 focus:border-white/20"
           />
         </div>
 
-        <div className="mt-4 flex-1 space-y-3 overflow-y-auto px-4 pb-6">
+        <div className="mt-3 flex-1 space-y-1.5 overflow-y-auto px-3 pb-6">
           {filteredChapters.map(({ item, index }) => {
             const href = `/reader?id=${novel.id}&chapter=${index + 1}`;
             const isActive = index === chapterIndex;
@@ -610,20 +610,17 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
                   setIsChapterPanelOpen(false);
                 }}
                 className={cn(
-                  "flex items-center justify-between gap-3 rounded-xl border px-4 py-3 transition-all duration-150",
+                  "flex items-center justify-between gap-2 rounded-lg border px-3 py-2 transition-all duration-150",
                   isActive
                     ? "border-[#d4b16a]/30 bg-[#d4b16a]/8 text-[#d4b16a]"
                     : "border-white/6 bg-white/3 text-white/70 hover:border-white/12 hover:bg-white/6 hover:text-white",
                 )}
               >
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold sm:text-base">
+                  <p className="truncate text-xs font-medium sm:text-sm">
                     {index + 1}. {formatChapterIndexTitle(item.title, index)}
                   </p>
                 </div>
-                <span className="shrink-0 text-[11px] uppercase tracking-wider opacity-50">
-                  {isActive ? "Now" : "Go"}
-                </span>
               </Link>
             );
           })}
@@ -634,7 +631,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
         className={cn("min-h-screen", settings.showBottomNav ? "pb-20" : "pb-8")}
         style={{ backgroundColor: settings.backgroundColor, color: settings.textColor }}
       >
-        <div className="w-full px-3 py-3 sm:px-4 sm:py-5">
+        <div className="w-full px-2 py-2 sm:px-4 sm:py-3">
           <ReaderControls
             novel={novel}
             chapterIndex={chapterIndex}
@@ -658,7 +655,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
           />
 
           <article
-            className="mx-auto w-full rounded-lg border border-white/10 bg-black/20 px-3 py-6 sm:px-5"
+            className="mx-auto w-full px-2 py-4 sm:px-4 sm:py-6"
             onDoubleClick={() => setIsSettingsOpen(true)}
             style={{
               color: settings.textColor,
@@ -669,35 +666,38 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
               textAlign,
             }}
           >
-            {normalizedContent.map((line, index) => (
-              <p
-                key={`${chapter.id}-${index}`}
-                ref={(element) => {
-                  paragraphRefs.current[index] = element;
-                }}
-                className={cn(
-                  "mb-6 rounded-md px-2 py-1.5 transition-[background-color,box-shadow,color] duration-300",
-                  settings.paragraphHighlight &&
-                  currentParagraphIndex === index &&
-                    (ttsState === "playing" || ttsState === "paused") &&
-                    "bg-[#d4b16a]/14 shadow-[inset_3px_0_0_rgba(212,177,106,0.9),0_8px_24px_rgba(0,0,0,0.08)]",
-                )}
-                style={{
-                  opacity:
-                    settings.paragraphHighlight &&
-                    currentParagraphIndex === index &&
-                    (ttsState === "playing" || ttsState === "paused")
-                      ? 1
-                      : 0.92,
-                }}
-                onPointerDown={handleParagraphPointerDown(index)}
-                onPointerUp={clearLongPress}
-                onPointerLeave={clearLongPress}
-                onPointerCancel={clearLongPress}
-              >
-                {line}
-              </p>
-            ))}
+            {normalizedContent.map((line, index) => {
+              const isTitle = index === 0;
+              const isHighlighted =
+                settings.paragraphHighlight &&
+                currentParagraphIndex === index &&
+                (ttsState === "playing" || ttsState === "paused");
+
+              return (
+                <p
+                  key={`${chapter.id}-${index}`}
+                  ref={(element) => {
+                    paragraphRefs.current[index] = element;
+                  }}
+                  className={cn(
+                    "transition-all duration-300",
+                    isTitle
+                      ? "mb-8 font-serif text-2xl font-semibold leading-tight tracking-tight sm:mb-10 sm:text-3xl"
+                      : "mb-5 sm:mb-6",
+                    isHighlighted
+                      ? "rounded border-l-2 border-[#d4b16a] bg-[#d4b16a]/[0.08] pl-3 pr-2 py-1 shadow-sm"
+                      : "border-l-2 border-transparent pl-3 pr-2 py-1",
+                  )}
+                  style={{ opacity: isHighlighted || isTitle ? 1 : 0.9 }}
+                  onPointerDown={handleParagraphPointerDown(index)}
+                  onPointerUp={clearLongPress}
+                  onPointerLeave={clearLongPress}
+                  onPointerCancel={clearLongPress}
+                >
+                  {line}
+                </p>
+              );
+            })}
           </article>
 
           {settings.showFooter ? (

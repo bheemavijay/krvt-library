@@ -512,12 +512,12 @@ if (!response.ok) {
     return (
       <div className="mx-auto w-full max-w-screen-2xl px-3 sm:px-4 md:px-6 lg:px-8">
         <div className="space-y-6 sm:space-y-10">
-        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6 shadow-xl backdrop-blur-sm">
+        <section className="rounded-lg border border-white/8 bg-black/25 p-4 sm:p-5 backdrop-blur-sm">
           <h1 className="text-xl sm:text-2xl font-semibold text-white">
             All Novels ({filteredNovels.length})
           </h1>
           <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-white/65">
-            Your full offline library from IndexedDB.
+            Every saved story on your shelf.
           </p>
           <GenreFilter
             genres={genres}
@@ -535,10 +535,10 @@ if (!response.ok) {
   if (view === "library") {
     return (
       <div className="space-y-6 sm:space-y-8">
-        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6 shadow-xl backdrop-blur-sm">
+        <section className="rounded-lg border border-white/8 bg-black/25 p-4 sm:p-5 backdrop-blur-sm">
           <h1 className="text-xl sm:text-2xl font-semibold text-white">Your Library</h1>
           <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-white/65">
-            Manage updates, deletes, and backup from one place.
+            Keep saved novels organized, backed up, and ready to read.
           </p>
 
           <div className="mt-4 sm:mt-5 flex flex-wrap gap-2 sm:gap-3">
@@ -562,7 +562,7 @@ if (!response.ok) {
 
           {backupMessage && <p className="mt-3 text-sm text-[#d4b16a]">{backupMessage}</p>}
           {backupExportProgress ? (
-            <div className="mt-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75">
+            <div className="mt-3 rounded-lg border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-white/75">
               <p>
                 Exported {backupExportProgress.processedNovels} of{" "}
                 {backupExportProgress.totalNovels} novels
@@ -586,7 +586,7 @@ if (!response.ok) {
             </div>
           ) : null}
           {backupImportProgress ? (
-            <div className="mt-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75">
+            <div className="mt-3 rounded-lg border border-white/8 bg-white/[0.03] px-4 py-3 text-sm text-white/75">
               <p>
                 Imported {backupImportProgress.processedNovels} novels
                 {backupImportProgress.totalBytes > 0
@@ -606,20 +606,20 @@ if (!response.ok) {
             </div>
           ) : null}
           {backupImportFailures.length > 0 ? (
-            <div className="mt-3 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+            <div className="mt-3 rounded-lg border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-100">
               Failed novels: {backupImportFailures.join(", ")}
             </div>
           ) : null}
         </section>
 
-        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6 shadow-xl backdrop-blur-sm">
+        <section className="rounded-lg border border-white/8 bg-black/25 p-4 sm:p-5 backdrop-blur-sm">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <label className="space-y-2 text-sm text-white/70">
               <span className="block text-xs uppercase tracking-[0.22em] text-white/45">Sort By</span>
               <select
                 value={librarySort}
                 onChange={(event) => setLibrarySort(event.target.value as LibrarySort)}
-                className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-white outline-none"
+                className="w-full rounded-lg border border-white/8 bg-black/25 px-3 py-2 text-white outline-none"
               >
                 <option value="lastImported">Last Imported</option>
                 <option value="lastRead">Last Read</option>
@@ -632,7 +632,7 @@ if (!response.ok) {
               <select
                 value={chapterFilter}
                 onChange={(event) => setChapterFilter(event.target.value as ChapterFilter)}
-                className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-white outline-none"
+                className="w-full rounded-lg border border-white/8 bg-black/25 px-3 py-2 text-white outline-none"
               >
                 <option value="all">All novels</option>
                 <option value="short">Under 50 chapters</option>
@@ -661,10 +661,10 @@ if (!response.ok) {
   if (view === "rankings") {
     return (
       <div className="space-y-6 sm:space-y-8">
-        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6 shadow-xl backdrop-blur-sm">
+        <section className="rounded-lg border border-white/8 bg-black/25 p-4 sm:p-5 backdrop-blur-sm">
           <h1 className="text-xl sm:text-2xl font-semibold text-white">Rankings</h1>
           <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-white/65">
-            Sorted by chapter count from your local library.
+            Longer reads from your saved collection.
           </p>
         </section>
         <Grid novels={popular} />
@@ -675,10 +675,10 @@ if (!response.ok) {
   if (view === "updates") {
     return (
       <div className="space-y-6 sm:space-y-8">
-        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6 shadow-xl backdrop-blur-sm">
+        <section className="rounded-lg border border-white/8 bg-black/25 p-4 sm:p-5 backdrop-blur-sm">
           <h1 className="text-xl sm:text-2xl font-semibold text-white">Updates</h1>
           <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-white/65">
-            Recently added novels from IndexedDB.
+            Recently added stories in your library.
           </p>
         </section>
         <Grid novels={updates} />
@@ -689,7 +689,7 @@ if (!response.ok) {
   if (view === "history") {
     return (
       <div className="space-y-6 sm:space-y-8">
-        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-6 shadow-xl backdrop-blur-sm">
+        <section className="rounded-lg border border-white/8 bg-black/25 p-4 sm:p-5 backdrop-blur-sm">
           <h1 className="text-xl sm:text-2xl font-semibold text-white">Bookmarks</h1>
           <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-white/65">
             Saved chapters, continue reading, and recent activity from this device.
@@ -710,16 +710,15 @@ if (!response.ok) {
   return (
     <div className="space-y-6 sm:space-y-10">
 
-      <section className="rounded-2xl sm:rounded-3xl border border-white/10 bg-gradient-to-br from-[#1e2d1f] via-[#10161c] to-black p-5 sm:p-7 shadow-2xl">
+      <section className="rounded-lg border border-white/8 bg-[linear-gradient(135deg,#111514_0%,#090b0f_58%,#030303_100%)] p-5 sm:p-6">
         <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
           <div className="space-y-3 sm:space-y-4">
-            <p className="text-[10px] sm:text-xs uppercase tracking-[0.18em] text-white/55">KRVT Dashboard</p>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white md:text-4xl">
-              Offline library management for import, reading, and cleanup
+            <p className="text-[10px] sm:text-xs uppercase tracking-[0.18em] text-[#d4b16a]/70">KRVT Library</p>
+            <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-white md:text-4xl">
+              Settle into your next chapter
             </h1>
             <p className="max-w-2xl text-sm sm:text-base text-white/75">
-              IndexedDB is now the single source of truth. Use this dashboard to review covers,
-              update imports, and delete broken records without leaving the home screen.
+              A quiet shelf for saved novels, current reads, and the stories waiting for tonight.
             </p>
             <GenreFilter
               genres={genres}
@@ -740,10 +739,10 @@ if (!response.ok) {
       />
 
       {featured && (
-        <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5 shadow-xl backdrop-blur-sm">
+        <section className="rounded-lg border border-white/8 bg-black/25 p-4 sm:p-5 backdrop-blur-sm">
           <h2 className="mb-3 sm:mb-4 text-lg sm:text-xl font-semibold text-white">Featured Spotlight</h2>
           <Link href={`/novel?id=${featured.id}`}>
-            <div className="rounded-xl sm:rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:p-5 shadow-lg transition hover:bg-white/[0.08]">
+            <div className="rounded-lg border border-white/8 bg-white/[0.03] p-4 sm:p-5 transition hover:bg-white/[0.06]">
               <h3 className="text-base sm:text-lg font-semibold text-white">
                 {featured.title}
               </h3>
@@ -753,19 +752,19 @@ if (!response.ok) {
         </section>
       )}
 
-      <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5 shadow-xl backdrop-blur-sm">
+      <section className="rounded-lg border border-white/8 bg-black/25 p-4 sm:p-5 backdrop-blur-sm">
         <div className="mb-4 sm:mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg sm:text-xl font-semibold text-white">Explore Library</h2>
+            <h2 className="text-lg sm:text-xl font-semibold text-white">Browse your shelf</h2>
             <p className="text-xs sm:text-sm text-white/60">
-              Keep the home screen focused on browsing and jump into the Library view for update and delete actions.
+              Find a saved novel, revisit a bookmark, or open the next chapter.
             </p>
           </div>
           <Link
             href="/?view=library"
-            className="inline-flex min-h-[40px] items-center justify-center rounded-lg border border-white/10 bg-white/5 px-4 text-sm text-white/80 transition hover:bg-white/10"
+            className="inline-flex min-h-[36px] items-center justify-center rounded-md border border-white/8 bg-white/[0.03] px-3 text-sm text-white/75 transition hover:bg-white/[0.07] hover:text-white"
           >
-            Open Library Manager
+            Open Library
           </Link>
         </div>
         <Grid novels={filteredNovels.slice(0, 12)} isLoading={!isLibraryHydrated && novels.length === 0} />

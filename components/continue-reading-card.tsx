@@ -38,20 +38,20 @@ export function ContinueReadingCard({ novels }: ContinueReadingCardProps) {
   const progress = getReadingProgress(chapterIndex + 1, novel.chapterCount);
 
   return (
-    <Card className="relative overflow-hidden rounded-[2rem] border-accent/20 bg-[linear-gradient(135deg,rgba(212,177,106,0.18),rgba(15,17,22,0.94)_48%,rgba(15,17,22,0.98))] p-5 sm:p-7">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.16),transparent_34%)]" />
-      <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-4">
+    <Card className="relative overflow-hidden rounded-lg border-white/8 bg-black/30 p-4 sm:p-5">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#d4b16a]/45 to-transparent" />
+      <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-3">
           <div className="space-y-2">
             <p className="text-[10px] sm:text-xs uppercase tracking-[0.32em] text-accent">Continue Reading</p>
             <div className="space-y-1">
-              <h2 className="font-heading text-2xl sm:text-3xl lg:text-4xl text-foreground">{novel.title}</h2>
+              <h2 className="font-heading text-2xl sm:text-3xl text-foreground">{novel.title}</h2>
               <p className="text-xs sm:text-sm text-muted sm:text-base">by {novel.author}</p>
             </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-xl sm:rounded-[1.25rem] border border-white/10 bg-white/6 p-3 sm:p-4">
+            <div className="rounded-md border border-white/8 bg-white/[0.03] p-3">
               <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-accent">Last Chapter Read</p>
               <p className="mt-1 sm:mt-2 text-sm sm:text-base text-foreground lg:text-lg line-clamp-1">
                 {chapterTitle
@@ -59,7 +59,7 @@ export function ContinueReadingCard({ novels }: ContinueReadingCardProps) {
                   : `Chapter ${chapterIndex + 1}`}
               </p>
             </div>
-            <div className="rounded-xl sm:rounded-[1.25rem] border border-white/10 bg-white/6 p-3 sm:p-4">
+            <div className="rounded-md border border-white/8 bg-white/[0.03] p-3">
               <p className="text-[10px] sm:text-xs uppercase tracking-[0.28em] text-accent">Reading Progress</p>
               <p className="mt-1 sm:mt-2 text-sm sm:text-base text-foreground lg:text-lg">
                 {progress}
@@ -78,7 +78,7 @@ export function ContinueReadingCard({ novels }: ContinueReadingCardProps) {
           </p>
           <Link
             href={`/reader?id=${novel.id}&chapter=${chapterIndex + 1}`}
-            className="flex min-h-[44px] w-full items-center justify-center rounded-full border border-accent/40 bg-accent-soft text-sm font-medium text-accent transition-colors hover:border-accent hover:bg-accent-soft/80"
+            className="flex min-h-[40px] w-full items-center justify-center rounded-md border border-accent/30 bg-accent-soft/70 text-sm font-medium text-accent transition-colors hover:border-accent/55 hover:bg-accent-soft"
           >
             Resume Reading
           </Link>

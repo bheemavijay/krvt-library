@@ -17,20 +17,19 @@ export function KrvtLoader({ compact = false, className }: KrvtLoaderProps) {
       )}
     >
       <div className="relative flex flex-col items-center">
-        <div className="absolute inset-x-8 top-1/2 h-px bg-gradient-to-r from-transparent via-[#d4b16a]/45 to-transparent" />
-        <div className="relative overflow-hidden rounded-lg border border-[#d4b16a]/16 bg-black/55 px-5 py-4 shadow-[0_0_34px_rgba(212,177,106,0.14)]">
-          <div className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 bg-gradient-to-r from-transparent via-[#f2d58a]/12 to-transparent [animation:krvt-shimmer_4.8s_ease-in-out_infinite]" />
+        <div className="relative overflow-hidden px-3 py-2">
+          <div className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/3 bg-gradient-to-r from-transparent via-[#f2d58a]/10 to-transparent [animation:krvt-shimmer_5.8s_ease-in-out_infinite]" />
           <Image
-            src="/loading page.png"
+            src="/logo.png"
             alt="KRVT Library"
-            width={compact ? 280 : 420}
-            height={compact ? 158 : 236}
+            width={compact ? 132 : 190}
+            height={compact ? 132 : 190}
             priority
-            className="h-auto w-[min(72vw,420px)] object-contain"
+            className="h-auto w-[min(46vw,190px)] object-contain opacity-90"
           />
         </div>
-        <div className="mt-4 h-px w-36 overflow-hidden rounded-full bg-white/8">
-          <div className="h-full w-1/2 rounded-full bg-gradient-to-r from-[#8b6426] via-[#f2d58a] to-[#a87522] [animation:krvt-loader-line_4.8s_ease-in-out_infinite]" />
+        <div className="mt-3 h-px w-24 overflow-hidden rounded-full bg-white/7">
+          <div className="h-full w-1/3 rounded-full bg-gradient-to-r from-transparent via-[#d4b16a]/80 to-transparent [animation:krvt-loader-line_5.8s_ease-in-out_infinite]" />
         </div>
       </div>
     </div>

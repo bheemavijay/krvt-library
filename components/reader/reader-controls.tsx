@@ -56,11 +56,11 @@ const IconBtn = ({
     aria-label={label}
     title={label}
     className={cn(
-      "flex shrink-0 items-center justify-center rounded-lg transition-all duration-200 active:scale-95",
+      "flex shrink-0 items-center justify-center rounded-full transition-all duration-200 active:scale-95",
       priority === "primary"
-        ? "h-11 w-11 border border-[#d4b16a]/35 bg-[#d4b16a]/14 text-[#f4d98d] shadow-[0_0_22px_rgba(212,177,106,0.13)] hover:bg-[#d4b16a]/20 hover:text-[#ffe9a8] sm:h-12 sm:w-12"
-        : "h-9 w-9 text-white/55 hover:bg-white/[0.07] hover:text-white sm:h-10 sm:w-10",
-      active && priority !== "primary" && "bg-white/5 text-[#d4b16a]",
+        ? "h-10 w-10 bg-[#d4b16a] text-[#08090c] shadow-md shadow-[#d4b16a]/20 hover:scale-105 sm:h-11 sm:w-11"
+        : "h-8 w-8 text-white/30 hover:bg-white/10 hover:text-white/80 sm:h-9 sm:w-9",
+      active && priority !== "primary" && "bg-white/10 text-[#d4b16a]",
     )}
   >
     {children}
@@ -96,100 +96,99 @@ export default function ReaderControls({
     ttsState === "playing" ? "Pause reading" : ttsState === "paused" ? "Resume reading" : "Read aloud";
 
   return (
-    <div className="sticky z-40 -mx-3 mb-4 sm:-mx-4" style={{ top: "env(safe-area-inset-top, 0px)" }}>
-      <div className="w-full px-3 py-2 sm:px-4">
-        <div
-          className="mx-auto w-full rounded-xl border border-white/10 bg-[#0b0c10]/90 px-2.5 py-2.5 shadow-lg shadow-black/25 backdrop-blur-xl sm:px-4"
-          style={{ maxWidth: controlMaxWidth }}
-        >
-          {showProgress ? (
-            <div className="mb-2 space-y-1.5">
-              <div className="flex items-center justify-between gap-3 text-[11px] font-medium text-white/55">
-                <span className="flex min-w-0 items-center gap-2 truncate">
-                  <Image src="/krvt-shield.svg" alt="" width={18} height={18} className="h-4 w-4 shrink-0" />
-                  <span className="truncate">Chapter {chapterIndex + 1} of {totalChapters}</span>
-                </span>
-                <span className="shrink-0">{progressPercent}%</span>
-              </div>
-              <div className="h-1 overflow-hidden rounded-full bg-white/8">
-                <div
-                  className="h-full rounded-full bg-[#d4b16a] transition-[width] duration-300"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-              {paragraphIndex !== null && paragraphCount > 0 ? (
-                <div className="flex items-center gap-2 text-[11px] text-white/45">
-                  <span className="shrink-0">Paragraph {paragraphIndex + 1}/{paragraphCount}</span>
-                  <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/8">
-                    <div
-                      className="h-full rounded-full bg-white/45 transition-[width] duration-300"
-                      style={{ width: `${paragraphProgressPercent}%` }}
-                    />
-                  </div>
+    <div
+      className="sticky top-[49px] z-40 px-2 py-2 pointer-events-none sm:top-[57px] sm:px-4"
+    >
+      <div
+        className="pointer-events-auto mx-auto flex w-full flex-col gap-1 rounded-2xl border border-white/5 bg-[#0b0c10]/85 px-3 py-1 shadow-md shadow-black/20 backdrop-blur-xl"
+        style={{ maxWidth: controlMaxWidth }}
+      >
+        {showProgress ? (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-3 text-[10px] font-medium text-white/40">
+              <span className="flex min-w-0 items-center gap-1.5 truncate">
+                <Image src="/krvt-shield.svg" alt="" width={14} height={14} className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                <span className="truncate">Chapter {chapterIndex + 1} of {totalChapters}</span>
+              </span>
+              <span className="shrink-0">{progressPercent}%</span>
+            </div>
+            <div className="h-1 overflow-hidden rounded-full bg-white/5">
+              <div
+                className="h-full rounded-full bg-[#d4b16a] transition-[width] duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            {paragraphIndex !== null && paragraphCount > 0 ? (
+              <div className="flex items-center gap-1.5 text-[10px] text-white/30">
+                <span className="shrink-0">Paragraph {paragraphIndex + 1}/{paragraphCount}</span>
+                <div className="h-0.5 flex-1 overflow-hidden rounded-full bg-white/5">
+                  <div
+                    className="h-full rounded-full bg-white/30 transition-[width] duration-300"
+                    style={{ width: `${paragraphProgressPercent}%` }}
+                  />
                 </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="flex min-h-10 w-full items-center justify-between gap-2">
-            <button
-              onClick={onPrev}
-              disabled={!hasPrev}
-              aria-label="Previous chapter"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.025] text-white/62 transition hover:border-[#d4b16a]/25 hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-35 sm:w-11"
-            >
-              <SkipBack size={17} />
-            </button>
-
-            <div className="flex min-w-0 flex-1 items-center justify-center gap-1 sm:gap-3">
-
-              <IconBtn onClick={onBookmark} label="Bookmark" active={isBookmarked}>
-                <Bookmark size={18} className="sm:w-5 sm:h-5" />
-              </IconBtn>
-
-              <Link
-                href={`/novel?id=${novel.id}`}
-                aria-label="Novel details"
-                title="Novel details"
-                className={iconButtonClass(false)}
-              >
-                <Info size={18} className="sm:w-5 sm:h-5" />
-              </Link>
-
-              <IconBtn onClick={onToggleTts} label={ttsLabel} active={isTtsActive} priority="primary">
-                {ttsState === "playing" ? (
-                  <Pause size={20} className="sm:h-[22px] sm:w-[22px]" />
-                ) : ttsState === "paused" ? (
-                  <Play size={20} className="sm:h-[22px] sm:w-[22px]" />
-                ) : (
-                  <Volume2 size={20} className="sm:h-[22px] sm:w-[22px]" />
-                )}
-              </IconBtn>
-
-              {isTtsActive && onStopTts ? (
-                <IconBtn onClick={onStopTts} label="Stop reading">
-                  <Square size={16} className="sm:w-4 sm:h-4 fill-current" />
-                </IconBtn>
-              ) : null}
-
-              <IconBtn onClick={onOpenSettings} label="Settings">
-                <Settings size={18} className="sm:w-5 sm:h-5" />
-              </IconBtn>
-
-              <IconBtn onClick={onOpenChapters} label="Chapters" active={isChapterPanelOpen}>
-                <List size={18} className="sm:w-5 sm:h-5" />
-              </IconBtn>
-
-            </div>
-            <button
-              onClick={onNext}
-              disabled={!hasNext}
-              aria-label="Next chapter"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.025] text-white/62 transition hover:border-[#d4b16a]/25 hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-35 sm:w-11"
-            >
-              <SkipForward size={17} />
-            </button>
+              </div>
+            ) : null}
           </div>
+        ) : null}
+
+        <div className="flex w-full items-center justify-between gap-1 sm:gap-2">
+          <button
+            onClick={onPrev}
+            disabled={!hasPrev}
+            aria-label="Previous chapter"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/40 transition hover:bg-white/10 hover:text-white/80 disabled:cursor-not-allowed disabled:opacity-20 sm:h-9 sm:w-9"
+          >
+            <SkipBack size={16} className="sm:h-[18px] sm:w-[18px]" />
+          </button>
+
+          <div className="flex min-w-0 flex-1 items-center justify-center gap-0.5 sm:gap-2">
+            <IconBtn onClick={onBookmark} label="Bookmark" active={isBookmarked}>
+              <Bookmark size={16} className="sm:h-[18px] sm:w-[18px]" />
+            </IconBtn>
+
+            <Link
+              href={`/novel?id=${novel.id}`}
+              aria-label="Novel details"
+              title="Novel details"
+              className={iconButtonClass(false)}
+            >
+              <Info size={16} className="sm:h-[18px] sm:w-[18px]" />
+            </Link>
+
+            <IconBtn onClick={onToggleTts} label={ttsLabel} active={isTtsActive} priority="primary">
+              {ttsState === "playing" ? (
+                <Pause size={18} className="fill-current sm:h-5 sm:w-5" />
+              ) : ttsState === "paused" ? (
+                <Play size={18} className="ml-0.5 fill-current sm:h-5 sm:w-5" />
+              ) : (
+                <Volume2 size={18} className="sm:h-5 sm:w-5" />
+              )}
+            </IconBtn>
+
+            {isTtsActive && onStopTts ? (
+              <IconBtn onClick={onStopTts} label="Stop reading">
+                <Square size={14} className="fill-current sm:h-[16px] sm:w-[16px]" />
+              </IconBtn>
+            ) : null}
+
+            <IconBtn onClick={onOpenSettings} label="Settings">
+              <Settings size={16} className="sm:h-[18px] sm:w-[18px]" />
+            </IconBtn>
+
+            <IconBtn onClick={onOpenChapters} label="Chapters" active={isChapterPanelOpen}>
+              <List size={16} className="sm:h-[18px] sm:w-[18px]" />
+            </IconBtn>
+          </div>
+
+          <button
+            onClick={onNext}
+            disabled={!hasNext}
+            aria-label="Next chapter"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/40 transition hover:bg-white/10 hover:text-white/80 disabled:cursor-not-allowed disabled:opacity-20 sm:h-9 sm:w-9"
+          >
+            <SkipForward size={16} className="sm:h-[18px] sm:w-[18px]" />
+          </button>
         </div>
       </div>
     </div>
@@ -198,10 +197,8 @@ export default function ReaderControls({
 
 function iconButtonClass(active?: boolean) {
   return cn(
-    "flex shrink-0 items-center justify-center rounded-lg sm:rounded-xl",
-    "h-9 w-9 sm:h-10 sm:w-10",
-    "text-white/55 transition-all duration-200",
-    "hover:bg-white/[0.07] hover:text-white active:scale-95",
-    active && "bg-white/5 text-[#d4b16a]",
+    "flex shrink-0 items-center justify-center rounded-full transition-all duration-200 active:scale-95",
+    "h-8 w-8 text-white/30 hover:bg-white/10 hover:text-white/80 sm:h-9 sm:w-9",
+    active && "bg-white/10 text-[#d4b16a]",
   );
 }

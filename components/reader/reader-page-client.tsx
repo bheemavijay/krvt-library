@@ -256,12 +256,26 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
     nextHrefRef.current = nextHref;
   }, [nextHref]);
 
+  const prepareForNavigation = useCallback(
+    (targetChapterIndex: number) => {
+      if (ttsState === "playing" || ttsState === "paused") {
+        try {
+          window.sessionStorage.setItem("krvt-reader-autoplay-tts", "1");
+        } catch {
+          // Ignore
+        }
+      }
+      markTopNavigation(topNavigationKey, safeNovelId, targetChapterIndex);
+    },
+    [safeNovelId, ttsState],
+  );
+
   const navigateToChapter = useCallback(
     (href: string, targetChapterIndex: number) => {
-      markTopNavigation(topNavigationKey, safeNovelId, targetChapterIndex);
+      prepareForNavigation(targetChapterIndex);
       router.push(href);
     },
-    [safeNovelId, router],
+    [prepareForNavigation, router],
   );
 
   const filteredChapters = useMemo(() => {
@@ -406,7 +420,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   );
 
   useEffect(() => {
-    if (loading || !novel || !settings.autoPlayTts) {
+    if (loading || !novel || normalizedContent.length === 0) {
       return;
     }
 
@@ -428,7 +442,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
     }, 0);
 
     return () => clearTimeout(timeout);
-  }, [loading, novel, settings.autoPlayTts, startTtsFromParagraph]);
+  }, [loading, novel, startTtsFromParagraph, normalizedContent.length]);
 
   useEffect(() => {
     if (isSettingsOpen || isChapterPanelOpen) {
@@ -606,7 +620,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
                 href={href}
                 ref={isActive ? activeChapterRef : undefined}
                 onClick={() => {
-                  markTopNavigation(topNavigationKey, novel.id, index);
+                  prepareForNavigation(index);
                   setIsChapterPanelOpen(false);
                 }}
                 className={cn(
@@ -707,7 +721,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
                 {previousHref ? (
                   <Link
                     href={previousHref}
-                    onClick={() => markTopNavigation(topNavigationKey, novel.id, chapterIndex - 1)}
+                    onClick={() => prepareForNavigation(chapterIndex - 1)}
                     className={navButtonClass}
                   >
                     Previous
@@ -721,7 +735,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
                 {nextHref ? (
                   <Link
                     href={nextHref}
-                    onClick={() => markTopNavigation(topNavigationKey, novel.id, chapterIndex + 1)}
+                    onClick={() => prepareForNavigation(chapterIndex + 1)}
                     className={navButtonClass}
                   >
                     Next

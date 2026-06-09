@@ -29,11 +29,11 @@ type NativeTextToSpeechPlugin = {
     rate?: number;
     pitch?: number;
     volume?: number;
-    queueStrategy?: number;
     voice?: number;
+    queueStrategy?: number;
   }): Promise<void>;
   stop(): Promise<void>;
-  getSupportedVoices?: () => Promise<{ voices: TtsVoice[] }>;
+  getSupportedVoices?: () => Promise<{ voices: SpeechSynthesisVoice[] }>;
 };
 
 const NativeTextToSpeech = registerPlugin<NativeTextToSpeechPlugin>("TextToSpeech");
@@ -159,22 +159,25 @@ export async function initializeTts() {
 }
 
 export async function loadVoices(forceRefresh = false): Promise<TtsVoice[]> {
+  if (!forceRefresh && voicesCache.length > 0) {
+    return voicesCache;
+  }
+
   if (isNativeTtsEnvironment()) {
     try {
       const result = await NativeTextToSpeech.getSupportedVoices?.();
-      const voices = (result?.voices ?? []).map((voice, index) => ({
+      const nativeVoices = (result?.voices ?? []).map((voice, index) => ({
         ...voice,
         voiceIndex: index,
       }));
-      return filterVoices(voices);
+
+      voicesCache = [getDefaultNativeVoice(), ...filterVoices(nativeVoices)];
+      return voicesCache;
     } catch (error) {
       console.warn("TextToSpeech.getSupportedVoices failed", error);
-      return [];
+      voicesCache = [getDefaultNativeVoice()];
+      return voicesCache;
     }
-  }
-
-  if (!forceRefresh && voicesCache.length > 0) {
-    return voicesCache;
   }
 
   if (!forceRefresh && voicesPromise) {
@@ -567,6 +570,17 @@ function normalizeLocale(value: string | undefined) {
   } catch {
     return DEFAULT_LANG;
   }
+}
+
+function getDefaultNativeVoice(): TtsVoice {
+  return {
+    default: true,
+    lang: DEFAULT_LANG,
+    localService: true,
+    name: "Device Default Voice",
+    voiceURI: "native-default",
+    category: "System",
+  };
 }
 
 function normalizeVoice(voice: SpeechSynthesisVoice | TtsVoice): TtsVoice {

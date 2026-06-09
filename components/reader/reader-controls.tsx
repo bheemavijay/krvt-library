@@ -107,7 +107,7 @@ export default function ReaderControls({
           <div className="space-y-1">
             <div className="flex items-center justify-between gap-3 text-[10px] font-medium text-white/40">
               <span className="flex min-w-0 items-center gap-1.5 truncate">
-                <Image src="/krvt-shield.svg" alt="" width={14} height={14} className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                <Image src="/logo.png" alt="" width={14} height={14} className="h-3.5 w-3.5 shrink-0 opacity-50" />
                 <span className="truncate">Chapter {chapterIndex + 1} of {totalChapters}</span>
               </span>
               <span className="shrink-0">{progressPercent}%</span>

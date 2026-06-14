@@ -11,6 +11,8 @@ const {
   normalizeStringArray,
 } = require("../../utils/normalize");
 
+const { CANONICAL_GENRES } = require("../../../lib/constants/genres");
+
 const BASE_URL = "https://www.mvlempyr.io";
 const DEFAULT_COVER = "https://via.placeholder.com/300x400?text=No+Cover";
 
@@ -191,11 +193,28 @@ function extractMetadata(html, normalizedUrl, novelBaseUrl) {
   const description =
     firstText($, ["div.synopsis p", ".novel-meta .synopsis", "div.synopsis", "meta[name='description']"]) ||
     "";
-  const tags = normalizeStringArray(
+  const allLabels = normalizeStringArray(
     queryTexts($, [".genere-tagslist a", ".genere-tagslist button", "[class*='genre'] a"])
       .map((tag) => tag.replace(/^#/, ""))
       .filter(isLikelyTag),
   );
+
+  const canonicalMap = new Map(
+      [...CANONICAL_GENRES].map(g => [g.toLowerCase(), g])
+  );
+
+  const genres = [];
+  const tags = [];
+
+  for (const label of allLabels) {
+    const normalized = canonicalMap.get(label.trim().toLowerCase());
+    if (normalized) {
+      genres.push(normalized);
+    } else {
+      tags.push(label);
+    }
+  }
+  
   const rawImage =
     firstAttribute($, [".novel-image-wrapper img", ".novel-hero img", "main img", "img"], ["src", "data-src"]) ||
     DEFAULT_COVER;
@@ -206,7 +225,7 @@ function extractMetadata(html, normalizedUrl, novelBaseUrl) {
     author,
     image,
     alternative: "",
-    genres: tags,
+    genres,
     tags,
     status: "",
     rating: null,
@@ -331,11 +350,6 @@ function parseChapter(html) {
   removeNoise($);
 
   const novelUrl = extractNovelUrl($);
-
-  console.log(
-      "[MVLEMPYR DEBUG] parseChapter novelUrl =",
-      novelUrl
-  );
 
   const title =
       firstText($, [
@@ -497,18 +511,6 @@ async function importNovel(payload) {
     try {
       const firstChapterHtml = await fetchHtmlWithRetry(normalizedUrl);
       const parsedChapter = parseChapter(firstChapterHtml);
-
-      console.info(
-          JSON.stringify(
-              buildStructuredLog(
-                  "import.mvlempyr.detected-novel-url",
-                  {
-                    chapterUrl: normalizedUrl,
-                    detectedNovelUrl: parsedChapter.novelUrl,
-                  }
-              )
-          )
-      );
 
       if (parsedChapter.novelUrl) {
         novelBaseUrl = parsedChapter.novelUrl;

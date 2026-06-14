@@ -13,6 +13,8 @@ const {
   getProviderForUrl,
 } = require("../utils/normalize");
 
+const { CANONICAL_GENRES } = require("../../../lib/constants/genres");
+
 const DEFAULT_COVER = "https://via.placeholder.com/300x400?text=No+Cover";
 
 function delay(ms) {
@@ -200,16 +202,28 @@ function extractNovelMetadata($, normalizedUrl, novelBaseUrl) {
     $('.info a[href*="author"], [itemprop="author"], a[href*="/author/"]').first().text().trim() ||
     $(".info div:contains('Author') a, .info p:contains('Author') a").first().text().trim() ||
     "Unknown";
-  const genres = normalizeStringArray(
+  const allLabels = normalizeStringArray(
     $('.info a[href*="genre"], a[href*="/genre/"], .genres a, [class*="genre"] a')
       .map((_, el) => $(el).text().trim())
       .get(),
   );
-  const tags = normalizeStringArray(
-    $(".info a[href*='/tag/'], a[href*='/tag/'], .tags a, [class*='tag'] a")
-      .map((_, el) => $(el).text().trim())
-      .get(),
+
+  const canonicalMap = new Map(
+      [...CANONICAL_GENRES].map(g => [g.toLowerCase(), g])
   );
+
+  const genres = [];
+  const tags = [];
+
+  for (const label of allLabels) {
+    const normalized = canonicalMap.get(label.trim().toLowerCase());
+    if (normalized) {
+      genres.push(normalized);
+    } else {
+      tags.push(label);
+    }
+  }
+
   const infoText = $(".info").text();
   const status =
     /completed|complete|full/i.test(infoText)

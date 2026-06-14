@@ -1,5 +1,6 @@
 import type { Chapter, Novel, NovelSummary } from "@/types";
 import { normalizeChapter, normalizeNovelRecord } from "@/lib/novels";
+import { CANONICAL_GENRES } from "@/lib/constants/genres";
 
 const DB_NAME = "krvt-library";
 const NOVELS_STORE = "novels";
@@ -438,7 +439,21 @@ function normalizeNovelMeta(record: StoredNovelRecord): StoredNovelMeta {
 }
 
 function normalizeNovelSummary(record: StoredNovelRecord): NovelSummary {
-  return metaToSummary(normalizeNovelMeta(record));
+  const meta = normalizeNovelMeta(record);
+
+  const sameArrays =
+      Array.isArray(meta.genres) &&
+      Array.isArray(meta.tags) &&
+      meta.genres.length === meta.tags.length &&
+      meta.genres.every((value, index) => value === meta.tags[index]);
+
+  if (sameArrays) {
+    const allLabels = meta.genres;
+    meta.genres = allLabels.filter(label => CANONICAL_GENRES.has(label));
+    meta.tags = allLabels.filter(label => !CANONICAL_GENRES.has(label));
+  }
+  
+  return metaToSummary(meta);
 }
 
 function metaToSummary(meta: StoredNovelMeta): NovelSummary {

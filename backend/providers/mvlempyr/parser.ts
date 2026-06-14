@@ -59,13 +59,7 @@ function extractNovelUrl($: cheerio.CheerioAPI): string {
       if (url.startsWith("/")) {
         return `https://www.mvlempyr.io${url}`;
       }
-      console.log("Novel URL:", chapter.novelUrl);
-      console.log("Novel Title:", chapter.novelTitle);
-      console.log("Chapter Title:", chapter.chapterTitle);
-      console.log("Paragraph Count:", chapter.paragraphs.length);
-      console.log("First Paragraph:", chapter.paragraphs[0]);
-      console.log("Canonical:", $("link[rel='canonical']").attr("href"));
-      console.log("OG URL:", $("meta[property='og:url']").attr("content"));
+
       return url;
     }
   }

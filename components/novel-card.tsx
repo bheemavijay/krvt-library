@@ -19,7 +19,7 @@ export function NovelCard({ novel, viewMode = "grid" }: NovelCardProps) {
     return (
       <Link
         href={detailsHref}
-        className="group flex gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-2 text-white transition hover:border-white/20 hover:bg-white/[0.06] sm:gap-4 sm:p-3"
+        className="group flex gap-3 rounded-xl border border-transparent bg-transparent p-2 text-white transition hover:bg-white/[0.04] hover:border-white/5 sm:gap-4 sm:p-3"
       >
         <div className="relative h-[90px] w-[60px] shrink-0 overflow-hidden rounded-lg border border-white/10 sm:h-[110px] sm:w-[75px]">
           {novel.image ? (
@@ -60,7 +60,7 @@ export function NovelCard({ novel, viewMode = "grid" }: NovelCardProps) {
   return (
     <Link
       href={detailsHref}
-      className="group flex flex-col rounded-xl border border-white/10 bg-white/[0.04] p-2 text-white shadow-sm transition hover:-translate-y-1 hover:bg-white/[0.08] hover:shadow-lg sm:p-3"
+      className="group flex flex-col rounded-xl border border-transparent bg-transparent p-2 text-white transition hover:-translate-y-1 hover:bg-white/[0.04] hover:border-white/5 sm:p-3"
     >
       <div className="relative w-full h-[140px] sm:h-[160px] md:h-[180px] overflow-hidden rounded-lg border border-white/10 mb-2 sm:mb-3">
         {novel.image ? (

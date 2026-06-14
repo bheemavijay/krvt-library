@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { getImportApiUrl } from "@/lib/import-api";
 import { enableWakeLock, releaseWakeLock } from "@/lib/wake-lock";
 import {
+  isSupportedImportUrl,
   mergeNovelChapters,
   normalizeImportUrl,
   normalizeNovelRecord,
@@ -64,7 +65,7 @@ export function ImportBox() {
     complete: boolean;
   } | null>(null);
 
-  const isNovelFullUrl = useMemo(() => /novelfull\.(com|net)/i.test(url), [url]);
+  const isSupportedUrl = useMemo(() => isSupportedImportUrl(url), [url]);
 
   const handleImport = async () => {
     if (!url.trim()) {
@@ -72,9 +73,9 @@ export function ImportBox() {
       return;
     }
 
-    if (!isNovelFullUrl) {
+    if (!isSupportedUrl) {
       setMessage({
-        text: "Only novelfull.com and novelfull.net URLs are supported.",
+        text: "Only NovelFull and MVLEMPYR URLs are supported.",
         isError: true,
       });
       return;
@@ -361,7 +362,7 @@ export function ImportBox() {
       <div>
         <h3 className="text-xl text-white">Import from URL</h3>
         <p className="text-sm text-white/60">
-          Paste a NovelFull URL to download chapters offline.
+          Paste a NovelFull or MVLEMPYR URL to download chapters offline.
         </p>
       </div>
 
@@ -370,7 +371,7 @@ export function ImportBox() {
           type="url"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://novelfull.com/..."
+          placeholder="https://www.mvlempyr.io/novel/..."
           className="flex-1 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white"
           disabled={isLoading}
         />

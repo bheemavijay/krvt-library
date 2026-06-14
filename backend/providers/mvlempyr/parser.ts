@@ -3,27 +3,12 @@ import * as cheerio from "cheerio";
 import { cleanParagraphs } from "./cleaner";
 import type { ParsedChapter } from "./types";
 
-/**
- * Parse chapter HTML and extract:
- * - Novel title
- * - Chapter title
- * - Paragraph content
- * 
- * Uses multiple selector fallbacks for robustness
- */
 export function parseChapter(html: string): ParsedChapter {
   const $ = cheerio.load(html);
 
-  // Extract novel title
   const novelTitle = extractNovelTitle($);
-
-  // Extract novel URL
   const novelUrl = extractNovelUrl($);
-
-  // Extract chapter title
   const chapterTitle = extractChapterTitle($);
-
-  // Extract paragraphs
   const paragraphs = extractParagraphs($);
 
   return {
@@ -34,30 +19,6 @@ export function parseChapter(html: string): ParsedChapter {
   };
 }
 
-/**
- * Extract novel URL from chapter page
- */
-function extractNovelUrl($: cheerio.CheerioAPI): string {
-  const href =
-    $("a[href*='/novel/']").first().attr("href") ||
-    $("link[rel='canonical']").first().attr("href") ||
-    $("meta[property='og:url']").first().attr("content") ||
-    "";
-
-  if (!href) {
-    return "";
-  }
-
-  try {
-    return new URL(href, "https://www.mvlempyr.io").toString();
-  } catch {
-    return "";
-  }
-}
-
-/**
- * Extract novel title from chapter page
- */
 function extractNovelTitle($: cheerio.CheerioAPI): string {
   const selectors = [
     "#novel-name",
@@ -69,6 +30,7 @@ function extractNovelTitle($: cheerio.CheerioAPI): string {
 
   for (const selector of selectors) {
     const text = $(selector).first().text().trim();
+
     if (text && text.length > 0 && text.length < 300) {
       return text;
     }
@@ -77,9 +39,34 @@ function extractNovelTitle($: cheerio.CheerioAPI): string {
   return "Unknown Novel";
 }
 
-/**
- * Extract chapter title from chapter page
- */
+function extractNovelUrl($: cheerio.CheerioAPI): string {
+  const selectors = [
+    "a[href*='/novel/']",
+    "link[rel='canonical']",
+    "meta[property='og:url']",
+  ];
+
+  for (const selector of selectors) {
+    let url = "";
+
+    if (selector.includes("meta")) {
+      url = $(selector).attr("content") || "";
+    } else {
+      url = $(selector).attr("href") || "";
+    }
+
+    if (url.includes("/novel/")) {
+      if (url.startsWith("/")) {
+        return `https://www.mvlempyr.io${url}`;
+      }
+
+      return url;
+    }
+  }
+
+  return "";
+}
+
 function extractChapterTitle($: cheerio.CheerioAPI): string {
   const selectors = [
     "#chapter-name",
@@ -90,6 +77,7 @@ function extractChapterTitle($: cheerio.CheerioAPI): string {
 
   for (const selector of selectors) {
     const text = $(selector).first().text().trim();
+
     if (text && text.length > 0 && text.length < 300) {
       return text;
     }
@@ -98,10 +86,6 @@ function extractChapterTitle($: cheerio.CheerioAPI): string {
   return "Unknown Chapter";
 }
 
-/**
- * Extract paragraph content from chapter
- * Tries multiple selectors to handle layout variations
- */
 function extractParagraphs($: cheerio.CheerioAPI): string[] {
   const selectors = [
     "#chapter p",
@@ -118,12 +102,10 @@ function extractParagraphs($: cheerio.CheerioAPI): string[] {
       .map((_, el) => $(el).text().trim())
       .get();
 
-    // If we found paragraphs, return them
     if (paragraphs.length > 0) {
       return paragraphs;
     }
   }
 
-  // Fallback: return empty array if no paragraphs found
   return [];
 }

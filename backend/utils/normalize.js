@@ -1,4 +1,5 @@
 const NOVELFULL_HOST_PATTERN = /novelfull\.(com|net)/i;
+const MVLEMPYR_HOST_PATTERN = /mvlempyr\.io/i;
 const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS || 20000);
 
 function normalizeNovelTitle(raw) {
@@ -22,6 +23,24 @@ function normalizeNovelUrl(inputUrl) {
   return parsed.toString();
 }
 
+function getProviderForUrl(inputUrl) {
+  try {
+    const parsed = new URL(normalizeNovelUrl(inputUrl));
+
+    if (NOVELFULL_HOST_PATTERN.test(parsed.hostname)) {
+      return "novelfull";
+    }
+
+    if (MVLEMPYR_HOST_PATTERN.test(parsed.hostname)) {
+      return "mvlempyr";
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
+}
+
 function normalizeNovelUrlKey(inputUrl) {
   if (!inputUrl) {
     return "";
@@ -29,7 +48,14 @@ function normalizeNovelUrlKey(inputUrl) {
 
   try {
     const normalized = new URL(normalizeNovelUrl(inputUrl));
-    const normalizedPath = normalized.pathname.replace(/\.html\/?$/i, "").replace(/\/$/, "");
+    let normalizedPath = normalized.pathname.replace(/\.html\/?$/i, "").replace(/\/$/, "");
+
+    if (MVLEMPYR_HOST_PATTERN.test(normalized.hostname) && normalizedPath.includes("/chapter/")) {
+      const chapterSlug = normalizedPath.split("/").filter(Boolean).pop() ?? "";
+      const novelSlug = chapterSlug.replace(/-\d+$/i, "");
+      normalizedPath = `/novel/${novelSlug}`;
+    }
+
     return `${normalized.origin}${normalizedPath}`.toLowerCase();
   } catch {
     return String(inputUrl).trim().toLowerCase();
@@ -100,13 +126,13 @@ function validateImportPayload(body) {
 
   try {
     const normalizedUrl = normalizeNovelUrl(url);
-    const parsed = new URL(normalizedUrl);
+    const provider = getProviderForUrl(normalizedUrl);
 
-    if (!NOVELFULL_HOST_PATTERN.test(parsed.hostname)) {
-      return { ok: false, message: "Only novelfull.com and novelfull.net URLs are supported." };
+    if (!provider) {
+      return { ok: false, message: "Only NovelFull and MVLEMPYR URLs are supported." };
     }
 
-    return { ok: true, normalizedUrl };
+    return { ok: true, normalizedUrl, provider };
   } catch {
     return { ok: false, message: "Invalid URL" };
   }
@@ -138,10 +164,12 @@ function getImportConfig() {
 
 module.exports = {
   NOVELFULL_HOST_PATTERN,
+  MVLEMPYR_HOST_PATTERN,
   buildStructuredLog,
   dedupeChapters,
   getImportConfig,
   getNovelBaseUrl,
+  getProviderForUrl,
   normalizeChapterContent,
   normalizeNovelTitle,
   normalizeNovelUrl,

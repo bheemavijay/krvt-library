@@ -2,6 +2,7 @@ import type { Chapter, Novel } from "@/types";
 
 const FALLBACK_COVER =
   "https://via.placeholder.com/300x400?text=No+Cover";
+const SUPPORTED_IMPORT_HOST_PATTERN = /(?:novelfull\.(?:com|net)|mvlempyr\.io)/i;
 
 type NovelInput = Partial<Novel> & {
   genre?: string | string[];
@@ -40,6 +41,14 @@ export function normalizeImportUrl(input: string) {
   }
 }
 
+export function isSupportedImportUrl(input: string) {
+  try {
+    return SUPPORTED_IMPORT_HOST_PATTERN.test(new URL(input.trim()).hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function normalizeNovelUrlKey(input: string | undefined) {
   if (!input) {
     return "";
@@ -47,7 +56,14 @@ export function normalizeNovelUrlKey(input: string | undefined) {
 
   try {
     const url = new URL(normalizeImportUrl(input));
-    const normalizedPath = url.pathname.replace(/\.html\/?$/i, "").replace(/\/$/, "");
+    let normalizedPath = url.pathname.replace(/\.html\/?$/i, "").replace(/\/$/, "");
+
+    if (/mvlempyr\.io/i.test(url.hostname) && normalizedPath.includes("/chapter/")) {
+      const chapterSlug = normalizedPath.split("/").filter(Boolean).pop() ?? "";
+      const novelSlug = chapterSlug.replace(/-\d+$/i, "");
+      normalizedPath = `/novel/${novelSlug}`;
+    }
+
     return `${url.origin}${normalizedPath}`.toLowerCase();
   } catch {
     return normalizeImportUrl(input).toLowerCase();

@@ -10,6 +10,7 @@ const {
   normalizeNovelUrl,
   normalizeNovelUrlKey,
   normalizeStringArray,
+  getProviderForUrl,
 } = require("../utils/normalize");
 
 const DEFAULT_COVER = "https://via.placeholder.com/300x400?text=No+Cover";
@@ -116,7 +117,7 @@ function getResumeIndex({ title, novelBaseUrl, existingNovel, incomingNovelUrl, 
   return Number.isFinite(lastSavedChapterIndex) ? lastSavedChapterIndex : -1;
 }
 
-async function collectChapterLinks({ normalizedUrl, novelBaseUrl, baseUrl, isNovelFull }) {
+async function collectChapterLinks({ normalizedUrl, novelBaseUrl, baseUrl, provider }) {
   const config = getImportConfig();
   const links = [];
   let previousFirstLink = "";
@@ -156,7 +157,7 @@ async function collectChapterLinks({ normalizedUrl, novelBaseUrl, baseUrl, isNov
       }
 
       const absoluteLink = toAbsoluteLink(link, baseUrl);
-      if (isNovelFull && !absoluteLink.startsWith(`${novelBaseUrl}/chapter-`)) {
+      if (provider === 'novelfull' && !absoluteLink.startsWith(`${novelBaseUrl}/chapter-`)) {
         return;
       }
 
@@ -247,7 +248,7 @@ function extractNovelMetadata($, normalizedUrl, novelBaseUrl) {
   };
 }
 
-async function collectChapters({ selectedLinks, incrementalStart, title, isNovelFull }) {
+async function collectChapters({ selectedLinks, incrementalStart, title, provider }) {
   const config = getImportConfig();
   const chapters = [];
   const seenChapterUrls = new Set();
@@ -262,7 +263,7 @@ async function collectChapters({ selectedLinks, incrementalStart, title, isNovel
       const $chapter = cheerio.load(html);
       const pageTitle = $chapter("title").first().text().trim();
 
-      if (isNovelFull && canonicalTitle) {
+      if (provider === 'novelfull' && canonicalTitle) {
         const normalizedPageTitle = normalizeNovelTitle(pageTitle);
         if (!normalizedPageTitle.includes(canonicalTitle) && !/chapter/i.test(pageTitle)) {
           continue;
@@ -316,7 +317,7 @@ async function importNovel(payload) {
   const parsed = new URL(normalizedInputUrl);
   const baseUrl = parsed.origin;
   const novelBaseUrl = getNovelBaseUrl(normalizedInputUrl);
-  const isNovelFull = /novelfull\.(com|net)/i.test(parsed.hostname);
+  const provider = getProviderForUrl(normalizedInputUrl);
 
   const html = await fetchHtmlWithRetry(normalizedInputUrl);
   const $ = cheerio.load(html);
@@ -334,7 +335,7 @@ async function importNovel(payload) {
     normalizedUrl: normalizedInputUrl,
     novelBaseUrl,
     baseUrl,
-    isNovelFull,
+    provider,
   });
 
   const config = getImportConfig();
@@ -367,7 +368,7 @@ async function importNovel(payload) {
     selectedLinks,
     incrementalStart,
     title: metadata.title,
-    isNovelFull,
+    provider,
   });
 
   return {

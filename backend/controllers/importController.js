@@ -1,4 +1,4 @@
-const { importNovel } = require("../services/importService");
+const { importNovelWithProvider } = require("../providers");
 const { buildStructuredLog, validateImportPayload } = require("../utils/normalize");
 
 async function importController(req, res) {
@@ -15,12 +15,13 @@ async function importController(req, res) {
       JSON.stringify(
         buildStructuredLog("import.request.received", {
           url: validation.normalizedUrl,
+          provider: validation.provider,
           offset: Number.isFinite(safeOffset) ? safeOffset : 0,
         }),
       ),
     );
 
-    const result = await importNovel({
+    const result = await importNovelWithProvider(validation.provider, {
       ...req.body,
       url: validation.normalizedUrl,
     });

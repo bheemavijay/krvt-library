@@ -329,9 +329,24 @@ async function discoverChapterLinks(novelKey, requiredCount) {
 function parseChapter(html) {
   const $ = cheerio.load(html);
   removeNoise($);
+
+  const novelUrl = extractNovelUrl($);
+
+  console.log(
+      "[MVLEMPYR DEBUG] parseChapter novelUrl =",
+      novelUrl
+  );
+
   const title =
-    firstText($, [".cha-tit h1", ".chapter-shell h1", "#chapter h1", "#chapter-name", "main h1", "h1"]) ||
-    "Unknown Chapter";
+      firstText($, [
+        ".cha-tit h1",
+        ".chapter-shell h1",
+        "#chapter h1",
+        "#chapter-name",
+        "main h1",
+        "h1",
+      ]) || "Unknown Chapter";
+
   const roots = [
     $(".cha-words").first(),
     $(".chapter-shell .cha-words").first(),
@@ -342,19 +357,67 @@ function parseChapter(html) {
   ].filter((root) => root.length > 0);
 
   for (const root of roots) {
-    const content = uniqueParagraphs(
-      root
-        .find("p, div")
-        .map((_, element) => cleanText($(element).text()))
-        .get(),
+    let content = uniqueParagraphs(
+        root
+            .find("p")
+            .map((_, element) => cleanText($(element).text()))
+            .get()
     );
 
+    // Remove first paragraph if it duplicates the chapter title
+    if (
+        content.length > 0 &&
+        (
+            content[0].trim() === title.trim() ||
+            content[0].trim().startsWith("Chapter ")
+        )
+    ) {
+      content.shift();
+    }
+
     if (content.length > 0) {
-      return { title, content };
+      return {
+        title,
+        content,
+        novelUrl,
+      };
     }
   }
 
-  return { title, content: [] };
+  return {
+    title,
+    content: [],
+    novelUrl,
+  };
+}
+
+function extractNovelUrl($) {
+  const selectors = [
+    "a[href*='/novel/']",
+    "link[rel='canonical']",
+    "meta[property='og:url']",
+  ];
+
+  for (const selector of selectors) {
+    let url = "";
+
+    if (selector.startsWith("meta[")) {
+      url = $(selector).attr("content") || "";
+    } else {
+      url = $(selector).attr("href") || "";
+    }
+
+    if (!url) {
+      continue;
+    }
+
+    if (url.includes("/novel/")) {
+      const absolute = toAbsoluteLink(url);
+
+      return absolute;
+    }
+  }
+  return "";
 }
 
 function uniqueParagraphs(values) {
@@ -418,22 +481,48 @@ async function collectChapters({ selectedLinks, incrementalStart }) {
 async function importNovel(payload) {
   const normalizedUrl = normalizeNovelUrl(payload.url);
   const parsed = new URL(normalizedUrl);
+  
   const novelKey = extractNovelKey(normalizedUrl);
   const isNovelPage = parsed.pathname.includes("/novel/");
-  const novelBaseUrl = isNovelPage ? normalizedUrl : `${BASE_URL}/novel/${novelKey}`;
-  const config = getImportConfig();
+
+  let novelBaseUrl = isNovelPage
+      ? normalizedUrl
+      : "";
 
   let metadataHtml = "";
+
   if (isNovelPage) {
     metadataHtml = await fetchHtmlWithRetry(normalizedUrl);
   } else {
     try {
-      metadataHtml = await fetchHtmlWithRetry(novelBaseUrl);
+      const firstChapterHtml = await fetchHtmlWithRetry(normalizedUrl);
+      const parsedChapter = parseChapter(firstChapterHtml);
+
+      console.info(
+          JSON.stringify(
+              buildStructuredLog(
+                  "import.mvlempyr.detected-novel-url",
+                  {
+                    chapterUrl: normalizedUrl,
+                    detectedNovelUrl: parsedChapter.novelUrl,
+                  }
+              )
+          )
+      );
+
+      if (parsedChapter.novelUrl) {
+        novelBaseUrl = parsedChapter.novelUrl;
+        metadataHtml = await fetchHtmlWithRetry(novelBaseUrl);
+      } else {
+        metadataHtml = "";
+      }
     } catch {
       metadataHtml = "";
     }
   }
 
+  const config = getImportConfig();
+  
   const metadata = metadataHtml
     ? extractMetadata(metadataHtml, novelBaseUrl, novelBaseUrl)
     : {

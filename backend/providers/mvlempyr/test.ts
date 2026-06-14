@@ -1,8 +1,9 @@
 /**
- * Test script for metadata extraction
- * Run: npx ts-node test.ts
+ * Test script for MVLEMPYR scraper
+ * Run:
+ *   npx tsx test.ts
  */
-
+import fs from "fs";
 import { fetchChapterHtml } from "./fetch";
 import { fetchNovelPageHtml, extractMetadata } from "./metadata";
 import { parseChapter } from "./parser";
@@ -12,35 +13,50 @@ async function main() {
   console.log("MVLEMPYR SCRAPER TEST");
   console.log("═══════════════════════════════════════\n");
 
-  // Test 1: Chapter parsing
+  // ============================================================
+  // TEST 1: Chapter Parsing
+  // ============================================================
   console.log("TEST 1: Chapter Parsing");
   console.log("─────────────────────────────────────");
+
   try {
     const chapterUrl = "https://www.mvlempyr.io/chapter/5117-1";
     console.log(`Fetching: ${chapterUrl}`);
 
     const html = await fetchChapterHtml(chapterUrl);
+
+    fs.writeFileSync("chapter1.html", html, "utf8");
+    console.log("Saved raw HTML to chapter1.html");
     const chapter = parseChapter(html);
 
     console.log(`✓ Novel Title: ${chapter.novelTitle}`);
+    console.log(`✓ Novel URL: ${chapter.novelUrl}`);
     console.log(`✓ Chapter Title: ${chapter.chapterTitle}`);
     console.log(`✓ Paragraphs: ${chapter.paragraphs.length}`);
-    console.log(`\nFirst 3 paragraphs:`);
+
+    console.log("\nFirst 3 paragraphs:");
     chapter.paragraphs.slice(0, 3).forEach((p, i) => {
       console.log(`  ${i + 1}. ${p.substring(0, 80)}...`);
     });
   } catch (error) {
-    console.error(`✗ Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+    console.error(
+        `✗ Error: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
   }
 
-  // Test 2: Metadata extraction
+  // ============================================================
+  // TEST 2: Metadata Extraction
+  // ============================================================
   console.log("\n\nTEST 2: Metadata Extraction");
   console.log("─────────────────────────────────────");
-  try {
-    const novelId = "mythical-era-my-evolution-into-a-celestial-beast";
-    console.log(`Fetching metadata for: ${novelId}`);
 
-    const html = await fetchNovelPageHtml(novelId);
+  try {
+    const novelUrl =
+        "https://www.mvlempyr.io/novel/the-first-legendary-beast-master";
+
+    console.log(`Fetching metadata for: ${novelUrl}`);
+
+    const html = await fetchNovelPageHtml(novelUrl);
     const metadata = extractMetadata(html);
 
     console.log(`✓ Title: ${metadata.title}`);
@@ -50,10 +66,22 @@ async function main() {
     console.log(`✓ Genres: ${metadata.genres.join(", ") || "—"}`);
     console.log(`✓ Tags: ${metadata.tags.join(", ") || "—"}`);
     console.log(`✓ Cover: ${metadata.coverImage ? "✓" : "✗"}`);
-    console.log(`✓ Description: ${metadata.description.substring(0, 100)}...`);
-    console.log(`✓ Alternative titles: ${metadata.alternativeTitles.length}`);
+
+    if (metadata.description) {
+      console.log(
+          `✓ Description: ${metadata.description.substring(0, 100)}...`
+      );
+    } else {
+      console.log("✓ Description: (empty)");
+    }
+
+    console.log(
+        `✓ Alternative titles: ${metadata.alternativeTitles.length}`
+    );
   } catch (error) {
-    console.error(`✗ Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+    console.error(
+        `✗ Error: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
   }
 
   console.log("\n═══════════════════════════════════════");

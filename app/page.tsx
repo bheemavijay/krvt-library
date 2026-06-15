@@ -182,6 +182,23 @@ function HomePageClient() {
     };
   }, []);
 
+  // Update selectedGenre if searchQuery matches exactly a genre/tag
+  useEffect(() => {
+    if (searchQuery && view === 'novels') {
+      const allGenresAndTags = new Set(
+          novels.flatMap((n) => [...(n.genres ?? []), ...(n.tags ?? [])])
+      );
+      
+      const match = Array.from(allGenresAndTags).find(
+        (g) => g.toLowerCase() === searchQuery.toLowerCase()
+      );
+      
+      if (match) {
+        setSelectedGenre(match);
+      }
+    }
+  }, [searchQuery, view, novels]);
+
   // ✅ FILTER (no duplicate)
   const filteredBySearch = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
@@ -190,7 +207,9 @@ function HomePageClient() {
     return novels.filter(
       (n) =>
         n.title.toLowerCase().includes(query) ||
-        n.author?.toLowerCase().includes(query)
+        n.author?.toLowerCase().includes(query) ||
+        n.genres?.some(g => g.toLowerCase().includes(query)) ||
+        n.tags?.some(t => t.toLowerCase().includes(query))
     );
   }, [novels, searchQuery]);
 
@@ -217,7 +236,6 @@ function HomePageClient() {
     return ["All", ...Array.from(
       new Set(
         novels.flatMap((n) => n.genres ?? []).filter(Boolean)
-          .concat(novels.flatMap((n) => n.tags ?? []).filter(Boolean))
       )
     ).slice(0, 12)];
   }, [novels]);

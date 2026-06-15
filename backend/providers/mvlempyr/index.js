@@ -312,6 +312,10 @@ function collectChapterLinksFromNovelPage(html, novelKey) {
     return [];
   }
 
+  console.warn("krvt.debug.mvlempyr.chapterLinks.fallback", {
+    novelKey,
+  });
+
   return Array.from({ length: chapterCount }, (_, index) => `${BASE_URL}/chapter/${novelKey}-${index + 1}`);
 }
 
@@ -493,6 +497,11 @@ async function collectChapters({ selectedLinks, incrementalStart }) {
 }
 
 async function importNovel(payload) {
+  console.info("krvt.debug.mvlempyr.start", {
+    url: payload.url,
+    existingNovel: !!payload.existingNovel,
+  });
+
   const normalizedUrl = normalizeNovelUrl(payload.url);
   const parsed = new URL(normalizedUrl);
   
@@ -511,6 +520,11 @@ async function importNovel(payload) {
     try {
       const firstChapterHtml = await fetchHtmlWithRetry(normalizedUrl);
       const parsedChapter = parseChapter(firstChapterHtml);
+
+      console.info("krvt.debug.mvlempyr.chapterUrl.parsed", {
+        chapterUrl: normalizedUrl,
+        detectedNovelUrl: parsedChapter.novelUrl,
+      });
 
       if (parsedChapter.novelUrl) {
         novelBaseUrl = parsedChapter.novelUrl;
@@ -541,6 +555,11 @@ async function importNovel(payload) {
         lastUpdated: new Date().toISOString(),
       };
 
+  console.info("krvt.debug.mvlempyr.metadata", {
+    title: metadata?.title,
+    sourceUrl: metadata?.sourceUrl,
+  });
+
   const lastSavedChapterIndex = getResumeIndex({
     metadata,
     novelBaseUrl,
@@ -555,11 +574,32 @@ async function importNovel(payload) {
   );
 
   let links = metadataHtml ? collectChapterLinksFromNovelPage(metadataHtml, novelKey) : [];
+  if (links.length > 0) {
+    console.info("krvt.debug.mvlempyr.chapterLinks.collected", {
+      count: links.length,
+      first: links[0],
+      last: links[links.length - 1],
+    });
+  }
+  
   if (links.length < incrementalStart + 1) {
+    console.warn("krvt.debug.mvlempyr.chapterLinks.fallback", {
+      novelKey,
+    });
     links = await discoverChapterLinks(novelKey, incrementalStart + config.batchSize);
   }
 
   const selectedLinks = links.slice(incrementalStart, incrementalStart + config.batchSize);
+
+  console.info("krvt.debug.mvlempyr.incremental", {
+    totalLinks: links.length,
+    chapterCount: payload.existingNovel?.chapterCount,
+    lastChapterIndex: payload.existingNovel?.lastChapterIndex,
+    incrementalStart,
+    selectedCount: selectedLinks.length,
+    firstSelected: selectedLinks[0] ?? null,
+    lastSelected: selectedLinks[selectedLinks.length - 1] ?? null,
+  });
 
   console.info(
     JSON.stringify(
@@ -580,6 +620,11 @@ async function importNovel(payload) {
   }
 
   const chapters = await collectChapters({ selectedLinks, incrementalStart });
+
+  console.info("krvt.debug.mvlempyr.finish", {
+    title: metadata?.title,
+    returnedChapters: chapters.length,
+  });
 
   return {
     ...metadata,

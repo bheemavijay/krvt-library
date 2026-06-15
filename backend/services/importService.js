@@ -13,7 +13,7 @@ const {
   getProviderForUrl,
 } = require("../utils/normalize");
 
-const { CANONICAL_GENRES } = require("../../../lib/constants/genres");
+const { CANONICAL_GENRES } = require("../../lib/constants/genres");
 
 const DEFAULT_COVER = "https://via.placeholder.com/300x400?text=No+Cover";
 
@@ -327,6 +327,11 @@ async function collectChapters({ selectedLinks, incrementalStart, title, provide
 }
 
 async function importNovel(payload) {
+  console.info("krvt.debug.novelfull.start", {
+    url: payload.url,
+    existingNovel: !!payload.existingNovel,
+  });
+
   const normalizedInputUrl = normalizeNovelUrl(payload.url);
   const parsed = new URL(normalizedInputUrl);
   const baseUrl = parsed.origin;
@@ -336,6 +341,11 @@ async function importNovel(payload) {
   const html = await fetchHtmlWithRetry(normalizedInputUrl);
   const $ = cheerio.load(html);
   const metadata = extractNovelMetadata($, normalizedInputUrl, novelBaseUrl);
+
+  console.info("krvt.debug.novelfull.metadata", {
+    title: metadata?.title,
+    sourceUrl: metadata?.sourceUrl,
+  });
 
   const lastSavedChapterIndex = getResumeIndex({
     title: metadata.title,
@@ -352,6 +362,14 @@ async function importNovel(payload) {
     provider,
   });
 
+  if (links.length > 0) {
+    console.info("krvt.debug.novelfull.chapterLinks.collected", {
+      count: links.length,
+      first: links[0],
+      last: links[links.length - 1],
+    });
+  }
+
   const config = getImportConfig();
   const safeOffset = Number.isFinite(Number(payload.offset)) ? Math.max(0, Number(payload.offset)) : 0;
   const incrementalStart = Math.max(
@@ -359,6 +377,16 @@ async function importNovel(payload) {
     Number.isFinite(lastSavedChapterIndex) ? lastSavedChapterIndex + 1 : 0,
   );
   const selectedLinks = links.slice(incrementalStart, incrementalStart + config.batchSize);
+
+  console.info("krvt.debug.novelfull.incremental", {
+    totalLinks: links.length,
+    chapterCount: payload.existingNovel?.chapterCount,
+    lastChapterIndex: payload.existingNovel?.lastChapterIndex,
+    incrementalStart,
+    selectedCount: selectedLinks.length,
+    firstSelected: selectedLinks[0] ?? null,
+    lastSelected: selectedLinks[selectedLinks.length - 1] ?? null,
+  });
 
   console.info(
     JSON.stringify(
@@ -383,6 +411,11 @@ async function importNovel(payload) {
     incrementalStart,
     title: metadata.title,
     provider,
+  });
+
+  console.info("krvt.debug.novelfull.finish", {
+    title: metadata?.title,
+    returnedChapters: chapters.length,
   });
 
   return {

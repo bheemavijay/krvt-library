@@ -57,7 +57,12 @@ function isCompletedStatus(status?: string) {
 }
 
 async function updateSingleNovel(novel: Novel) {
-  if (!novel.sourceUrl || novel.isCompleted) return;
+  console.info("krvt.debug.autoupdate.start", { novelId: novel.id, title: novel.title });
+
+  if (!novel.sourceUrl || novel.isCompleted) {
+    console.info("krvt.debug.autoupdate.skip", { novelId: novel.id, reason: "No source URL or is completed" });
+    return;
+  }
 
   try {
     let offset = 0;
@@ -65,6 +70,7 @@ async function updateSingleNovel(novel: Novel) {
     const incomingChapters: Chapter[] = [];
 
     while (true) {
+      console.info("krvt.debug.autoupdate.fetch", { novelId: novel.id, offset });
       const response = await fetch(getImportApiUrl(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -81,12 +87,18 @@ async function updateSingleNovel(novel: Novel) {
       });
 
       const data = (await response.json()) as ImportApiResponse;
-      if (response.status === 409 || data.error === "No new chapters available") break;
+      if (response.status === 409 || data.error === "No new chapters available") {
+        console.info("krvt.debug.autoupdate.complete.409", { novelId: novel.id });
+        break;
+      }
       if (!response.ok) throw new Error(data.error || "Auto update failed");
 
       latestMeta = data;
       const chunk = data.chapters ?? [];
-      if (!chunk.length) break;
+      if (!chunk.length) {
+        console.info("krvt.debug.autoupdate.complete.no_chapters", { novelId: novel.id });
+        break;
+      }
 
       for (let i = 0; i < chunk.length; i += 1) {
         incomingChapters.push(mapIncomingChapter(chunk[i], novel.chapters.length + incomingChapters.length + 1));
@@ -104,6 +116,7 @@ async function updateSingleNovel(novel: Novel) {
           lastUpdated: new Date().toISOString(),
         });
       }
+      console.info("krvt.debug.autoupdate.finish.no_new_chapters", { novelId: novel.id });
       return;
     }
 
@@ -117,7 +130,10 @@ async function updateSingleNovel(novel: Novel) {
       uniqueNew.push(chapter);
     }
 
-    if (!uniqueNew.length) return;
+    if (!uniqueNew.length) {
+      console.info("krvt.debug.autoupdate.finish.no_unique_chapters", { novelId: novel.id });
+      return;
+    }
 
     const mergedChapters = mergeNovelChapters(novel.id, novel.chapters, uniqueNew);
 
@@ -136,8 +152,10 @@ async function updateSingleNovel(novel: Novel) {
       lastUpdated: new Date().toISOString(),
       chapters: mergedChapters,
     }));
+    
+    console.info("krvt.debug.autoupdate.success", { novelId: novel.id, newChapters: uniqueNew.length });
   } catch (error) {
-    console.error(`Auto update skipped for novel: ${novel.title}`, error);
+    console.error(`krvt.debug.autoupdate.error for novel: ${novel.title}`, error);
   }
 }
 
@@ -153,7 +171,7 @@ export async function updateAllNovels() {
       window.dispatchEvent(new Event("library:updated"));
     }
   } catch (error) {
-    console.error("Auto update failed", error);
+    console.error("krvt.debug.autoupdate.error", error);
   }
 }
 

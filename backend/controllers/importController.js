@@ -2,6 +2,22 @@ const { importNovelWithProvider } = require("../providers");
 const { buildStructuredLog, validateImportPayload } = require("../utils/normalize");
 
 async function importController(req, res) {
+  console.info(
+    JSON.stringify(
+      buildStructuredLog("krvt.debug.api.request", {
+        url: req.body?.url,
+        existingNovel: req.body?.existingNovel
+          ? {
+              title: req.body.existingNovel.title,
+              novelUrl: req.body.existingNovel.novelUrl,
+              chapterCount: req.body.existingNovel.chapterCount,
+              lastChapterIndex: req.body.existingNovel.lastChapterIndex,
+            }
+          : null,
+      })
+    )
+  );
+
   const validation = validateImportPayload(req.body);
 
   if (!validation.ok) {
@@ -26,6 +42,16 @@ async function importController(req, res) {
       url: validation.normalizedUrl,
     });
 
+    console.info(
+      JSON.stringify(
+        buildStructuredLog("krvt.debug.api.response", {
+          statusCode: 200,
+          title: result?.title,
+          chapters: result?.chapters?.length,
+        })
+      )
+    );
+
     return res.status(200).json(result);
   } catch (error) {
     const statusCode = Number(error?.statusCode) || 500;
@@ -43,6 +69,8 @@ async function importController(req, res) {
         }),
       ),
     );
+
+    console.error("krvt.debug.api.error", error);
 
     return res.status(statusCode).json({ error: message });
   }

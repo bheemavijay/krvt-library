@@ -178,6 +178,8 @@ export async function getNovelSummaries(options: { offset?: number; limit?: numb
 }
 
 export async function getNovel(id: string): Promise<Novel | null> {
+  console.info("krvt.debug.storage.getNovel", { id });
+  
   if (!id?.trim()) {
     console.error("getNovel called with invalid id:", id);
     return null;
@@ -197,7 +199,8 @@ export async function getNovel(id: string): Promise<Novel | null> {
 
 export async function getNovelSummary(id: string): Promise<NovelSummary | null> {
   const meta = await getNovelMeta(id);
-  return meta ? metaToSummary(meta) : null;
+  const summary = meta ? metaToSummary(meta) : null;
+  return summary;
 }
 
 export async function getNovelChapterList(id: string) {
@@ -309,6 +312,12 @@ async function putNovelRecord(novel: StoredNovelRecord) {
   const tx = db.transaction([NOVELS_STORE, CHAPTERS_STORE], "readwrite");
   const novelsStore = tx.objectStore(NOVELS_STORE);
   const chaptersStore = tx.objectStore(CHAPTERS_STORE);
+
+  console.info("krvt.debug.storage.addNovel", {
+    id: normalized.id,
+    title: normalized.title,
+    chapters: chapters.length,
+  });
 
   return new Promise<void>((resolve, reject) => {
     tx.oncomplete = () => {

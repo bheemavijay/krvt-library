@@ -10,6 +10,7 @@ async function importNovelWithProvider(providerName, payload) {
   const provider = providers[providerName];
 
   console.info("krvt.debug.provider.select", {
+    requestId: payload.requestId,
     url: payload.url,
     provider: providerName,
   });

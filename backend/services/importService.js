@@ -119,7 +119,7 @@ function getResumeIndex({ title, novelBaseUrl, existingNovel, incomingNovelUrl, 
   return Number.isFinite(lastSavedChapterIndex) ? lastSavedChapterIndex : -1;
 }
 
-async function collectChapterLinks({ normalizedUrl, novelBaseUrl, baseUrl, provider }) {
+async function collectChapterLinks({ normalizedUrl, novelBaseUrl, baseUrl, provider, requestId }) {
   const config = getImportConfig();
   const links = [];
   let previousFirstLink = "";
@@ -141,6 +141,7 @@ async function collectChapterLinks({ normalizedUrl, novelBaseUrl, baseUrl, provi
       console.warn(
         JSON.stringify(
           buildStructuredLog("import.listing-page.skipped", {
+            requestId,
             normalizedUrl,
             page,
             message: error?.message ?? "Failed listing page",
@@ -262,7 +263,7 @@ function extractNovelMetadata($, normalizedUrl, novelBaseUrl) {
   };
 }
 
-async function collectChapters({ selectedLinks, incrementalStart, title, provider }) {
+async function collectChapters({ selectedLinks, incrementalStart, title, provider, requestId }) {
   const config = getImportConfig();
   const chapters = [];
   const seenChapterUrls = new Set();
@@ -315,6 +316,7 @@ async function collectChapters({ selectedLinks, incrementalStart, title, provide
       console.warn(
         JSON.stringify(
           buildStructuredLog("import.chapter.skipped", {
+            requestId,
             chapterUrl,
             message: error?.message ?? "Failed chapter fetch",
           }),
@@ -328,6 +330,7 @@ async function collectChapters({ selectedLinks, incrementalStart, title, provide
 
 async function importNovel(payload) {
   console.info("krvt.debug.novelfull.start", {
+    requestId: payload.requestId,
     url: payload.url,
     existingNovel: !!payload.existingNovel,
   });
@@ -343,6 +346,7 @@ async function importNovel(payload) {
   const metadata = extractNovelMetadata($, normalizedInputUrl, novelBaseUrl);
 
   console.info("krvt.debug.novelfull.metadata", {
+    requestId: payload.requestId,
     title: metadata?.title,
     sourceUrl: metadata?.sourceUrl,
   });
@@ -360,10 +364,12 @@ async function importNovel(payload) {
     novelBaseUrl,
     baseUrl,
     provider,
+    requestId: payload.requestId,
   });
 
   if (links.length > 0) {
     console.info("krvt.debug.novelfull.chapterLinks.collected", {
+      requestId: payload.requestId,
       count: links.length,
       first: links[0],
       last: links[links.length - 1],
@@ -379,6 +385,7 @@ async function importNovel(payload) {
   const selectedLinks = links.slice(incrementalStart, incrementalStart + config.batchSize);
 
   console.info("krvt.debug.novelfull.incremental", {
+    requestId: payload.requestId,
     totalLinks: links.length,
     chapterCount: payload.existingNovel?.chapterCount,
     lastChapterIndex: payload.existingNovel?.lastChapterIndex,
@@ -391,6 +398,7 @@ async function importNovel(payload) {
   console.info(
     JSON.stringify(
       buildStructuredLog("import.batch-selection", {
+        requestId: payload.requestId,
         novelBaseUrl,
         totalLinks: links.length,
         incrementalStart,
@@ -411,9 +419,11 @@ async function importNovel(payload) {
     incrementalStart,
     title: metadata.title,
     provider,
+    requestId: payload.requestId,
   });
 
   console.info("krvt.debug.novelfull.finish", {
+    requestId: payload.requestId,
     title: metadata?.title,
     returnedChapters: chapters.length,
   });

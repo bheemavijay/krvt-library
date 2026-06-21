@@ -3,6 +3,7 @@
 import { getImportApiUrl } from "@/lib/import-api";
 import { mergeNovelChapters, normalizeNovelRecord } from "@/lib/novels";
 import { addNovel, getNovel, getNovelSummaries } from "@/lib/storage/indexeddb";
+import { acquireNovelJobLock, releaseNovelJobLock } from "@/lib/update/novelJobLock";
 import type { Chapter, Novel } from "@/types";
 
 type ImportApiResponse = {
@@ -57,10 +58,16 @@ function isCompletedStatus(status?: string) {
 }
 
 async function updateSingleNovel(novel: Novel) {
-  console.info("krvt.debug.autoupdate.start", { novelId: novel.id, title: novel.title });
+  const requestId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+  console.info("krvt.debug.update.entry", { requestId, novelId: novel.id, title: novel.title, source: "auto-update" });
 
   if (!novel.sourceUrl || novel.isCompleted) {
     console.info("krvt.debug.autoupdate.skip", { novelId: novel.id, reason: "No source URL or is completed" });
+    return;
+  }
+
+  const lockKey = novel.sourceUrl || novel.id;
+  if (!acquireNovelJobLock(lockKey)) {
     return;
   }
 
@@ -156,6 +163,8 @@ async function updateSingleNovel(novel: Novel) {
     console.info("krvt.debug.autoupdate.success", { novelId: novel.id, newChapters: uniqueNew.length });
   } catch (error) {
     console.error(`krvt.debug.autoupdate.error for novel: ${novel.title}`, error);
+  } finally {
+    releaseNovelJobLock(lockKey);
   }
 }
 

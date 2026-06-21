@@ -5,7 +5,9 @@ import {
   normalizeNovelRecord,
   normalizeNovelUrlKey,
 } from "@/lib/novels";
+import { parseTxtNovel } from "@/lib/parser";
 import { addNovel, getNovel, getNovelSummaries } from "@/lib/storage/indexeddb";
+import { acquireNovelJobLock, releaseNovelJobLock } from "@/lib/update/novelJobLock";
 import type { Novel } from "@/types";
 
 type ImportResponse = {
@@ -36,6 +38,34 @@ export type ImportProgress = {
   batchEnd: number;
   complete: boolean;
 };
+
+export async function importFromText(rawText: string, title?: string): Promise<Novel> {
+  const parsed = parseTxtNovel(rawText);
+  const novel = normalizeNovelRecord({
+    title: title?.trim() || parsed.title,
+    chapters: parsed.chapters.map((chapter, index) => ({
+      id: String(index + 1),
+      order: index + 1,
+      title: chapter.title,
+      content: chapter.content
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean),
+    })),
+  });
+
+  const lockKey = novel.sourceUrl || novel.id;
+  if (!acquireNovelJobLock(lockKey)) {
+    return novel;
+  }
+
+  try {
+    await addNovel(novel);
+    return novel;
+  } finally {
+    releaseNovelJobLock(lockKey);
+  }
+}
 
 export async function importNovel(
   url: string,
@@ -85,6 +115,16 @@ export async function importNovel(
     sourceUrl: currentNovel?.sourceUrl,
   });
 
+  const lockKey = currentNovel?.sourceUrl ?? normalizedUrlKey;
+  if (!acquireNovelJobLock(lockKey)) {
+    if (currentNovel) {
+      return currentNovel;
+    }
+
+    throw new Error("Import already in progress");
+  }
+
+  try {
   let baseChapterCount = currentSummary?.chapterCount ?? currentNovel?.chapters.length ?? 0;
   const batchSize = 50;
   const allChapters: NonNullable<ImportResponse["chapters"]> = [];
@@ -314,4 +354,7 @@ export async function importNovel(
   });
 
   return currentNovel;
+  } finally {
+    releaseNovelJobLock(lockKey);
+  }
 }

@@ -113,7 +113,7 @@ function getResumeIndex({ metadata, novelBaseUrl, existingNovel, incomingNovelUr
       ? Number(
           existingNovel?.lastChapterIndex ??
             incomingLastChapterIndex ??
-            existingNovel?.chapterCount ??
+            (Number.isFinite(Number(existingNovel?.chapterCount)) ? Number(existingNovel.chapterCount) - 1 : undefined) ??
             -1,
         )
       : -1;
@@ -288,20 +288,66 @@ function extractChapterCount($) {
   return match ? Number.parseInt(match[1], 10) : 0;
 }
 
-function collectChapterLinksFromNovelPage(html, novelKey) {
+function extractChapterBaseIdFromHtml(html) {
+  const hrefMatch = html.match(/\/chapter\/(\d+)-/);
+  if (hrefMatch?.[1]) {
+    return hrefMatch[1];
+  }
+
+  const scriptMatch = html.match(/(?:novelId|novel_id|bookId|book_id)["'\s:]+(\d+)/i);
+  if (scriptMatch?.[1]) {
+    return scriptMatch[1];
+  }
+
+  return null;
+}
+
+function collectChapterLinksFromNovelPage(html, novelKey, requestId) {
+  console.info("krvt.debug.mvlempyr.chapterLinks.start", { requestId, novelUrl: novelKey });
+
+  const idx = html.indexOf("/chapter/");
+  if (idx >= 0) {
+    console.info("krvt.debug.mvlempyr.chapterLinks.htmlSnippet", {
+      requestId,
+      snippet: html.substring(
+        Math.max(0, idx - 500),
+        Math.min(html.length, idx + 1000)
+      ),
+    });
+  } else {
+    console.warn("krvt.debug.mvlempyr.chapterLinks.noChapterHref", {
+      requestId,
+    });
+  }
+
   const $ = cheerio.load(html);
+  const selectors = [
+    "a.novelreadbutton[href*='/chapter/']",
+    "a.continuebutton[href*='/chapter/']",
+    "a[href*='/chapter/']",
+    ".chapter-list a.chapter-item",
+    ".chapter-list a[href*='/chapter/']",
+    "[class*='chapter'] a[href*='/chapter/']",
+    "a.chapter-item",
+  ];
+  
+  const elements = $(selectors.join(", "));
+  console.info("krvt.debug.mvlempyr.chapterLinks.queryResult", { requestId, matchedElements: elements.length });
+
   const links = normalizeStringArray(
     queryAttributes(
       $,
-      [
-        ".chapter-list a.chapter-item",
-        ".chapter-list a[href*='/chapter/']",
-        "[class*='chapter'] a[href*='/chapter/']",
-        "a.chapter-item",
-      ],
+      selectors,
       "href",
     ).filter((href) => href.includes("/chapter/")),
   );
+
+  console.info("krvt.debug.mvlempyr.chapterLinks.extracted", {
+    requestId,
+    totalLinks: links.length,
+    first: links[0] || null,
+    last: links[links.length - 1] || null,
+  });
 
   if (links.length > 0) {
     return links;
@@ -312,25 +358,49 @@ function collectChapterLinksFromNovelPage(html, novelKey) {
     return [];
   }
 
-  console.warn("krvt.debug.mvlempyr.chapterLinks.fallback", {
-    novelKey,
+  console.warn("krvt.debug.mvlempyr.chapterLinks.fallback.triggered", {
+    requestId,
+    reason: "No chapter links extracted from novel page",
+    novelUrl: novelKey,
+    extractedCount: links.length,
   });
 
-  return Array.from({ length: chapterCount }, (_, index) => `${BASE_URL}/chapter/${novelKey}-${index + 1}`);
+  const chapterBaseId = extractChapterBaseIdFromHtml(html);
+  const key = chapterBaseId || novelKey;
+
+  if (chapterBaseId || /^\d+$/.test(novelKey)) {
+    return Array.from({ length: chapterCount }, (_, index) => `${BASE_URL}/chapter/${key}-${index + 1}`);
+  }
+
+  return [];
 }
 
-async function discoverChapterLinks(novelKey, requiredCount) {
+async function discoverChapterLinks(novelKey, requiredCount, incrementalStart, requestId, chapterBaseId) {
   const config = getImportConfig();
   const links = [];
-  let chapterNumber = 1;
+  let chapterNumber = Math.max(1, incrementalStart + 1);
   let consecutiveFailures = 0;
-  const maxChapters = Math.max(requiredCount + 3, config.batchSize);
+  const maxChaptersToDiscover = Math.min(config.batchSize, requiredCount);
+  const key = chapterBaseId || novelKey;
 
-  while (consecutiveFailures < 3 && chapterNumber <= maxChapters) {
-    const url = `${BASE_URL}/chapter/${novelKey}-${chapterNumber}`;
+  console.info(
+      "krvt.debug.mvlempyr.discover.inputs",
+      {
+        requestId,
+        novelKey,
+        chapterBaseId,
+        incrementalStart,
+        requiredCount,
+        startChapterNumber: chapterNumber,
+        maxChaptersToDiscover
+      }
+  );
+
+  while (links.length < maxChaptersToDiscover && consecutiveFailures < 3) {
+    const url = `${BASE_URL}/chapter/${key}-${chapterNumber}`;
 
     try {
-      const html = await fetchHtmlWithRetry(url);
+      const html = await fetchHtmlWithRetry(url, { timeoutMs: 15000 });
       const chapter = parseChapter(html);
 
       if (chapter.title && chapter.content.length >= 3) {
@@ -346,6 +416,7 @@ async function discoverChapterLinks(novelKey, requiredCount) {
     chapterNumber += 1;
   }
 
+  console.info("krvt.debug.mvlempyr.discover.finish", { requestId, discoveredLinks: links.length, finalChapterNumber: chapterNumber });
   return links;
 }
 
@@ -382,7 +453,6 @@ function parseChapter(html) {
             .get()
     );
 
-    // Remove first paragraph if it duplicates the chapter title
     if (
         content.length > 0 &&
         (
@@ -464,7 +534,7 @@ function isJunkParagraph(value) {
   );
 }
 
-async function collectChapters({ selectedLinks, incrementalStart }) {
+async function collectChapters({ selectedLinks, incrementalStart, requestId }) {
   const config = getImportConfig();
   const chapters = [];
 
@@ -477,14 +547,15 @@ async function collectChapters({ selectedLinks, incrementalStart }) {
       const chapter = parseChapter(html);
 
       chapters.push({
-        id: String(incrementalStart + index + 1),
-        title: chapter.title || `Chapter ${incrementalStart + index + 1}`,
+        id: String(incrementalStart + index),
+        title: chapter.title || `Chapter ${incrementalStart + index}`,
         content: chapter.content,
       });
     } catch (error) {
       console.warn(
         JSON.stringify(
           buildStructuredLog("import.mvlempyr.chapter.skipped", {
+            requestId,
             chapterUrl,
             message: error?.message ?? "Failed chapter fetch",
           }),
@@ -497,7 +568,9 @@ async function collectChapters({ selectedLinks, incrementalStart }) {
 }
 
 async function importNovel(payload) {
+  const requestId = payload?.requestId;
   console.info("krvt.debug.mvlempyr.start", {
+    requestId,
     url: payload.url,
     existingNovel: !!payload.existingNovel,
   });
@@ -522,6 +595,7 @@ async function importNovel(payload) {
       const parsedChapter = parseChapter(firstChapterHtml);
 
       console.info("krvt.debug.mvlempyr.chapterUrl.parsed", {
+        requestId,
         chapterUrl: normalizedUrl,
         detectedNovelUrl: parsedChapter.novelUrl,
       });
@@ -556,6 +630,7 @@ async function importNovel(payload) {
       };
 
   console.info("krvt.debug.mvlempyr.metadata", {
+    requestId,
     title: metadata?.title,
     sourceUrl: metadata?.sourceUrl,
   });
@@ -573,55 +648,63 @@ async function importNovel(payload) {
     Number.isFinite(lastSavedChapterIndex) ? lastSavedChapterIndex + 1 : 0,
   );
 
-  let links = metadataHtml ? collectChapterLinksFromNovelPage(metadataHtml, novelKey) : [];
+  let links = metadataHtml ? collectChapterLinksFromNovelPage(metadataHtml, novelKey, requestId) : [];
+  let wasDiscovered = false;
+
   if (links.length > 0) {
     console.info("krvt.debug.mvlempyr.chapterLinks.collected", {
+      requestId,
       count: links.length,
       first: links[0],
       last: links[links.length - 1],
     });
   }
   
-  if (links.length < incrementalStart + 1) {
+  if (links.length <= incrementalStart + config.batchSize) {
+    const currentLinks = links.length;
+    const chapterBaseId = extractChapterBaseIdFromHtml(metadataHtml);
+    console.info("krvt.debug.mvlempyr.chapterBaseId.detected", { requestId, chapterBaseId });
+
+    const discoveryStart = Math.max(incrementalStart, currentLinks);
+    const requiredCount = discoveryStart + config.batchSize - currentLinks;
+
     console.warn("krvt.debug.mvlempyr.chapterLinks.fallback", {
+      requestId,
       novelKey,
+      requiredCount,
+      currentLinks,
+      incrementalStart,
     });
-    links = await discoverChapterLinks(novelKey, incrementalStart + config.batchSize);
+    
+    const discoveredLinks = await discoverChapterLinks(novelKey, requiredCount, discoveryStart, requestId, chapterBaseId);
+    links.push(...discoveredLinks);
+    wasDiscovered = discoveredLinks.length > 0 && incrementalStart >= currentLinks;
   }
 
-  const selectedLinks = links.slice(incrementalStart, incrementalStart + config.batchSize);
+  const selectedLinks = wasDiscovered
+    ? links.slice(links.length - config.batchSize)
+    : links.slice(incrementalStart, incrementalStart + config.batchSize);
 
   console.info("krvt.debug.mvlempyr.incremental", {
+    requestId,
     totalLinks: links.length,
-    chapterCount: payload.existingNovel?.chapterCount,
-    lastChapterIndex: payload.existingNovel?.lastChapterIndex,
     incrementalStart,
+    wasDiscovered,
     selectedCount: selectedLinks.length,
     firstSelected: selectedLinks[0] ?? null,
     lastSelected: selectedLinks[selectedLinks.length - 1] ?? null,
   });
 
-  console.info(
-    JSON.stringify(
-      buildStructuredLog("import.mvlempyr.batch-selection", {
-        novelBaseUrl,
-        totalLinks: links.length,
-        incrementalStart,
-        selectedCount: selectedLinks.length,
-        offset: safeOffset,
-      }),
-    ),
-  );
-
-  if (!selectedLinks.length && links.length > 0 && incrementalStart >= links.length) {
+  if (!selectedLinks.length && incrementalStart >= links.length) {
     const error = new Error("No new chapters available");
     error.statusCode = 409;
     throw error;
   }
 
-  const chapters = await collectChapters({ selectedLinks, incrementalStart });
+  const chapters = await collectChapters({ selectedLinks, incrementalStart, requestId });
 
   console.info("krvt.debug.mvlempyr.finish", {
+    requestId,
     title: metadata?.title,
     returnedChapters: chapters.length,
   });

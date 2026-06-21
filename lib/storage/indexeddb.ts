@@ -199,8 +199,7 @@ export async function getNovel(id: string): Promise<Novel | null> {
 
 export async function getNovelSummary(id: string): Promise<NovelSummary | null> {
   const meta = await getNovelMeta(id);
-  const summary = meta ? metaToSummary(meta) : null;
-  return summary;
+  return meta ? metaToSummary(meta) : null;
 }
 
 export async function getNovelChapterList(id: string) {

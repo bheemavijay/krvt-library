@@ -20,6 +20,7 @@ import {
   getNovel,
   getNovelSummaries,
 } from "@/lib/storage/indexeddb";
+import { acquireNovelJobLock, releaseNovelJobLock } from "@/lib/update/novelJobLock";
 import type { Novel, NovelSummary } from "@/types";
 
 type LibrarySort = "lastImported" | "lastRead" | "chapterCount";
@@ -356,6 +357,9 @@ function HomePageClient() {
   };
 
   const handleUpdateNovel = async (summary: NovelSummary) => {
+    const requestId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+    console.info("krvt.debug.update.start", { requestId, novelId: summary.id, title: summary.title, caller: "LibraryManagementGrid" });
+
     const novel = await getNovel(summary.id);
     if (!novel) {
       setBackupMessage("Update failed: novel content missing");
@@ -367,18 +371,23 @@ function HomePageClient() {
       return;
     }
 
-    const network = getNetworkInformation();
-    if (network && shouldWarnForMeteredConnection(network)) {
-      const shouldContinue = window.confirm(
-        "This update may use mobile data. Connect to Wi-Fi for large downloads, or continue anyway.",
-      );
-      if (!shouldContinue) {
-        setBackupMessage("Update cancelled. Connect to Wi-Fi and try again.");
-        return;
-      }
+    const lockKey = novel.sourceUrl || novel.id;
+    if (!acquireNovelJobLock(lockKey)) {
+      return;
     }
 
+    const network = getNetworkInformation();
     try {
+      if (network && shouldWarnForMeteredConnection(network)) {
+        const shouldContinue = window.confirm(
+          "This update may use mobile data. Connect to Wi-Fi for large downloads, or continue anyway.",
+        );
+        if (!shouldContinue) {
+          setBackupMessage("Update cancelled. Connect to Wi-Fi and try again.");
+          return;
+        }
+      }
+
       setBusyNovelId(novel.id);
       const incoming: Novel["chapters"] = [];
       let latestMeta: {
@@ -504,6 +513,7 @@ if (!response.ok) {
         console.error(e);
         setBackupMessage(e?.message || `Update failed for "${novel.title}"`);
       } finally {
+      releaseNovelJobLock(lockKey);
       setBusyNovelId(null);
     }
   };

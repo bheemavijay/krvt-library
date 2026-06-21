@@ -71,10 +71,13 @@ export function ImportQueueClient() {
       // SIMULATION: Wait 2 seconds instead of fetching
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      item.status = "completed";
-      item.finishedAt = Date.now();
+      const completedItem: QueueItem = {
+        ...item,
+        status: "completed",
+        finishedAt: Date.now(),
+      };
       
-      currentQueue = currentQueue.map(i => i.id === item.id ? item : i);
+      currentQueue = currentQueue.map(i => i.id === item.id ? completedItem : i);
       setQueue([...currentQueue]);
       await replaceQueue(currentQueue);
     }

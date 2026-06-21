@@ -2,9 +2,12 @@ const { importNovelWithProvider } = require("../providers");
 const { buildStructuredLog, validateImportPayload } = require("../utils/normalize");
 
 async function importController(req, res) {
+  const requestId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+
   console.info(
     JSON.stringify(
       buildStructuredLog("krvt.debug.api.request", {
+        requestId,
         url: req.body?.url,
         existingNovel: req.body?.existingNovel
           ? {
@@ -30,6 +33,7 @@ async function importController(req, res) {
     console.info(
       JSON.stringify(
         buildStructuredLog("import.request.received", {
+          requestId,
           url: validation.normalizedUrl,
           provider: validation.provider,
           offset: Number.isFinite(safeOffset) ? safeOffset : 0,
@@ -40,11 +44,13 @@ async function importController(req, res) {
     const result = await importNovelWithProvider(validation.provider, {
       ...req.body,
       url: validation.normalizedUrl,
+      requestId,
     });
 
     console.info(
       JSON.stringify(
         buildStructuredLog("krvt.debug.api.response", {
+          requestId,
           statusCode: 200,
           title: result?.title,
           chapters: result?.chapters?.length,
@@ -63,6 +69,7 @@ async function importController(req, res) {
     console.error(
       JSON.stringify(
         buildStructuredLog("import.request.failed", {
+          requestId,
           url: req.body?.url ?? null,
           statusCode,
           message,
@@ -70,7 +77,7 @@ async function importController(req, res) {
       ),
     );
 
-    console.error("krvt.debug.api.error", error);
+    console.error("krvt.debug.api.error", { requestId, error });
 
     return res.status(statusCode).json({ error: message });
   }

@@ -6,14 +6,13 @@ const {
   dedupeChapters,
   getImportConfig,
   getNovelBaseUrl,
+  normalizeGenresAndTags,
   normalizeNovelTitle,
   normalizeNovelUrl,
   normalizeNovelUrlKey,
   normalizeStringArray,
   getProviderForUrl,
 } = require("../utils/normalize");
-
-const { CANONICAL_GENRES } = require("../../lib/constants/genres");
 
 const DEFAULT_COVER = "https://via.placeholder.com/300x400?text=No+Cover";
 
@@ -209,21 +208,7 @@ function extractNovelMetadata($, normalizedUrl, novelBaseUrl) {
       .get(),
   );
 
-  const canonicalMap = new Map(
-      [...CANONICAL_GENRES].map(g => [g.toLowerCase(), g])
-  );
-
-  const genres = [];
-  const tags = [];
-
-  for (const label of allLabels) {
-    const normalized = canonicalMap.get(label.trim().toLowerCase());
-    if (normalized) {
-      genres.push(normalized);
-    } else {
-      tags.push(label);
-    }
-  }
+  const { genres, tags } = normalizeGenresAndTags(allLabels);
 
   const infoText = $(".info").text();
   const status =

@@ -1,6 +1,12 @@
+const { CANONICAL_GENRES } = require("../../lib/constants/genres");
+
 const NOVELFULL_HOST_PATTERN = /novelfull\.(com|net)/i;
 const MVLEMPYR_HOST_PATTERN = /mvlempyr\.io/i;
 const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS || 20000);
+
+const CANONICAL_GENRE_MAP = new Map(
+  [...CANONICAL_GENRES].map((g) => [g.toLowerCase(), g])
+);
 
 function normalizeNovelTitle(raw) {
   return String(raw ?? "")
@@ -93,6 +99,32 @@ function normalizeChapterContent(value) {
   return [];
 }
 
+function normalizeGenresAndTags(allLabels) {
+  if (!Array.isArray(allLabels)) {
+    return { genres: [], tags: [] };
+  }
+
+  const genres = new Set();
+  const tags = new Set();
+
+  for (const rawLabel of allLabels) {
+    const label = String(rawLabel ?? "").trim();
+    if (!label) continue;
+
+    const normalized = CANONICAL_GENRE_MAP.get(label.toLowerCase());
+    if (normalized) {
+      genres.add(normalized);
+    } else {
+      tags.add(label);
+    }
+  }
+
+  return {
+    genres: [...genres].sort(),
+    tags: [...tags].sort(),
+  };
+}
+
 function dedupeChapters(chapters) {
   const seen = new Set();
   const unique = [];
@@ -171,6 +203,7 @@ module.exports = {
   getNovelBaseUrl,
   getProviderForUrl,
   normalizeChapterContent,
+  normalizeGenresAndTags,
   normalizeNovelTitle,
   normalizeNovelUrl,
   normalizeNovelUrlKey,

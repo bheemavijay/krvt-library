@@ -25,6 +25,7 @@ import {
 } from "@/lib/storage/bookmarks";
 import { getChapter, getNovelChapterList, getNovelSummary } from "@/lib/storage/indexeddb";
 import { initializeTts, isPaused, isSpeaking, pause, resume, speak, stop } from "@/lib/tts";
+import { clearTtsResumeState, getTtsResumeState, saveTtsResumeState } from "@/lib/tts-storage";
 import { createTtsSessionManager } from "@/features/tts/session";
 import { cn } from "@/lib/utils";
 import type { Novel } from "@/types";
@@ -431,18 +432,26 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
       return;
     }
 
-    if (shouldAutoPlay !== "1") {
-      return;
+    if (shouldAutoPlay === "1") {
+      window.sessionStorage.removeItem("krvt-reader-autoplay-tts");
+      const timeout = window.setTimeout(() => {
+        void startTtsFromParagraph(0);
+      }, 0);
+      return () => clearTimeout(timeout);
     }
 
-    window.sessionStorage.removeItem("krvt-reader-autoplay-tts");
-
-    const timeout = window.setTimeout(() => {
-      void startTtsFromParagraph(0);
-    }, 0);
-
-    return () => clearTimeout(timeout);
-  }, [loading, novel, startTtsFromParagraph, normalizedContent.length]);
+    const resumeState = getTtsResumeState();
+    if (
+      resumeState &&
+      resumeState.novelId === safeNovelId &&
+      resumeState.chapterIndex === requestedChapterIndex
+    ) {
+      const timeout = window.setTimeout(() => {
+        void startTtsFromParagraph(resumeState.paragraphIndex);
+      }, 0);
+      return () => clearTimeout(timeout);
+    }
+  }, [loading, novel, startTtsFromParagraph, normalizedContent.length, safeNovelId, requestedChapterIndex]);
 
   useEffect(() => {
     if (isSettingsOpen || isChapterPanelOpen) {
@@ -479,6 +488,20 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [chapterIndex, isChapterPanelOpen, isSettingsOpen, navigateToChapter, nextHref, previousHref]);
+
+  useEffect(() => {
+    if (ttsState === "playing" && currentParagraphIndex !== null) {
+      saveTtsResumeState({
+        novelId: safeNovelId,
+        chapterIndex: requestedChapterIndex,
+        paragraphIndex: currentParagraphIndex,
+        rate: settings.tts.rate,
+        voiceURI: settings.tts.voiceURI,
+      });
+    } else if (ttsState === "stopped") {
+      clearTtsResumeState();
+    }
+  }, [ttsState, currentParagraphIndex, safeNovelId, requestedChapterIndex, settings.tts.rate, settings.tts.voiceURI]);
 
   if (loading) {
     return <KrvtLoader />;
@@ -528,6 +551,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
     lastPlaybackParagraphIndexRef.current = null;
     setTtsState("stopped");
     setCurrentParagraphIndex(null);
+    clearTtsResumeState();
   };
 
   const handleBookmarkToggle = () => {

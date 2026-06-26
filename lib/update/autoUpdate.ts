@@ -30,7 +30,7 @@ const CHUNK_SIZE = 50;
 const UPDATE_INTERVAL_MS = 30 * 60 * 1000;
 
 function toChapterKey(chapter: Pick<Chapter, "id" | "title" | "content">) {
-  const firstLine = chapter.content?.[0] ?? "";
+  const firstLine = Array.isArray(chapter.content) ? chapter.content[0] ?? "" : "";
   return `${chapter.id}::${chapter.title.toLowerCase().trim()}::${firstLine}`;
 }
 
@@ -58,15 +58,11 @@ function isCompletedStatus(status?: string) {
 }
 
 async function updateSingleNovel(novel: Novel) {
-  const requestId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-  console.info("krvt.debug.update.entry", { requestId, novelId: novel.id, title: novel.title, source: "auto-update" });
-
   if (!novel.sourceUrl || novel.isCompleted) {
-    console.info("krvt.debug.autoupdate.skip", { novelId: novel.id, reason: "No source URL or is completed" });
     return;
   }
 
-  const lockKey = novel.sourceUrl || novel.id;
+  const lockKey = novel.sourceUrl ?? novel.id;
   if (!acquireNovelJobLock(lockKey)) {
     return;
   }
@@ -77,7 +73,6 @@ async function updateSingleNovel(novel: Novel) {
     const incomingChapters: Chapter[] = [];
 
     while (true) {
-      console.info("krvt.debug.autoupdate.fetch", { novelId: novel.id, offset });
       const response = await fetch(getImportApiUrl(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -93,17 +88,25 @@ async function updateSingleNovel(novel: Novel) {
         }),
       });
 
-      const data = (await response.json()) as ImportApiResponse;
-      if (response.status === 409 || data.error === "No new chapters available") {
-        console.info("krvt.debug.autoupdate.complete.409", { novelId: novel.id });
+      if (response.status === 409) {
         break;
       }
-      if (!response.ok) throw new Error(data.error || "Auto update failed");
+
+      if (!response.ok) {
+        const errorText = (await response.text()).substring(0, 300);
+        throw new Error(`Update check failed with status ${response.status}: ${errorText}`);
+      }
+
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error("Invalid backend response. Expected JSON.");
+      }
 
       latestMeta = data;
       const chunk = data.chapters ?? [];
-      if (!chunk.length) {
-        console.info("krvt.debug.autoupdate.complete.no_chapters", { novelId: novel.id });
+      if (chunk.length === 0) {
         break;
       }
 
@@ -111,34 +114,19 @@ async function updateSingleNovel(novel: Novel) {
         incomingChapters.push(mapIncomingChapter(chunk[i], novel.chapters.length + incomingChapters.length + 1));
       }
 
-      if (chunk.length < CHUNK_SIZE) break;
+      if (chunk.length < CHUNK_SIZE) {
+        break;
+      }
       offset += CHUNK_SIZE;
     }
 
-    if (!incomingChapters.length) {
+    const existingKeys = new Set(novel.chapters.map(toChapterKey));
+    const uniqueNew = incomingChapters.filter((chapter) => !existingKeys.has(toChapterKey(chapter)));
+
+    if (uniqueNew.length === 0) {
       if (latestMeta && isCompletedStatus(latestMeta.status) && !novel.isCompleted) {
-        await addNovel({
-          ...novel,
-          isCompleted: true,
-          lastUpdated: new Date().toISOString(),
-        });
+        await addNovel({ ...novel, isCompleted: true, lastUpdated: new Date().toISOString() });
       }
-      console.info("krvt.debug.autoupdate.finish.no_new_chapters", { novelId: novel.id });
-      return;
-    }
-
-    const existingKeys = new Set(novel.chapters.map((chapter) => toChapterKey(chapter)));
-    const uniqueNew: Chapter[] = [];
-
-    for (const chapter of incomingChapters) {
-      const key = toChapterKey(chapter);
-      if (existingKeys.has(key)) continue;
-      existingKeys.add(key);
-      uniqueNew.push(chapter);
-    }
-
-    if (!uniqueNew.length) {
-      console.info("krvt.debug.autoupdate.finish.no_unique_chapters", { novelId: novel.id });
       return;
     }
 
@@ -149,20 +137,22 @@ async function updateSingleNovel(novel: Novel) {
       author: latestMeta?.author ?? novel.author,
       image: latestMeta?.image ?? novel.image,
       alternative: latestMeta?.alternative ?? novel.alternative,
-      genres: Array.isArray(latestMeta?.genres) ? latestMeta?.genres : novel.genres,
-      tags: Array.isArray(latestMeta?.tags) ? latestMeta?.tags : novel.tags,
+      genres: Array.isArray(latestMeta?.genres) ? latestMeta.genres : novel.genres,
+      tags: Array.isArray(latestMeta?.tags) ? latestMeta.tags : novel.tags,
       status: latestMeta?.status ?? novel.status,
       rating: typeof latestMeta?.rating === "number" ? latestMeta.rating : novel.rating,
       description: latestMeta?.description ?? novel.description,
-      sourceUrl: novel.sourceUrl,
       isCompleted: novel.isCompleted || isCompletedStatus(latestMeta?.status),
       lastUpdated: new Date().toISOString(),
       chapters: mergedChapters,
     }));
-    
-    console.info("krvt.debug.autoupdate.success", { novelId: novel.id, newChapters: uniqueNew.length });
   } catch (error) {
-    console.error(`krvt.debug.autoupdate.error for novel: ${novel.title}`, error);
+    console.error({
+        message: "Auto update failed for novel",
+        novel: novel.title,
+        url: novel.sourceUrl,
+        error,
+    });
   } finally {
     releaseNovelJobLock(lockKey);
   }
@@ -173,20 +163,21 @@ export async function updateAllNovels() {
     const summaries = await getNovelSummaries();
     for (const summary of summaries) {
       const novel = await getNovel(summary.id);
-      if (!novel) continue;
-      await updateSingleNovel(novel);
+      if (novel) {
+        await updateSingleNovel(novel);
+      }
     }
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("library:updated"));
     }
   } catch (error) {
-    console.error("krvt.debug.autoupdate.error", error);
+    console.error("Auto update failed during novel processing:", error);
   }
 }
 
 export function startAutoNovelUpdates() {
-  updateAllNovels().catch(() => {});
+  updateAllNovels().catch((error) => console.error("Auto update failed:", error));
   return window.setInterval(() => {
-    updateAllNovels().catch(() => {});
+    updateAllNovels().catch((error) => console.error("Auto update failed:", error));
   }, UPDATE_INTERVAL_MS);
 }

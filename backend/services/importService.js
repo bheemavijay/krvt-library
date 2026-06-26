@@ -32,7 +32,7 @@ async function fetchHtmlWithRetry(url, options = {}) {
         headers: {
           "User-Agent":
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36",
-          Referer: "https://novelfull.net/",
+          Referer: new URL(url).origin,
         },
         responseType: "text",
       });
@@ -47,24 +47,19 @@ async function fetchHtmlWithRetry(url, options = {}) {
         status === 429 ||
         (typeof status === "number" && status >= 500);
 
-      console.warn(
-        JSON.stringify(
-          buildStructuredLog("import.fetch.retry", {
-            url,
-            attempt,
-            retries,
-            status: status ?? null,
-            code: error?.code ?? null,
-            message: error?.message ?? "Unknown request error",
-          }),
-        ),
-      );
+      console.warn("Request failed, retrying...", {
+        url,
+        attempt,
+        retries,
+        status: status ?? null,
+        code: error?.code ?? null,
+      });
 
       if (!retriable || attempt === retries) {
         break;
       }
 
-      await delay(450 * attempt);
+      await delay(750 * attempt);
     }
   }
 
@@ -101,29 +96,14 @@ function getResumeIndex({ title, novelBaseUrl, existingNovel, incomingNovelUrl, 
         )
       : -1;
 
-  console.info(
-    JSON.stringify(
-      buildStructuredLog("import.resume-check", {
-        requestedNovelKey,
-        incomingNovelKey,
-        existingUrlKey,
-        existingNovelUrlKey,
-        existingMatchesByTitle,
-        existingMatchesByUrl,
-        lastSavedChapterIndex,
-      }),
-    ),
-  );
-
   return Number.isFinite(lastSavedChapterIndex) ? lastSavedChapterIndex : -1;
 }
 
-async function collectChapterLinks({ normalizedUrl, novelBaseUrl, baseUrl, provider, requestId }) {
+async function collectChapterLinks({ normalizedUrl, novelBaseUrl, baseUrl, provider }) {
   const config = getImportConfig();
-  const links = [];
+  const links = new Set();
   let previousFirstLink = "";
   const seenPageSignatures = new Set();
-  const seenChapterLinks = new Set();
 
   for (let page = 1; ; page += 1) {
     await delay(config.listingDelayMs);
@@ -134,54 +114,36 @@ async function collectChapterLinks({ normalizedUrl, novelBaseUrl, baseUrl, provi
         page === 1
           ? normalizedUrl
           : `${normalizedUrl}${normalizedUrl.includes("?") ? "&" : "?"}page=${page}&per-page=50`;
-      const pageHtml = await fetchHtmlWithRetry(pageUrl);
-      $page = cheerio.load(pageHtml);
+      $page = cheerio.load(await fetchHtmlWithRetry(pageUrl));
     } catch (error) {
-      console.warn(
-        JSON.stringify(
-          buildStructuredLog("import.listing-page.skipped", {
-            requestId,
-            normalizedUrl,
-            page,
-            message: error?.message ?? "Failed listing page",
-          }),
-        ),
-      );
-      continue;
+      console.warn("Failed to fetch chapter listing page, stopping collection.", { normalizedUrl, page, message: error?.message });
+      break; // Stop if a page fails to prevent gaps
     }
 
-    const found = [];
-
+    const foundOnPage = new Set();
     $page(".list-chapter a, #list-chapter a, .chapter-list a[href*='/chapter-']").each((_, el) => {
       const link = $page(el).attr("href");
-      if (!link) {
-        return;
-      }
+      if (!link) return;
 
       const absoluteLink = toAbsoluteLink(link, baseUrl);
       if (provider === 'novelfull' && !absoluteLink.startsWith(`${novelBaseUrl}/chapter-`)) {
         return;
       }
-
-      if (seenChapterLinks.has(absoluteLink)) {
-        return;
-      }
-
-      seenChapterLinks.add(absoluteLink);
-      found.push(absoluteLink);
+      foundOnPage.add(absoluteLink);
     });
 
-    const signature = found.slice(0, 5).join("|");
-    if (!found.length || found[0] === previousFirstLink || seenPageSignatures.has(signature)) {
+    const foundArray = [...foundOnPage];
+    const signature = foundArray.slice(0, 5).join("|");
+    if (foundArray.length === 0 || foundArray[0] === previousFirstLink || seenPageSignatures.has(signature)) {
       break;
     }
 
     seenPageSignatures.add(signature);
-    previousFirstLink = found[0];
-    links.push(...found);
+    previousFirstLink = foundArray[0];
+    foundArray.forEach(link => links.add(link));
   }
 
-  return Array.from(new Set(links));
+  return [...links];
 }
 
 function extractNovelMetadata($, normalizedUrl, novelBaseUrl) {
@@ -248,7 +210,7 @@ function extractNovelMetadata($, normalizedUrl, novelBaseUrl) {
   };
 }
 
-async function collectChapters({ selectedLinks, incrementalStart, title, provider, requestId }) {
+async function collectChapters({ selectedLinks, incrementalStart, title, provider }) {
   const config = getImportConfig();
   const chapters = [];
   const seenChapterUrls = new Set();
@@ -256,6 +218,9 @@ async function collectChapters({ selectedLinks, incrementalStart, title, provide
 
   for (let index = 0; index < selectedLinks.length; index += 1) {
     const chapterUrl = selectedLinks[index];
+    if (seenChapterUrls.has(chapterUrl)) continue;
+    seenChapterUrls.add(chapterUrl);
+
     await delay(config.chapterDelayMs);
 
     try {
@@ -263,28 +228,17 @@ async function collectChapters({ selectedLinks, incrementalStart, title, provide
       const $chapter = cheerio.load(html);
       const pageTitle = $chapter("title").first().text().trim();
 
-      if (provider === 'novelfull' && canonicalTitle) {
-        const normalizedPageTitle = normalizeNovelTitle(pageTitle);
-        if (!normalizedPageTitle.includes(canonicalTitle) && !/chapter/i.test(pageTitle)) {
-          continue;
-        }
-      }
-
-      if (seenChapterUrls.has(chapterUrl)) {
+      if (provider === 'novelfull' && canonicalTitle && !normalizeNovelTitle(pageTitle).includes(canonicalTitle) && !/chapter/i.test(pageTitle)) {
         continue;
       }
-
-      seenChapterUrls.add(chapterUrl);
 
       let content = [];
       $chapter("#chapter-content p").each((_, el) => {
         const text = $chapter(el).text().trim();
-        if (text) {
-          content.push(text);
-        }
+        if (text) content.push(text);
       });
 
-      if (!content.length) {
+      if (content.length === 0) {
         content = $chapter("#chapter-content")
           .text()
           .split(/\n+/)
@@ -298,15 +252,7 @@ async function collectChapters({ selectedLinks, incrementalStart, title, provide
         content,
       });
     } catch (error) {
-      console.warn(
-        JSON.stringify(
-          buildStructuredLog("import.chapter.skipped", {
-            requestId,
-            chapterUrl,
-            message: error?.message ?? "Failed chapter fetch",
-          }),
-        ),
-      );
+      console.warn("Chapter skipped due to fetch error", { chapterUrl, message: error?.message });
     }
   }
 
@@ -314,12 +260,6 @@ async function collectChapters({ selectedLinks, incrementalStart, title, provide
 }
 
 async function importNovel(payload) {
-  console.info("krvt.debug.novelfull.start", {
-    requestId: payload.requestId,
-    url: payload.url,
-    existingNovel: !!payload.existingNovel,
-  });
-
   const normalizedInputUrl = normalizeNovelUrl(payload.url);
   const parsed = new URL(normalizedInputUrl);
   const baseUrl = parsed.origin;
@@ -329,12 +269,6 @@ async function importNovel(payload) {
   const html = await fetchHtmlWithRetry(normalizedInputUrl);
   const $ = cheerio.load(html);
   const metadata = extractNovelMetadata($, normalizedInputUrl, novelBaseUrl);
-
-  console.info("krvt.debug.novelfull.metadata", {
-    requestId: payload.requestId,
-    title: metadata?.title,
-    sourceUrl: metadata?.sourceUrl,
-  });
 
   const lastSavedChapterIndex = getResumeIndex({
     title: metadata.title,
@@ -349,17 +283,7 @@ async function importNovel(payload) {
     novelBaseUrl,
     baseUrl,
     provider,
-    requestId: payload.requestId,
   });
-
-  if (links.length > 0) {
-    console.info("krvt.debug.novelfull.chapterLinks.collected", {
-      requestId: payload.requestId,
-      count: links.length,
-      first: links[0],
-      last: links[links.length - 1],
-    });
-  }
 
   const config = getImportConfig();
   const safeOffset = Number.isFinite(Number(payload.offset)) ? Math.max(0, Number(payload.offset)) : 0;
@@ -369,31 +293,7 @@ async function importNovel(payload) {
   );
   const selectedLinks = links.slice(incrementalStart, incrementalStart + config.batchSize);
 
-  console.info("krvt.debug.novelfull.incremental", {
-    requestId: payload.requestId,
-    totalLinks: links.length,
-    chapterCount: payload.existingNovel?.chapterCount,
-    lastChapterIndex: payload.existingNovel?.lastChapterIndex,
-    incrementalStart,
-    selectedCount: selectedLinks.length,
-    firstSelected: selectedLinks[0] ?? null,
-    lastSelected: selectedLinks[selectedLinks.length - 1] ?? null,
-  });
-
-  console.info(
-    JSON.stringify(
-      buildStructuredLog("import.batch-selection", {
-        requestId: payload.requestId,
-        novelBaseUrl,
-        totalLinks: links.length,
-        incrementalStart,
-        selectedCount: selectedLinks.length,
-        offset: safeOffset,
-      }),
-    ),
-  );
-
-  if (!selectedLinks.length && links.length > 0 && incrementalStart >= links.length) {
+  if (selectedLinks.length === 0 && incrementalStart >= links.length) {
     const error = new Error("No new chapters available");
     error.statusCode = 409;
     throw error;
@@ -404,13 +304,6 @@ async function importNovel(payload) {
     incrementalStart,
     title: metadata.title,
     provider,
-    requestId: payload.requestId,
-  });
-
-  console.info("krvt.debug.novelfull.finish", {
-    requestId: payload.requestId,
-    title: metadata?.title,
-    returnedChapters: chapters.length,
   });
 
   return {

@@ -5,10 +5,14 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b17fc1dc-ac9a-491d-abb8-def7b5b914a1" name="Changes" comment="added logging to all the specified files">
-      <change beforePath="$PROJECT_DIR$/.env.local" beforeDir="false" afterPath="$PROJECT_DIR$/.env.local" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app/layout.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/layout.tsx" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lib/update/autoUpdate.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/update/autoUpdate.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/storage/chapterWriter.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/storage/coverDownloader.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/storage/exporter.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/storage/filesystem.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/storage/metadataWriter.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/storage/paths.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/storage/slug.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/controllers/importController.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/controllers/importController.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

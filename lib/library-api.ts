@@ -1,4 +1,4 @@
-import type { Chapter, Novel, NovelSummary } from "@/types";
+import type { Chapter, Novel, NovelSummary } from "@/shared/types";
 
 type ChapterFetchOptions = {
   chapterNumber?: number;

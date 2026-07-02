@@ -1,4 +1,4 @@
-import type { AppAccentColor, AppThemeMode } from "@/types";
+import type { AppAccentColor, AppThemeMode } from "@/shared/types";
 
 export type KrvtThemeTokens = {
   background: string;

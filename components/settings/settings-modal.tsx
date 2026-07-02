@@ -2,7 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 
-import type { AppAccentColor, AppThemeMode } from "@/types";
+import type { AppAccentColor, AppThemeMode } from "@/shared/types";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -10,8 +10,8 @@ import {
   getServerAppSettingsState,
   saveAppSettings,
   subscribeToAppSettings,
-} from "@/lib/app-settings";
-import { cn } from "@/lib/utils";
+} from "@/features/settings";
+import { cn } from "@/shared/utils";
 import { useSettingsModal } from "@/components/settings/settings-modal-context";
 
 const accentOptions: Array<{ value: AppAccentColor; label: string; previewClass: string }> = [

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 
-import type { NovelSummary } from "@/types";
+import type { NovelSummary } from "@/shared/types";
 
 type NovelCardProps = {
   novel: NovelSummary;

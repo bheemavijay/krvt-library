@@ -8,9 +8,9 @@ import {
   READER_FONT_OPTIONS,
   type ReaderSettings,
   type ReplacementRule,
-} from "@/lib/settings";
-import { filterVoices, loadVoices, speak, type TtsVoice } from "@/lib/tts";
-import { cn } from "@/lib/utils";
+} from "@/features/reader";
+import { filterVoices, loadVoices, speak, type TtsVoice } from "@/features/tts";
+import { cn } from "@/shared/utils";
 
 type SettingsModalProps = {
   isOpen: boolean;

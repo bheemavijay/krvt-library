@@ -1,1 +1,1 @@
-export { getImportApiUrl } from "@/lib/import-api";
+export { getImportApiUrl } from "@/core/config/import-api";

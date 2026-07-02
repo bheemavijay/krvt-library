@@ -1,4 +1,4 @@
-const { CANONICAL_GENRES } = require("../../lib/constants/genres");
+const { CANONICAL_GENRES } = require("../../core/domain/genres");
 
 const NOVELFULL_HOST_PATTERN = /novelfull\.(com|net)/i;
 const MVLEMPYR_HOST_PATTERN = /mvlempyr\.io/i;

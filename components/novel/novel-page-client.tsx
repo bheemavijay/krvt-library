@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { KrvtLoader } from "@/components/brand/krvt-loader";
-import { getNovelChapterList, getNovelSummary } from "@/lib/storage/indexeddb";
-import type { Chapter, NovelSummary } from "@/types";
+import { getNovelChapterList, getNovelSummary } from "@/features/library";
+import type { Chapter, NovelSummary } from "@/shared/types";
 
 export default function NovelPageClient({ novelId }: { novelId: string }) {
   const [novel, setNovel] = useState<NovelSummary | null>(null);

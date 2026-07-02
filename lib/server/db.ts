@@ -2,7 +2,7 @@
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { Chapter, Novel, NovelSummary } from "@/types";
+import type { Chapter, Novel, NovelSummary } from "@/shared/types";
 
 type NovelMetaRecord = {
   id?: string;

@@ -2,7 +2,7 @@
 
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { addNovel, getNovel, getNovelSummaries } from "@/lib/storage/indexeddb";
-import type { Novel } from "@/types";
+import type { Novel } from "@/shared/types";
 
 type LibraryBackupPayload = {
   version: 1;

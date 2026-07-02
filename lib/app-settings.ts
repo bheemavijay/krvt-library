@@ -1,6 +1,6 @@
-import type { AppAccentColor, AppSettingsState, AppThemeMode } from "@/types";
+import type { AppAccentColor, AppSettingsState, AppThemeMode } from "@/shared/types";
 
-import { isBrowser } from "@/lib/utils";
+import { isBrowser } from "@/shared/utils";
 
 const STORAGE_KEY = "krvt-library-app-settings";
 const STORAGE_EVENT = "krvt-library-app-settings-change";

@@ -8,20 +8,20 @@ import { useSearchParams } from "next/navigation";
 import { ContinueReadingCard } from "@/components/continue-reading-card";
 import { KrvtLoader } from "@/components/brand/krvt-loader";
 import { NovelCard } from "@/components/novel-card";
-import { getImportApiUrl } from "@/lib/import-api";
+import { getImportApiUrl } from "@/features/import";
 import { mergeNovelChapters, normalizeNovelRecord } from "@/lib/novels";
-import { getReadingState } from "@/lib/reader-storage";
-import { getBookmarksState } from "@/lib/storage/bookmarks";
-import { exportLibrary, importLibrary } from "@/lib/storage/backup";
+import { getReadingState } from "@/features/reader";
+import { getBookmarksState } from "@/features/library";
+import { exportLibrary, importLibrary } from "@/features/backup";
 import {
   addNovel,
   clearAllNovels,
   deleteNovel,
   getNovel,
   getNovelSummaries,
-} from "@/lib/storage/indexeddb";
-import { acquireNovelJobLock, releaseNovelJobLock } from "@/lib/update/novelJobLock";
-import type { Novel, NovelSummary } from "@/types";
+} from "@/features/library";
+import { acquireNovelJobLock, releaseNovelJobLock } from "@/features/update";
+import type { Novel, NovelSummary } from "@/shared/types";
 
 type LibrarySort = "lastImported" | "lastRead" | "chapterCount";
 type ChapterFilter = "all" | "short" | "medium" | "long";

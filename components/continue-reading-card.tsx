@@ -3,15 +3,15 @@
 import { useSyncExternalStore } from "react";
 import Link from "next/link";
 
-import type { NovelSummary } from "@/types";
+import type { NovelSummary } from "@/shared/types";
 
 import { Card } from "@/components/ui/card";
 import {
   getReadingState,
   getServerReadingState,
   subscribeToReadingState,
-} from "@/lib/reader-storage";
-import { getReadingProgress } from "@/lib/utils";
+} from "@/features/reader";
+import { getReadingProgress } from "@/shared/utils";
 
 type ContinueReadingCardProps = {
   novels: NovelSummary[];

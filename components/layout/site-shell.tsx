@@ -13,9 +13,9 @@ import {
   getAppSettingsState,
   getServerAppSettingsState,
   subscribeToAppSettings,
-} from "@/lib/app-settings";
-import { getAppThemeTokens } from "@/features/themes/tokens";
-import { startAutoNovelUpdates } from "@/lib/update/autoUpdate";
+} from "@/features/settings";
+import { getAppThemeTokens } from "@/shared/theme/tokens";
+import { startAutoNovelUpdates } from "@/features/update";
 
 type SiteShellProps = {
   children: React.ReactNode;

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getNovelSummaries } from "@/lib/storage/indexeddb";
+import { getNovelSummaries } from "@/features/library";
 import { NovelGrid } from "@/components/novel-grid";
-import type { NovelSummary } from "@/types";
+import type { NovelSummary } from "@/shared/types";
 
 export function LibraryClient() {
   const [novels, setNovels] = useState<NovelSummary[]>([]);

@@ -1,10 +1,10 @@
 "use client";
 
-import { getImportApiUrl } from "@/lib/import-api";
+import { getImportApiUrl } from "@/core/config/import-api";
 import { mergeNovelChapters, normalizeNovelRecord } from "@/lib/novels";
 import { addNovel, getNovel, getNovelSummaries } from "@/lib/storage/indexeddb";
-import { acquireNovelJobLock, releaseNovelJobLock } from "@/lib/update/novelJobLock";
-import type { Chapter, Novel } from "@/types";
+import { acquireNovelJobLock, releaseNovelJobLock } from "@/core/concurrency/novelJobLock";
+import type { Chapter, Novel } from "@/shared/types";
 
 type ImportApiResponse = {
   id?: string;

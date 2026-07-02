@@ -1,6 +1,6 @@
-import type { Chapter, Novel, NovelSummary } from "@/types";
+import type { Chapter, Novel, NovelSummary } from "@/shared/types";
 import { normalizeChapter, normalizeNovelRecord } from "@/lib/novels";
-import { CANONICAL_GENRES } from "@/lib/constants/genres";
+import { CANONICAL_GENRES } from "@/core/domain/genres";
 
 const DB_NAME = "krvt-library";
 const NOVELS_STORE = "novels";

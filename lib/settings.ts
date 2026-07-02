@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 
-import { isBrowser } from "@/lib/utils";
+import { isBrowser } from "@/shared/utils";
 
 export type ReplacementRule = {
   find: string;

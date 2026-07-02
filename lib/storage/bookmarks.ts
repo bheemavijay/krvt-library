@@ -1,4 +1,4 @@
-import type { LibraryBookmarksState, NovelBookmark } from "@/types";
+import type { LibraryBookmarksState, NovelBookmark } from "@/shared/types";
 
 const STORAGE_KEY = "krvt-library-bookmarks";
 const STORAGE_EVENT = "krvt-library-bookmarks-change";

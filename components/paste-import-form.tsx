@@ -1,18 +1,29 @@
 "use client";
 
 import { useState } from "react";
-import { importFromText } from "@/lib/importer";
+import { importFromText } from "@/features/import/services/importService";
 
 export function PasteImportForm() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleImport = () => {
+  const handleImport = async () => {
+    if (!content.trim()) {
+      setError("Please paste some content to import.");
+      return;
+    }
+    if (!title.trim()) {
+      setError("Please provide a title for the novel.");
+      return;
+    }
+
     try {
       setLoading(true);
+      setError(null);
 
-      importFromText(content, title);
+      await importFromText(content, title);
 
       alert("✅ Novel imported successfully!");
 
@@ -22,7 +33,9 @@ export function PasteImportForm() {
       // refresh page to update library
       window.location.reload();
     } catch (err: any) {
-      alert(err.message || "Import failed");
+      const errorMessage = err.message || "Import failed";
+      setError(errorMessage);
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -36,6 +49,7 @@ export function PasteImportForm() {
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         className="w-full border p-2 rounded"
+        disabled={loading}
       />
 
       <textarea
@@ -43,6 +57,7 @@ export function PasteImportForm() {
         value={content}
         onChange={(e) => setContent(e.target.value)}
         className="w-full border p-2 rounded h-60"
+        disabled={loading}
       />
 
       <button
@@ -52,6 +67,8 @@ export function PasteImportForm() {
       >
         {loading ? "Importing..." : "Import"}
       </button>
+
+      {error && <p className="text-red-500">{error}</p>}
     </div>
   );
 }

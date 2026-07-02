@@ -4,9 +4,9 @@ import type {
   ReaderFontFamily,
   ReaderLineHeight,
   ReaderTheme,
-} from "@/types";
+} from "@/shared/types";
 
-import { isBrowser } from "@/lib/utils";
+import { isBrowser } from "@/shared/utils";
 
 const STORAGE_KEY = "krvt-library-reading-state";
 const STORAGE_EVENT = "krvt-library-reading-state-change";

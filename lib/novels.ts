@@ -1,4 +1,4 @@
-import type { Chapter, Novel } from "@/types";
+import type { Chapter, Novel } from "@/shared/types";
 
 const FALLBACK_COVER =
   "https://via.placeholder.com/300x400?text=No+Cover";

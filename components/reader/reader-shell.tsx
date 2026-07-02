@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, useCallback } from "
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import type { Novel, ReaderTheme } from "@/types";
+import type { Novel, ReaderTheme } from "@/shared/types";
 
 import { useSettingsModal } from "@/components/settings/settings-modal-context";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import {
   getServerBookmarksState,
   saveNovelBookmark,
   subscribeToBookmarks,
-} from "@/lib/bookmark-storage";
+} from "@/features/reader";
 import {
   DEFAULT_FONT_FAMILY,
   DEFAULT_FONT_SIZE,
@@ -25,8 +25,8 @@ import {
   saveChapterScrollPosition,
   saveNovelReadingProgress,
   subscribeToReadingState,
-} from "@/lib/reader-storage";
-import { clampChapterIndex, cn, getReadingProgress, isBrowser } from "@/lib/utils";
+} from "@/features/reader";
+import { clampChapterIndex, cn, getReadingProgress, isBrowser } from "@/shared/utils";
 
 type ReaderShellProps = {
   novel: Novel;

@@ -1,4 +1,4 @@
-import type { ParsedNovel } from "@/types";
+import type { ParsedNovel } from "@/shared/types";
 
 export function parseTxtNovel(rawText: string): ParsedNovel {
   const normalizedText = normalizeText(rawText);

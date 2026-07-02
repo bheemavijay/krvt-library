@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { NovelSummary } from "@/types";
+import type { NovelSummary } from "@/shared/types";
 import { NovelCard } from "@/components/novel-card";
 import { LayoutGrid, List } from "lucide-react";
 

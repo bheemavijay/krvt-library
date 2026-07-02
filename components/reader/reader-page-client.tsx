@@ -8,27 +8,40 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { KrvtLoader } from "@/components/brand/krvt-loader";
 import ReaderControls from "@/components/reader/reader-controls";
 import { SettingsModal } from "@/components/reader/settings-modal";
-import { saveChapterScrollPosition, saveNovelReadingProgress } from "@/lib/reader-storage";
 import {
   ensureReaderFontsLoaded,
   getDefaultReaderSettings,
   getReaderFontStack,
+  saveChapterScrollPosition,
   saveSettings,
+  saveNovelReadingProgress,
   useReaderSettings,
   type ReplacementRule,
-} from "@/lib/settings";
+} from "@/features/reader";
 import {
+  getChapter,
+  getNovelChapterList,
+  getNovelSummary,
   isChapterBookmarked,
   removeNovelBookmark,
-  saveNovelBookmark,
-  subscribeToBookmarks,
-} from "@/lib/storage/bookmarks";
-import { getChapter, getNovelChapterList, getNovelSummary } from "@/lib/storage/indexeddb";
-import { initializeTts, isPaused, isSpeaking, pause, resume, speak, stop } from "@/lib/tts";
-import { clearTtsResumeState, getTtsResumeState, saveTtsResumeState } from "@/lib/tts-storage";
-import { createTtsSessionManager } from "@/features/tts/session";
-import { cn } from "@/lib/utils";
-import type { Novel } from "@/types";
+  saveStoredNovelBookmark as saveNovelBookmark,
+  subscribeToStoredBookmarks as subscribeToBookmarks,
+} from "@/features/reader";
+import {
+  clearTtsResumeState,
+  createTtsSessionManager,
+  getTtsResumeState,
+  initializeTts,
+  isPaused,
+  isSpeaking,
+  pause,
+  resume,
+  saveTtsResumeState,
+  speak,
+  stop,
+} from "@/features/tts";
+import { cn } from "@/shared/utils";
+import type { Novel } from "@/shared/types";
 
 type Props = {
   novelId: string;

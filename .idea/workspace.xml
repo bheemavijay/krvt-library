@@ -5,14 +5,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b17fc1dc-ac9a-491d-abb8-def7b5b914a1" name="Changes" comment="added logging to all the specified files">
-      <change afterPath="$PROJECT_DIR$/backend/storage/chapterWriter.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/storage/coverDownloader.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/storage/exporter.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/storage/filesystem.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/storage/metadataWriter.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/storage/paths.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/storage/slug.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/controllers/importController.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/controllers/importController.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/app/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/features/import/services/importService.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/import/services/importService.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/features/library/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/library/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/importer.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/importer.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/lib/storage/indexeddb.ts" beforeDir="false" afterPath="$PROJECT_DIR$/lib/storage/indexeddb.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -37,23 +35,23 @@
   </component>
   <component name="NextEditCompletionFeaturesState">
     <decayedCancelled>
-      <entry key="MS100" value="1.5956308183640957" />
-      <entry key="MS500" value="2.5204257808456934" />
-      <entry key="S2" value="2.909728059121162" />
-      <entry key="S5" value="3.605041266504306" />
-      <entry key="S10" value="4.622210216096118" />
-      <entry key="S30" value="7.04790777218349" />
-      <entry key="S60" value="9.206839375193173" />
-      <entry key="M2" value="11.111257609235885" />
-      <entry key="M5" value="12.695812205178962" />
-      <entry key="M10" value="13.320014931426485" />
-      <entry key="M15" value="13.54022460278377" />
-      <entry key="M30" value="13.766820321377596" />
-      <entry key="H1" value="13.882577660390938" />
-      <entry key="H2" value="13.945844520479772" />
-      <entry key="H4" value="14.20180477421929" />
-      <entry key="D1" value="24.743068715071512" />
-      <entry key="W1" value="39.71529509666825" />
+      <entry key="MS100" value="1.1554073769855" />
+      <entry key="MS500" value="2.5819099444011426" />
+      <entry key="S2" value="3.5898783357876316" />
+      <entry key="S5" value="4.4409710968970035" />
+      <entry key="S10" value="5.515804013891002" />
+      <entry key="S30" value="7.993404946509685" />
+      <entry key="S60" value="10.171171154665002" />
+      <entry key="M2" value="12.089713659101967" />
+      <entry key="M5" value="13.685959955539719" />
+      <entry key="M10" value="14.31484560551537" />
+      <entry key="M15" value="14.53672118519218" />
+      <entry key="M30" value="14.765039182506284" />
+      <entry key="H1" value="14.881679573615553" />
+      <entry key="H2" value="14.945393423377805" />
+      <entry key="H4" value="15.201575084121512" />
+      <entry key="D1" value="25.743002018429056" />
+      <entry key="W1" value="40.71527980303518" />
     </decayedCancelled>
     <decayedSelected>
       <entry key="MS100" value="0.0" />
@@ -64,34 +62,34 @@
       <entry key="S30" value="0.0" />
       <entry key="S60" value="0.0" />
       <entry key="M2" value="0.0" />
-      <entry key="M5" value="1.2684968537500854E-168" />
-      <entry key="M10" value="1.1262794231355665E-84" />
-      <entry key="M15" value="1.0827468174127839E-56" />
-      <entry key="M30" value="1.0559943931174784E-28" />
-      <entry key="H1" value="1.1447549106062012E-14" />
-      <entry key="H2" value="1.3631413701821754E-7" />
-      <entry key="H4" value="5.057299947940526E-4" />
-      <entry key="D1" value="0.5005628923545423" />
-      <entry key="W1" value="1.6407419844703315" />
+      <entry key="M5" value="1.2675124702803422E-168" />
+      <entry key="M10" value="1.1258423286251515E-84" />
+      <entry key="M15" value="1.0824666659117089E-56" />
+      <entry key="M30" value="1.0558577695095892E-28" />
+      <entry key="H1" value="1.1446808545287621E-14" />
+      <entry key="H2" value="1.363097277540761E-7" />
+      <entry key="H4" value="5.057218154693963E-4" />
+      <entry key="D1" value="0.5005615430528594" />
+      <entry key="W1" value="1.6407413526506305" />
     </decayedSelected>
     <decayedShown>
-      <entry key="MS100" value="1.4589376761845736" />
-      <entry key="MS500" value="2.476310103006248" />
-      <entry key="S2" value="2.896839254265474" />
-      <entry key="S5" value="3.5979918492272462" />
-      <entry key="S10" value="4.617250330814364" />
-      <entry key="S30" value="7.045053880194164" />
-      <entry key="S60" value="9.204858761052947" />
-      <entry key="M2" value="11.110021067143622" />
-      <entry key="M5" value="12.695235366558824" />
-      <entry key="M10" value="13.31971029522201" />
-      <entry key="M15" value="13.540017696316943" />
-      <entry key="M30" value="13.766714904583294" />
-      <entry key="H1" value="13.882524450365157" />
-      <entry key="H2" value="13.945817894047467" />
-      <entry key="H4" value="14.202296131420262" />
-      <entry key="D1" value="25.24361742531056" />
-      <entry key="W1" value="41.35603223277286" />
+      <entry key="MS100" value="0.23948964260946495" />
+      <entry key="MS500" value="2.1818573526583123" />
+      <entry key="S2" value="3.4684820566074532" />
+      <entry key="S5" value="4.388731192611456" />
+      <entry key="S10" value="5.48793767591694" />
+      <entry key="S30" value="7.982839931978331" />
+      <entry key="S60" value="10.165324113177064" />
+      <entry key="M2" value="12.08654058463061" />
+      <entry key="M5" value="13.68460754097989" />
+      <entry key="M10" value="14.314153000440445" />
+      <entry key="M15" value="14.536255590792575" />
+      <entry key="M30" value="14.764804400247206" />
+      <entry key="H1" value="14.88156167538776" />
+      <entry key="H2" value="14.945334451461497" />
+      <entry key="H4" value="15.202050260072191" />
+      <entry key="D1" value="26.243546683835916" />
+      <entry key="W1" value="42.35601592224027" />
     </decayedShown>
   </component>
   <component name="ProjectCodeStyleSettingsMigration">
@@ -101,6 +99,9 @@
   &quot;associatedIndex&quot;: 7
 }</component>
   <component name="ProjectId" id="3ByYUBcsqWEIXwlmEtzrtvuDzdy" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="1" id="Add" />
+  </component>
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
@@ -116,7 +117,7 @@
     &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
     &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
     &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;feature/mvlempyr-provider&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;refactor/architecture-v1&quot;,
     &quot;js.debugger.nextJs.config.created.client&quot;: &quot;true&quot;,
     &quot;js.debugger.nextJs.config.created.server&quot;: &quot;true&quot;,
     &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
@@ -179,6 +180,7 @@
       <workItem from="1781455371546" duration="24574000" />
       <workItem from="1781545573263" duration="17552000" />
       <workItem from="1781916565412" duration="12868000" />
+      <workItem from="1783184616795" duration="9945000" />
     </task>
     <task id="LOCAL-00001" summary="Inital Commit">
       <option name="closed" value="true" />
@@ -282,7 +284,7 @@
                   <entry key="branch">
                     <value>
                       <list>
-                        <option value="feature/mvlempyr-provider" />
+                        <option value="refactor/architecture-v1" />
                       </list>
                     </value>
                   </entry>

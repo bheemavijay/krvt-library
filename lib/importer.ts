@@ -10,7 +10,7 @@
 export {
   importNovel,
   importFromText,
-} from "@/features/import/services/importService";
+} from "@/features/import"; // Pointing to the public API of the feature
 
 export type {
   ImportProgress,

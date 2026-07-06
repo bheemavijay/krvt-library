@@ -1,31 +1,255 @@
-// TODO: [KRVT-ARCH-V2] This service orchestrates the import process.
-// It calls the legacy importer implementation.
+// This service contains the implementation for importing novels.
+// It was moved from the legacy `lib/importer.ts` file.
 
+import { getImportApiUrl } from "@/core/config/import-api";
 import {
-  importNovel as legacyImportNovel,
-  importFromText as legacyImportFromText,
-} from "@/lib/importer";
-import type { ImporterOptions } from "@/features/import/types";
+  mergeNovelChapters,
+  normalizeImportUrl,
+  normalizeNovelRecord,
+  normalizeNovelUrlKey,
+} from "@/lib/novels";
+import { parseTxtNovel } from "@/lib/parser";
+import { addNovel, getNovel, getNovelSummaries } from "@/storage/repositories/NovelRepository";
+import { acquireNovelJobLock, releaseNovelJobLock } from "@/features/update";
+import type { Novel, NovelSummary } from "@/shared/types";
+import type { ImporterOptions, ImportProgress } from "@/features/import/types";
 
-/**
- * Initiates the import of a novel from a URL.
- * This is the primary entry point for the import feature.
- *
- * @param novelId The ID of the novel to import.
- * @param options Configuration for the import process.
- */
-export function importNovel(novelId: string, options: ImporterOptions = {}) {
-  // For now, this service directly calls the legacy importer.
-  // In the future, this service will own the core import logic.
-  return legacyImportNovel(novelId, options);
+type ImportResponse = {
+  id?: string;
+  title: string;
+  author?: string;
+  image?: string;
+  alternative?: string;
+  genres?: string[];
+  tags?: string[];
+  status?: string;
+  rating?: number | null;
+  description?: string;
+  sourceUrl?: string;
+  totalChapters?: number;
+  importedFrom?: number;
+  chapters?: Array<{
+    id?: string;
+    title: string;
+    content: string[] | string;
+  }>;
+};
+
+export async function importFromText(rawText: string, title?: string): Promise<Novel> {
+  const parsed = parseTxtNovel(rawText);
+  const novel = normalizeNovelRecord({
+    title: title?.trim() || parsed.title,
+    chapters: parsed.chapters.map((chapter, index) => ({
+      id: String(index + 1),
+      order: index + 1,
+      title: chapter.title,
+      content: chapter.content
+        .split(/\\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean),
+    })),
+  });
+
+  const lockKey = novel.sourceUrl || novel.id;
+  if (!acquireNovelJobLock(lockKey)) {
+    return novel;
+  }
+
+  try {
+    await addNovel(novel);
+    return novel;
+  } finally {
+    releaseNovelJobLock(lockKey);
+  }
 }
 
-/**
- * Imports a novel from a text string.
- *
- * @param text The text content of the novel.
- * @param title The title of the novel.
- */
-export function importFromText(text: string, title: string) {
-  return legacyImportFromText(text, title);
+export async function importNovel(
+  url: string,
+  options: ImporterOptions = {}
+): Promise<Novel> {
+  const { onProgress } = options;
+  console.info("krvt.debug.importer.start", { url });
+
+  const importApiUrl = getImportApiUrl();
+  if (!importApiUrl) {
+    throw new Error("Import API is not available in this mobile build. Set NEXT_PUBLIC_IMPORT_API_URL before building the APK.");
+  }
+
+  const normalizedUrl = normalizeImportUrl(url);
+  const normalizedUrlKey = normalizeNovelUrlKey(normalizedUrl);
+  
+  console.info("krvt.debug.importer.normalize", { originalUrl: url, normalizedUrl, normalizedUrlKey });
+
+  const storedNovels = await getNovelSummaries();
+  const currentSummary = storedNovels.find(
+    (n) => normalizeNovelUrlKey(n.sourceUrl) === normalizedUrlKey,
+  );
+
+  console.info("krvt.debug.importer.lookup", {
+    storedNovelCount: storedNovels.length,
+    matchedSummary: currentSummary ? { id: currentSummary.id, title: currentSummary.title, chapterCount: currentSummary.chapterCount, sourceUrl: currentSummary.sourceUrl } : null,
+  });
+
+  let currentNovel = currentSummary ? await getNovel(currentSummary.id) : null;
+  
+  console.info("krvt.debug.importer.currentNovel", {
+    exists: !!currentNovel,
+    chapterCount: currentNovel?.chapters?.length,
+    sourceUrl: currentNovel?.sourceUrl,
+  });
+
+  const lockKey = currentNovel?.sourceUrl ?? normalizedUrlKey;
+  if (!acquireNovelJobLock(lockKey)) {
+    if (currentNovel) {
+      return currentNovel;
+    }
+    throw new Error("Import already in progress");
+  }
+
+  try {
+    let baseChapterCount = currentSummary?.chapterCount ?? currentNovel?.chapters.length ?? 0;
+    const batchSize = 50;
+    const allChapters: NonNullable<ImportResponse["chapters"]> = [];
+    let meta: ImportResponse | null = null;
+    let latestData: ImportResponse | null = null;
+    let completedBy409 = false;
+
+    while (true) {
+      const batchStart = baseChapterCount + allChapters.length + 1;
+      
+      console.info("krvt.debug.importer.batch.start", { batchStart, batchEnd: batchStart + batchSize - 1, currentSavedChapters: currentNovel?.chapters?.length ?? 0 });
+
+      onProgress?.({ novelId: currentNovel?.id ?? "", totalChapters: latestData?.totalChapters ?? 0, downloadedChapters: currentNovel?.chapters.length ?? baseChapterCount, failedChapters: 0, lastSuccessfulChapter: 0, lastError: null, startTime: "", updatedTime: "" });
+
+      const chapterCount = currentNovel?.chapters?.length ?? 0;
+      
+      const existingNovelPayload = currentNovel
+        ? { title: currentNovel.title, novelUrl: currentNovel.sourceUrl ?? normalizedUrl, lastChapterIndex: chapterCount - 1, chapterCount: chapterCount }
+        : null;
+
+      console.info("krvt.debug.importer.fetch.request", { apiUrl: importApiUrl, payload: { url: normalizedUrl, existingNovel: existingNovelPayload } });
+
+      const response = await fetch(importApiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: normalizedUrl, existingNovel: existingNovelPayload }),
+      });
+
+      console.info("krvt.debug.importer.fetch.response", { status: response.status, ok: response.ok });
+
+      let data;
+      try {
+        data = (await response.json()) as ImportResponse & { error?: string };
+      } catch (e) {
+        console.error("krvt.debug.importer.error", { error: "Failed to parse JSON response" });
+        throw e;
+      }
+      
+      latestData = data;
+
+      console.info("krvt.debug.importer.response.data", { title: data.title, totalChapters: data.totalChapters, returnedChapters: data.chapters?.length ?? 0, sourceUrl: data.sourceUrl });
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          console.info("krvt.debug.importer.complete.409", { title: currentNovel?.title, savedChapters: currentNovel?.chapters?.length });
+          completedBy409 = true;
+          break;
+        }
+        
+        const errorMessage = data.error || "Failed to import novel.";
+        console.error("krvt.debug.importer.error", { error: errorMessage });
+        throw new Error(errorMessage);
+      }
+
+      if (!meta) {
+        meta = data;
+      }
+
+      if (!data.chapters || data.chapters.length === 0) {
+        if (allChapters.length === 0) {
+          const errorMessage = "No chapters fetched";
+          console.error("krvt.debug.importer.error", { error: errorMessage });
+          throw new Error(errorMessage);
+        }
+        break;
+      }
+
+      const chapters = data.chapters;
+      allChapters.push(...chapters);
+
+      const nextBatch = chapters.map((chapter, index) => ({
+        id: chapter.id ?? String((currentNovel?.chapters.length ?? 0) + index + 1),
+        order: (currentNovel?.chapters.length ?? 0) + index + 1,
+        title: chapter.title,
+        content: Array.isArray(chapter.content) ? chapter.content : [chapter.content],
+      }));
+
+      console.info("krvt.debug.importer.merge.before", { existingChapterCount: currentNovel?.chapters?.length ?? 0, incomingChapterCount: nextBatch.length });
+
+      const mergedChapters = mergeNovelChapters(
+        currentNovel?.id ?? normalizeNovelRecord({ title: data.title ?? meta?.title ?? "Unknown Title" }).id,
+        currentNovel?.chapters ?? [],
+        nextBatch,
+      );
+
+      console.info("krvt.debug.importer.merge.after", { mergedChapterCount: mergedChapters.length });
+
+      if (currentNovel && mergedChapters.length < currentNovel.chapters.length) {
+        break;
+      }
+
+      const persistedNovel: Novel = normalizeNovelRecord({
+        ...currentNovel,
+        title: data.title ?? meta?.title ?? currentNovel?.title ?? "Unknown Title",
+        author: data.author ?? meta?.author ?? currentNovel?.author ?? "Unknown",
+        sourceUrl: data.sourceUrl ?? meta?.sourceUrl ?? currentNovel?.sourceUrl ?? normalizedUrl,
+        image: data.image ?? meta?.image ?? currentNovel?.image,
+        alternative: data.alternative ?? meta?.alternative ?? currentNovel?.alternative,
+        genres: data.genres ?? meta?.genres ?? currentNovel?.genres,
+        tags: data.tags ?? meta?.tags ?? currentNovel?.tags,
+        status: data.status ?? meta?.status ?? currentNovel?.status,
+        rating: typeof data.rating === "number" ? data.rating : typeof meta?.rating === "number" ? meta.rating : currentNovel?.rating,
+        description: data.description ?? currentNovel?.description,
+        lastUpdated: new Date().toISOString(),
+        isCompleted: currentNovel?.isCompleted || /\b(completed|complete|full)\b/i.test(data.status ?? meta?.status ?? ""),
+        chapters: mergedChapters,
+      });
+
+      console.info("krvt.debug.importer.storage.save", { title: persistedNovel.title, chapters: persistedNovel.chapters.length });
+
+      await addNovel(persistedNovel);
+      currentNovel = persistedNovel;
+
+      console.info("krvt.debug.importer.storage.saved", { title: persistedNovel.title, chapters: persistedNovel.chapters.length });
+
+      onProgress?.({ novelId: currentNovel.id, totalChapters: data.totalChapters ?? 0, downloadedChapters: persistedNovel.chapters.length, failedChapters: 0, lastSuccessfulChapter: 0, lastError: null, startTime: "", updatedTime: "" });
+
+      if (chapters.length < batchSize) {
+        break;
+      }
+    }
+
+    if (completedBy409) {
+      if (currentNovel) {
+        onProgress?.({ novelId: currentNovel.id, totalChapters: latestData?.totalChapters ?? currentNovel.chapters.length, downloadedChapters: currentNovel.chapters.length, failedChapters: 0, lastSuccessfulChapter: 0, lastError: null, startTime: "", updatedTime: "" });
+      }
+      
+      console.info("krvt.debug.importer.finish", { title: currentNovel?.title, finalChapterCount: currentNovel?.chapters?.length });
+
+      if (!currentNovel) {
+        throw new Error("Import failed to produce a novel.");
+      }
+      return currentNovel;
+    }
+
+    if (!currentNovel) {
+      throw new Error("Import failed to produce a novel.");
+    }
+
+    console.info("krvt.debug.importer.finish", { title: currentNovel?.title, finalChapterCount: currentNovel?.chapters?.length });
+
+    return currentNovel;
+  } finally {
+    releaseNovelJobLock(lockKey);
+  }
 }

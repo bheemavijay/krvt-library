@@ -11,6 +11,32 @@ Rules
 
 ---
 
+# Phase A - Architecture Migration
+
+## Architecture Cleanup
+
+This work is to be done *after* all feature migration sprints (A1-A9) are complete, but *before* starting Phase B.
+
+- [ ] **Compatibility Wrappers:** Remove all temporary compatibility wrappers (e.g., `lib/importer.ts`, `lib/storage/indexeddb.ts`).
+- [ ] **Legacy Libs:** Replace legacy `lib/reader-storage.ts` and `lib/settings.ts` with full repository/service implementations.
+- [ ] **Duplicate Code:** Remove all duplicated implementations that were intentionally left during migration steps.
+- [ ] **Commented Code:** Remove all commented-out legacy code blocks after UI migration is complete and verified.
+- [ ] **Type Verification:** Verify every feature imports only canonical shared types from `shared/types`.
+- [ ] **Barrel File Verification:** Verify every feature uses only public barrels (`index.ts`) for cross-feature access.
+- [ ] **Final Architecture Audit:** Perform a final, full-project audit against `ARCHITECTURE.md` before beginning Phase B.
+
+## Architecture Cleanup (Phase A)
+
+- Remove temporary compatibility wrappers after all features migrate.
+- Replace legacy lib/reader-storage.ts with repository/storage implementation.
+- Replace legacy lib/settings.ts with feature services.
+- Remove duplicated implementations left intentionally during migration.
+- Remove commented legacy code after UI migration completes.
+- Verify every feature imports only canonical shared types.
+- Verify every feature uses only public barrels for cross-feature access.
+- Final architecture audit before Phase B.
+---
+
 # Phase B - UI / UX
 
 ## Import

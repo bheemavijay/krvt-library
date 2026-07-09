@@ -18,9 +18,17 @@ Every feature owns exactly one domain. No feature should duplicate another featu
 -   **Import:** Owns scraping, parsing, importing, updating.
 -   **TTS:** Owns voices, playback, queue, adapters.
 
+## Type Ownership
+
+A type has exactly one canonical owner.
+
+-   **Shared Domain Models** (e.g., `Novel`, `Chapter`, `ReaderProgress`) live in `shared/types`.
+-   **Feature-Specific View Models** (e.g., `ReaderViewState`, `LibraryActions`) live in `features/<feature>/types`.
+-   Never duplicate an existing type. Import the canonical type instead. If two identical types exist, remove the duplicate.
+
 ## Directory Structure
 
-Each feature within the `features/` directory must follow this layout. A new folder should not be created until at least two files need it (e.g., do not create `queries/` for a single query file).
+Each feature within the `features/` directory must follow this layout. A new folder should not be created until at least two files need it.
 
 ```
 feature/
@@ -61,19 +69,14 @@ The dependency flow is strictly unidirectional: **Component → Hook → Service
 -   Translates data between the application and the storage layer.
 -   Must **never** contain business logic like searching, filtering, sorting, or validation.
 
-#### Types
--   **Responsibility:** Define data contracts for a feature.
--   Types should be feature-owned. Only move a type to `shared/types` if it is genuinely reused by 2 or more features.
-
-## Migration Rules
+## Refactoring Rules
 
 1.  **Move, Don't Rewrite:** Existing implementations must be moved, not rewritten from memory. Git history is the source of truth.
-2.  **Compatibility wrappers are temporary.** They are used to allow legacy code to call new implementations without breaking.
-3.  **Compatibility wrappers are ONE-WAY only.**
-    -   **Allowed:** `Legacy Code` → `Legacy Wrapper` → `New Implementation`
-    -   **Forbidden:** `New Implementation` → `Legacy Wrapper`
-4.  Every migration must preserve behavior before improving design.
-5.  A feature is considered migrated only after the build passes, runtime passes, the feature works, and the legacy wrapper is the only remaining compatibility layer.
+2.  **One Responsibility Per Sprint:** Do not refactor unrelated code.
+3.  **Repositories are Stable:** Do not refactor repositories while migrating a feature unless the repository itself is the current sprint's objective.
+4.  **One-Way Wrappers:** Compatibility wrappers are temporary and one-way only. New code must never depend on a legacy wrapper.
+5.  **Preserve Behavior:** Every migration must preserve existing behavior before improving design.
+6.  **Build After Every Migration:** A build must pass after every small, verifiable step.
 
 ## File Size Guidelines
 

@@ -1,1 +1,7 @@
-// TODO: [KRVT-A6] Implement service to add a bookmark.
+// This service is responsible for adding a bookmark.
+
+import { addBookmark as addBookmarkToRepo } from "@/storage/repositories/BookmarkRepository";
+
+export async function addBookmark(novelId: string, chapterIndex: number) {
+  return addBookmarkToRepo(novelId, chapterIndex);
+}

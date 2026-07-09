@@ -1,199 +1,129 @@
-# Refinement Backlog
+# KRVT Refinement Backlog
 
-This document tracks all deferred work discovered during the Architecture Refactor.
-
-Rules
-
-- Never stop an architecture sprint to fix an item here unless it blocks the build.
-- Every new issue discovered during development is added here.
-- Remove an item only after it has been verified as fixed.
-- Architecture always has higher priority than polish.
+This document tracks all deferred work for the KRVT project, including architectural cleanup, UI/UX polish, performance optimizations, and code quality improvements.
 
 ---
 
-# Phase A - Architecture Migration
+## Rules During Refactor
 
-## Architecture Cleanup
+- **Never rewrite working code:** Always move existing, proven logic before refactoring or improving it.
+- **Build after every migration:** Ensure the application is in a working state after every small, verifiable step.
+- **Stop immediately on build failure:** Do not stack fixes. Investigate and resolve the root cause of each failure independently.
+- **Audit before cleanup:** A feature's internal architecture must be stable and audited before its legacy UI components are migrated.
+- **Cleanup only after migration:** Address technical debt (e.g., removing wrappers, deleting old files) only after a feature is fully migrated and verified.
 
-This work is to be done *after* all feature migration sprints (A1-A9) are complete, but *before* starting Phase B.
-
-- [ ] **Compatibility Wrappers:** Remove all temporary compatibility wrappers (e.g., `lib/importer.ts`, `lib/storage/indexeddb.ts`).
-- [ ] **Legacy Libs:** Replace legacy `lib/reader-storage.ts` and `lib/settings.ts` with full repository/service implementations.
-- [ ] **Duplicate Code:** Remove all duplicated implementations that were intentionally left during migration steps.
-- [ ] **Commented Code:** Remove all commented-out legacy code blocks after UI migration is complete and verified.
-- [ ] **Type Verification:** Verify every feature imports only canonical shared types from `shared/types`.
-- [ ] **Barrel File Verification:** Verify every feature uses only public barrels (`index.ts`) for cross-feature access.
-- [ ] **Final Architecture Audit:** Perform a final, full-project audit against `ARCHITECTURE.md` before beginning Phase B.
-
-## Architecture Cleanup (Phase A)
-
-- Remove temporary compatibility wrappers after all features migrate.
-- Replace legacy lib/reader-storage.ts with repository/storage implementation.
-- Replace legacy lib/settings.ts with feature services.
-- Remove duplicated implementations left intentionally during migration.
-- Remove commented legacy code after UI migration completes.
-- Verify every feature imports only canonical shared types.
-- Verify every feature uses only public barrels for cross-feature access.
-- Final architecture audit before Phase B.
 ---
 
-# Phase B - UI / UX
+# Phase A: Architecture Migration
+
+This phase is focused exclusively on moving existing code into the new KRVT V2 architecture without changing runtime behavior.
+
+## Migration Checklists
+
+### Library Migration Cleanup
+- [ ] Replace `HomePage` state with `useLibrary()`.
+- [ ] Remove duplicate filtering logic from the component.
+- [ ] Remove duplicate sorting logic from the component.
+- [ ] Remove duplicate search logic from the component.
+- [ ] Remove unused state after migration.
+- [ ] Final library dependency audit.
+
+### Import Migration Cleanup
+- [ ] Replace `ImportBox` state with `useImport()`.
+- [ ] Remove duplicate import lifecycle logic.
+- [ ] Remove legacy importer calls from UI components.
+- [ ] Final import dependency audit.
+
+### Reader UI Migration
+- [ ] Replace `ReaderPageClient` loading logic with `useReader()`.
+- [ ] Replace Reader settings state with `useReaderSettings()`.
+- [ ] Replace bookmark logic with `useBookmarks()`.
+- [ ] Remove duplicate lifecycle logic from the component.
+- [ ] Remove legacy `useEffect` hooks.
+- [ ] Remove unused state after migration.
+- [ ] Build passes.
+- [ ] Manual reader verification (scrolling, navigation, settings, bookmarks).
+
+---
+
+# Phase B: UI / UX Polish
+
+This phase focuses on improving the user experience and visual presentation.
 
 ## Import
-
-- [ ] Progress occasionally shows incorrect values (example: 100 of 51 chapters).
+- [ ] Progress occasionally shows incorrect values (e.g., 100 of 51 chapters).
 - [ ] Status text remains "Starting download..." after completion.
 - [ ] Download button sometimes stays in loading state.
-- [ ] Improve progress animation.
-- [ ] Better error messages.
-- [ ] Better cancel handling.
-- [ ] Disable duplicate clicks while importing.
-- [ ] Improve mobile layout.
-- [ ] Better provider detection.
-- [ ] Show ETA.
-- [ ] Show downloaded chapter speed.
-
----
+- [ ] Improve progress animation and ETA display.
 
 ## Library
-
-- [ ] Improve loading animation.
-- [ ] Better empty state.
-- [ ] Faster filtering.
-- [ ] Better search highlighting.
-- [ ] Better continue-reading cards.
-- [ ] Better sorting UI.
-- [ ] Skeleton loaders.
-- [ ] Reduce homepage render time.
-
----
+- [ ] Improve loading animation and add skeleton loaders.
+- [ ] Design a better empty state.
+- [ ] Improve search highlighting and filtering speed.
 
 ## Reader
-
-- [ ] Scrolling still feels jerky on long chapters.
+- [ ] Address jerky scrolling on long chapters.
 - [ ] Improve chapter switching animation.
 - [ ] Preserve scroll position more accurately.
-- [ ] Better chapter dropdown.
-- [ ] Better paragraph spacing.
-- [ ] Better font rendering.
-- [ ] Reader performance profiling.
-- [ ] Better loading skeleton.
-- [ ] Reduce unnecessary rerenders.
-
----
 
 ## TTS
-
-- [ ] Highlight timing drifts slightly.
+- [ ] Highlight timing drifts slightly on some devices.
 - [ ] Paragraph restart when settings change.
-- [ ] Resume should continue from exact sentence.
-- [ ] Voice switching should not restart chapter.
-- [ ] Better buffering.
-- [ ] Better pause/resume.
-- [ ] Better Android synchronization.
-- [ ] Improve chunk splitting.
-- [ ] Improve sentence detection.
+- [ ] Resume should continue from the exact sentence.
+
+## Backup & Settings
+- [ ] Improve export/import progress indicators.
+- [ ] Add backup validation and corruption detection.
+- [ ] Reorganize settings for better clarity.
 
 ---
 
-## Backup
+# Phase C: Performance
 
-- [ ] Better export progress.
-- [ ] Better import progress.
-- [ ] Backup validation.
-- [ ] Duplicate detection.
-- [ ] Corruption detection.
-
----
-
-## Settings
-
-- [ ] Better settings organization.
-- [ ] Search inside settings.
-- [ ] Reset section individually.
-- [ ] Preview before applying.
-
----
-
-# Phase C - Performance
+This phase focuses on optimizing application speed and resource usage.
 
 ## Database
-
-- [ ] Benchmark IndexedDB.
-- [ ] Reduce unnecessary reads.
-- [ ] Reduce writes.
-- [ ] Better caching.
-- [ ] Lazy loading.
-
----
+- [ ] Benchmark IndexedDB operations.
+- [ ] Reduce unnecessary reads and writes.
+- [ ] Implement a more sophisticated caching strategy.
 
 ## Rendering
-
-- [ ] Remove unnecessary rerenders.
+- [ ] Remove unnecessary component re-renders.
 - [ ] Memoize expensive calculations.
-- [ ] Virtualize large lists if needed.
-- [ ] Optimize reader rendering.
-
----
+- [ ] Virtualize large lists (e.g., chapter index, library view).
 
 ## Backend
-
-- [ ] Improve scraper retry logic.
-- [ ] Better provider logging.
-- [ ] Better timeout handling.
-- [ ] Better download queue.
-- [ ] Parallel download tuning.
+- [ ] Improve scraper retry logic and timeout handling.
+- [ ] Tune parallel download queue for optimal performance.
 
 ---
 
-# Phase D - Code Cleanup
+# Phase D: Code Quality & Cleanup
 
-## Remove Compatibility Wrappers
+This phase focuses on addressing technical debt and improving the overall health of the codebase.
 
-- [ ] Remove lib/importer.ts
-- [ ] Remove lib/storage/indexeddb.ts wrapper
-- [ ] Remove remaining legacy facades
-- [ ] Remove commented legacy code
+## Architecture Cleanup
+- [ ] **Compatibility Wrappers:** Remove all temporary compatibility wrappers (e.g., `lib/importer.ts`).
+- [ ] **Legacy Libs:** Remove `lib/reader-storage.ts`, `lib/settings.ts`, etc., after their logic is fully migrated.
+- [ ] **Duplicate Code:** Remove all duplicated implementations intentionally left during migration.
+- [ ] **Type Verification:** Verify every feature imports only canonical shared types.
+- [ ] **Barrel File Verification:** Verify every feature uses only public barrels for cross-feature access.
+- [ ] **Final Architecture Audit:** Perform a final, full-project audit against `ARCHITECTURE.md`.
 
----
-
-## Repository Cleanup
-
-- [ ] Split files larger than 350 lines.
-- [ ] Remove duplicated utilities.
-- [ ] Remove dead code.
-- [ ] Remove unused exports.
-- [ ] Remove obsolete comments.
-
----
-
-# Architecture Audit
-
-Run after Phase A is complete.
-
-## Large Files (>350 lines)
-
-- [ ] app/page.tsx
-- [ ] components/reader/reader-page-client.tsx
-- [ ] lib/tts.ts
-- [ ] storage/repositories/NovelRepository.ts
-- [ ] backend/providers/mvlempyr/index.js
-- [ ] components/reader/settings-modal.tsx
-- [ ] components/reader/reader-shell.tsx
-
-Each file must be reviewed and split if possible.
+## Large Files Review
+- **150-250 lines:** Review for potential splitting.
+- **250-350 lines:** Split if possible.
+- **350+ lines:** Must be split.
+- **Files to Review:**
+    - [ ] `app/page.tsx`
+    - [ ] `components/reader/reader-page-client.tsx`
+    - [ ] `lib/tts.ts`
+    - [ ] `storage/repositories/NovelRepository.ts`
 
 ---
 
-## Final Verification
+# Future Architecture Work
 
-- [ ] No circular dependencies.
-- [ ] No feature imports internals from another feature.
-- [ ] All features expose only index.ts.
-- [ ] Build passes.
-- [ ] Android build passes.
-- [ ] Import works.
-- [ ] Reader works.
-- [ ] TTS works.
-- [ ] Backup works.
-- [ ] Update works.
+- [ ] **Feature Facades:** Review if any feature's orchestration logic has become complex enough to warrant a `facade.ts` service.
+- [ ] **State Management:** Evaluate if a dedicated state management library (e.g., Zustand, Jotai) is needed as complexity grows, to replace module-level listeners.
+- [ ] **Repository Layer:** Plan the migration of `localStorage`-based services (`reader-storage`, `settings`) to a formal `SettingsRepository` using IndexedDB.

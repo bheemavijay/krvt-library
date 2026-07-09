@@ -6,20 +6,10 @@
   <component name="ChangeListManager">
     <list default="true" id="b17fc1dc-ac9a-491d-abb8-def7b5b914a1" name="Changes" comment="added logging to all the specified files">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/ARCHITECTURE.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/REFINEMENT_BACKLOG.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/REFINEMENT_BACKLOG.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/features/reader/services/commands/addBookmark.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/reader/services/commands/addBookmark.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/features/reader/services/commands/removeBookmark.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/reader/services/commands/removeBookmark.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/features/reader/services/commands/saveProgress.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/reader/services/commands/saveProgress.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/features/reader/services/commands/updateReaderSettings.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/reader/services/commands/updateReaderSettings.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/features/reader/services/queries/loadBookmarks.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/reader/services/queries/loadBookmarks.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/features/reader/services/queries/loadChapter.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/reader/services/queries/loadChapter.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/features/reader/services/queries/loadReader.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/reader/services/queries/loadReader.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/features/reader/services/queries/loadReaderSettings.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/reader/services/queries/loadReaderSettings.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/features/reader/services/queries/loadReadingProgress.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/reader/services/queries/loadReadingProgress.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/features/reader/types/ReaderSettings.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/reader/types/ReaderSettings.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/features/reader/types/ReaderState.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/reader/types/ReaderState.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/storage/repositories/ChapterRepository.ts" beforeDir="false" afterPath="$PROJECT_DIR$/storage/repositories/ChapterRepository.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/features/reader/hooks/useBookmarks.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/reader/hooks/useBookmarks.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/features/reader/hooks/useReader.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/reader/hooks/useReader.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/features/reader/hooks/useReaderSettings.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/reader/hooks/useReaderSettings.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -190,7 +180,7 @@
       <workItem from="1781545573263" duration="17552000" />
       <workItem from="1781916565412" duration="12868000" />
       <workItem from="1783184616795" duration="15770000" />
-      <workItem from="1783578990950" duration="3073000" />
+      <workItem from="1783578990950" duration="4174000" />
     </task>
     <task id="LOCAL-00001" summary="Inital Commit">
       <option name="closed" value="true" />

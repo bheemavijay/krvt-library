@@ -11,11 +11,10 @@ import { SettingsModal } from "@/components/reader/settings-modal";
 import {
   ensureReaderFontsLoaded,
   getReaderFontStack,
-  saveChapterScrollPosition,
-  saveNovelReadingProgress,
   useReaderSettings,
   useBookmarks,
   useReader,
+  useProgress,
   type ReplacementRule,
 } from "@/features/reader";
 import {
@@ -58,13 +57,13 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   const parsedChapterIndex = Number(chapterParam) - 1;
   const requestedChapterIndex =
     Number.isNaN(parsedChapterIndex) || parsedChapterIndex < 0 ? 0 : parsedChapterIndex;
-  const progressKey = `progress_${safeNovelId}`;
   const topNavigationKey = "krvt-reader-open-chapter-at-top";
 
   // Hooks from the new architecture
   const { settings, updateSettings } = useReaderSettings();
-  const { novel, activeChapter: chapter, currentChapterIndex, isLoading, selectChapter } = useReader(safeNovelId, requestedChapterIndex);
+  const { novel, activeChapter: chapter, currentChapterIndex, isLoading, error, selectChapter } = useReader(safeNovelId, requestedChapterIndex);
   const { isBookmarked, addBookmark, removeBookmark } = useBookmarks(safeNovelId);
+  const { saveScrollPosition, saveChapterChange } = useProgress(safeNovelId, currentChapterIndex);
   const settingsRef = useRef(settings);
 
   // Update settingsRef when settings change
@@ -82,7 +81,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
     nextHrefRef.current = nextHref;
   }, [nextHref]);
 
-  // Scroll restoration and saving logic (remains for now)
+  // Scroll restoration and saving logic
   useEffect(() => {
     if (isLoading) return;
     window.setTimeout(() => {
@@ -95,7 +94,9 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
         clearTopNavigationRequest(topNavigationKey);
         return;
       }
+      // This legacy scroll restoration will be moved next
       try {
+        const progressKey = `progress_${safeNovelId}`;
         const saved = window.localStorage.getItem(progressKey);
         if (!saved) return;
         const parsed = JSON.parse(saved) as { chapterIndex?: number; scrollY?: number };
@@ -104,18 +105,14 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
         }
       } catch {}
     }, 80);
-  }, [isLoading, progressKey, requestedChapterIndex, safeNovelId]);
+  }, [isLoading, requestedChapterIndex, safeNovelId]);
 
   useEffect(() => {
     let timeout: number | null = null;
     const handleScroll = () => {
       if (timeout !== null) clearTimeout(timeout);
       timeout = window.setTimeout(() => {
-        try {
-          const payload = { chapterIndex: currentChapterIndex, scrollY: window.scrollY };
-          window.localStorage.setItem(progressKey, JSON.stringify(payload));
-          saveChapterScrollPosition(safeNovelId, currentChapterIndex, window.scrollY);
-        } catch {}
+        saveScrollPosition(window.scrollY);
       }, 250);
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
@@ -123,13 +120,13 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
       if (timeout !== null) clearTimeout(timeout);
       window.removeEventListener("scroll", handleScroll);
     };
-  }, [progressKey, currentChapterIndex, safeNovelId]);
+  }, [saveScrollPosition]);
 
   // Save progress effect
   useEffect(() => {
     if (!novel) return;
-    saveNovelReadingProgress(novel.id, currentChapterIndex, settings.fontSize);
-  }, [novel, currentChapterIndex, settings.fontSize]);
+    saveChapterChange(settings.fontSize);
+  }, [novel, saveChapterChange, settings.fontSize]);
 
   // Chapter panel scroll effect
   useEffect(() => {

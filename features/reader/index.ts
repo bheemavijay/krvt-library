@@ -2,6 +2,7 @@
 export { useReader } from "./hooks/useReader";
 export { useReaderSettings } from "./hooks/useReaderSettings";
 export { useBookmarks } from "./hooks/useBookmarks";
+export { useProgress } from "./hooks/useProgress";
 
 // --- LEGACY EXPORTS ---
 // These will be removed once all components are migrated.

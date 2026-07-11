@@ -6,10 +6,8 @@
   <component name="ChangeListManager">
     <list default="true" id="b17fc1dc-ac9a-491d-abb8-def7b5b914a1" name="Changes" comment="added logging to all the specified files">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/REFINEMENT_BACKLOG.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/REFINEMENT_BACKLOG.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/features/reader/hooks/useBookmarks.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/reader/hooks/useBookmarks.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/features/reader/hooks/useReader.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/reader/hooks/useReader.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/features/reader/hooks/useReaderSettings.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/reader/hooks/useReaderSettings.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/components/reader/reader-page-client.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/components/reader/reader-page-client.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/features/reader/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/features/reader/index.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -180,7 +178,7 @@
       <workItem from="1781545573263" duration="17552000" />
       <workItem from="1781916565412" duration="12868000" />
       <workItem from="1783184616795" duration="15770000" />
-      <workItem from="1783578990950" duration="4174000" />
+      <workItem from="1783578990950" duration="10391000" />
     </task>
     <task id="LOCAL-00001" summary="Inital Commit">
       <option name="closed" value="true" />

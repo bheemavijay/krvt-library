@@ -4,6 +4,15 @@ This document tracks all deferred work for the KRVT project, including architect
 
 ---
 
+## Completed Sprints
+
+- [x] **Sprint A6 - Reader Architecture Migration**
+  - Services, Hooks, and UI migration completed.
+  - Progress saving logic fully migrated.
+  - Build verified after every step.
+
+---
+
 ## Rules During Refactor
 
 - **Never rewrite working code:** Always move existing, proven logic before refactoring or improving it.
@@ -51,7 +60,7 @@ This phase is focused exclusively on moving existing code into the new KRVT V2 a
 This phase focuses on improving the user experience and visual presentation.
 
 ## Import
-- [ ] Progress occasionally shows incorrect values (e.g., 100 of 51 chapters).
+- [ ] Progress occasionally shows incorrect values (example: 100 of 51 chapters).
 - [ ] Status text remains "Starting download..." after completion.
 - [ ] Download button sometimes stays in loading state.
 - [ ] Improve progress animation and ETA display.

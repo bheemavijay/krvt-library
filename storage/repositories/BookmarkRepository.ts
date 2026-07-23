@@ -1,8 +1,5 @@
-// TODO: [KRVT-ARCH-V2] This repository manages bookmark data.
-
 import { openDB, BOOKMARKS_STORE } from "@/storage/db/indexeddb";
 
-// TODO: [KRVT-ARCH-V2] Move to a shared types file
 type Bookmark = {
   novelId: string;
   chapterIndex: number;

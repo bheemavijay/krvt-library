@@ -7,7 +7,7 @@ import { filterLibrary } from "@/features/library/services/queries/filterLibrary
 import { sortLibrary } from "@/features/library/services/queries/sortLibrary";
 import { deleteNovel as deleteNovelCommand } from "@/features/library/services/commands/delete/deleteNovel";
 import type { NovelSummary } from "@/shared/types";
-import { getReadingState } from "@/features/reader"; // Legacy dependency
+import { getReadingState } from "@/features/reader";
 
 type LibrarySort = "lastImported" | "lastRead" | "chapterCount";
 type ChapterFilter = "all" | "short" | "medium" | "long";
@@ -24,7 +24,7 @@ export function useLibrary() {
   const [chapterFilter, setChapterFilter] = useState<ChapterFilter>("all");
   const [librarySort, setLibrarySort] = useState<LibrarySort>("lastImported");
 
-  const readingState = getReadingState(); // Legacy: To be replaced by useHistory()
+  const readingState = getReadingState();
 
   const processNovels = useCallback(() => {
     const searched = searchLibrary(allNovels, searchQuery);

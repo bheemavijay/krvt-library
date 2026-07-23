@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { importFromText } from "@/features/import/services/importService";
+import { importFromText } from "@/features/import";
 
 export function PasteImportForm() {
   const [title, setTitle] = useState("");

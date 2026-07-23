@@ -51,7 +51,7 @@ export function SettingsModal({ isOpen, settings, onClose, onChange }: SettingsM
     let cancelled = false;
     setVoiceStatus("Loading voices...");
     loadVoices()
-      .then((nextVoices) => {
+      .then((nextVoices: TtsVoice[]) => {
         if (cancelled) {
           return;
         }

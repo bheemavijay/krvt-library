@@ -1,11 +1,7 @@
-// New Public Hooks
 export { useReader } from "./hooks/useReader";
 export { useReaderSettings } from "./hooks/useReaderSettings";
 export { useBookmarks } from "./hooks/useBookmarks";
 export { useProgress } from "./hooks/useProgress";
-
-// --- LEGACY EXPORTS ---
-// These will be removed once all components are migrated.
 
 export {
   DEFAULT_FONT_FAMILY,
@@ -34,7 +30,6 @@ export {
   READER_FONT_OPTIONS,
   saveSettings,
   subscribeToSettings,
-  // The old useReaderSettings is no longer exported
   type ReaderSettings,
   type ReplacementRule,
 } from "@/lib/settings";

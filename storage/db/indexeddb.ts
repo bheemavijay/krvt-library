@@ -1,5 +1,3 @@
-// TODO: [KRVT-ARCH-V2] This file manages the IndexedDB connection and schema.
-
 const DB_NAME = "krvt-library";
 const DB_VERSION = 3;
 

@@ -17,19 +17,7 @@ import {
   useProgress,
   type ReplacementRule,
 } from "@/features/reader";
-import {
-  clearTtsResumeState,
-  createTtsSessionManager,
-  getTtsResumeState,
-  initializeTts,
-  isPaused,
-  isSpeaking,
-  pause,
-  resume,
-  saveTtsResumeState,
-  speak,
-  stop,
-} from "@/features/tts";
+import { useTTS } from "@/features/tts";
 import { cn } from "@/shared/utils";
 
 type Props = {
@@ -42,16 +30,10 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isChapterPanelOpen, setIsChapterPanelOpen] = useState(false);
   const [chapterSearch, setChapterSearch] = useState("");
-  const [ttsState, setTtsState] = useState<"idle" | "playing" | "paused" | "stopped">("idle");
-  const [currentParagraphIndex, setCurrentParagraphIndex] = useState<number | null>(null);
   const [, setStatusMessage] = useState("");
 
-  const longPressTimeoutRef = useRef<number | null>(null);
   const activeChapterRef = useRef<HTMLAnchorElement | null>(null);
   const paragraphRefs = useRef<Array<HTMLParagraphElement | null>>([]);
-  const ttsSessionRef = useRef(createTtsSessionManager());
-  const nextHrefRef = useRef<string | undefined>(undefined);
-  const lastPlaybackParagraphIndexRef = useRef<number | null>(null);
 
   const safeNovelId = decodeURIComponent(novelId).trim();
   const parsedChapterIndex = Number(chapterParam) - 1;
@@ -64,22 +46,11 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   const { novel, activeChapter: chapter, currentChapterIndex, isLoading, error, selectChapter } = useReader(safeNovelId, requestedChapterIndex);
   const { isBookmarked, addBookmark, removeBookmark } = useBookmarks(safeNovelId);
   const { saveScrollPosition, saveChapterChange } = useProgress(safeNovelId, currentChapterIndex);
-  const settingsRef = useRef(settings);
-
-  // Update settingsRef when settings change
-  useEffect(() => {
-    settingsRef.current = settings;
-  }, [settings]);
-
-  // Update nextHrefRef when nextHref changes
   const totalChapters = novel?.chapters.length ?? 0;
   const nextHref =
     novel && currentChapterIndex < novel.chapters.length - 1
       ? `/reader?id=${novel.id}&chapter=${currentChapterIndex + 2}`
       : undefined;
-  useEffect(() => {
-    nextHrefRef.current = nextHref;
-  }, [nextHref]);
 
   // Scroll restoration and saving logic
   useEffect(() => {
@@ -134,16 +105,6 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
     activeChapterRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [chapterSearch, isChapterPanelOpen]);
 
-  // TTS cleanup effect
-  useEffect(() => {
-    const ttsSession = ttsSessionRef.current;
-    return () => {
-      if (longPressTimeoutRef.current !== null) clearTimeout(longPressTimeoutRef.current);
-      ttsSession.cancel();
-      stop();
-    };
-  }, []);
-
   const progressPercent = totalChapters > 0 ? Math.round(((currentChapterIndex + 1) / totalChapters) * 100) : 0;
   const textAlign = settings.textAlign as CSSProperties["textAlign"];
   const readerMaxWidth = settings.contentMaxWidth >= 9999 ? "100%" : `${settings.contentMaxWidth}px`;
@@ -159,21 +120,51 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
     return applyTermReplacements(content, settings.replacements);
   }, [chapter, settings.replacements]);
 
+  const handleAutoNextTts = useCallback(
+    (href: string, targetChapterIndex: number, shouldAutoPlay: boolean) => {
+      if (shouldAutoPlay) {
+        try {
+          window.sessionStorage.setItem("krvt-reader-autoplay-tts", "1");
+        } catch {}
+      }
+      markTopNavigation(topNavigationKey, safeNovelId, targetChapterIndex);
+      router.push(href);
+    },
+    [router, safeNovelId],
+  );
+
+  const {
+    ttsState,
+    currentParagraphIndex,
+    requestAutoplayOnNavigation,
+    toggle: handleToggleTts,
+    stop: handleStopTts,
+    handleParagraphPointerDown: startLongPressTts,
+    clearLongPress,
+  } = useTTS({
+    novelId: safeNovelId,
+    chapterId: chapter?.id,
+    chapterIndex: currentChapterIndex,
+    isLoading,
+    hasNovel: Boolean(novel),
+    content: normalizedContent,
+    settings,
+    nextHref,
+    onAutoNext: handleAutoNextTts,
+    onStatusMessage: setStatusMessage,
+  });
+
   const paragraphProgressPercent = currentParagraphIndex !== null && normalizedContent.length > 0 ? Math.round(((currentParagraphIndex + 1) / normalizedContent.length) * 100) : 0;
   const previousHref = novel && currentChapterIndex > 0 ? `/reader?id=${novel.id}&chapter=${currentChapterIndex}` : undefined;
 
   const prepareForNavigation = useCallback((targetChapterIndex: number) => {
-    if (ttsState === "playing" || ttsState === "paused") {
-      try {
-        window.sessionStorage.setItem("krvt-reader-autoplay-tts", "1");
-      } catch {}
-    }
+    requestAutoplayOnNavigation();
     markTopNavigation(topNavigationKey, safeNovelId, targetChapterIndex);
-  }, [safeNovelId, ttsState]);
+  }, [requestAutoplayOnNavigation, safeNovelId]);
 
   const navigateToChapter = useCallback((href: string, targetChapterIndex: number) => {
     prepareForNavigation(targetChapterIndex);
-    selectChapter(targetChapterIndex); // Use the hook's function
+    selectChapter(targetChapterIndex);
     router.push(href);
   }, [prepareForNavigation, router, selectChapter]);
 
@@ -202,97 +193,6 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   }, [currentParagraphIndex, settings.autoScroll, ttsState]);
 
   useEffect(() => {
-    ttsSessionRef.current.cancel();
-    stop();
-    setTtsState("idle");
-    setCurrentParagraphIndex(null);
-    lastPlaybackParagraphIndexRef.current = null;
-  }, [chapter?.id]);
-
-  const playParagraph = useCallback(async (paragraphIndex: number, runId: number) => {
-    const paragraph = normalizedContent[paragraphIndex]?.trim();
-    if (!paragraph) {
-      const nextIndex = normalizedContent.findIndex((line, index) => index > paragraphIndex && line.trim());
-      if (nextIndex === -1) {
-        setTtsState("idle");
-        setCurrentParagraphIndex(null);
-        return;
-      }
-      await playParagraph(nextIndex, runId);
-      return;
-    }
-    ttsSessionRef.current.markParagraph(paragraphIndex);
-    lastPlaybackParagraphIndexRef.current = paragraphIndex;
-    setCurrentParagraphIndex(paragraphIndex);
-    const started = await speak(paragraph, settingsRef.current, {
-      onStart: () => {
-        if (!ttsSessionRef.current.isCurrent(runId)) return;
-        setTtsState("playing");
-      },
-      onPause: () => setTtsState("paused"),
-      onResume: () => setTtsState("playing"),
-      onEnd: () => {
-        if (!ttsSessionRef.current.isCurrent(runId)) return;
-        const nextIndex = normalizedContent.findIndex((line, index) => index > paragraphIndex && line.trim());
-        if (nextIndex !== -1) {
-          void playParagraph(nextIndex, runId);
-          return;
-        }
-        setTtsState("idle");
-        setCurrentParagraphIndex(null);
-        const latestSettings = settingsRef.current;
-        const latestNextHref = nextHrefRef.current;
-        if (latestSettings.autoNext && latestNextHref) {
-          if (latestSettings.autoPlayTts) window.sessionStorage.setItem("krvt-reader-autoplay-tts", "1");
-          markTopNavigation(topNavigationKey, safeNovelId, currentChapterIndex + 1);
-          router.push(latestNextHref);
-        }
-      },
-      onError: (error) => {
-        if (!ttsSessionRef.current.isCurrent(runId) || ttsSessionRef.current.isPauseRequested()) return;
-        console.error("Reader TTS paragraph failed", { error, paragraphIndex });
-        setTtsState("idle");
-        setStatusMessage("Text-to-speech could not start.");
-      },
-    });
-    if (!started && ttsSessionRef.current.isCurrent(runId) && !ttsSessionRef.current.isPauseRequested()) {
-      setTtsState("idle");
-    }
-  }, [currentChapterIndex, normalizedContent, router, safeNovelId]);
-
-  const startTtsFromParagraph = useCallback(async (startIndex: number) => {
-    if (normalizedContent.length === 0) {
-      setStatusMessage("There is no chapter text available to read.");
-      return;
-    }
-    const safeStartIndex = Math.min(Math.max(startIndex, 0), normalizedContent.length - 1);
-    lastPlaybackParagraphIndexRef.current = safeStartIndex;
-    const runId = ttsSessionRef.current.start(safeStartIndex);
-    setTtsState("playing");
-    await playParagraph(safeStartIndex, runId);
-  }, [normalizedContent.length, playParagraph]);
-
-  useEffect(() => {
-    if (isLoading || !novel || normalizedContent.length === 0) return;
-    let shouldAutoPlay = "";
-    try {
-      shouldAutoPlay = window.sessionStorage.getItem("krvt-reader-autoplay-tts") ?? "";
-    } catch (e) {
-      return;
-    }
-    if (shouldAutoPlay === "1") {
-      window.sessionStorage.removeItem("krvt-reader-autoplay-tts");
-      const timeout = window.setTimeout(() => { void startTtsFromParagraph(0); }, 0);
-      return () => clearTimeout(timeout);
-    }
-    const resumeState = getTtsResumeState();
-    if (resumeState && resumeState.novelId === safeNovelId && resumeState.chapterIndex === currentChapterIndex) {
-      const timeout = window.setTimeout(() => { void startTtsFromParagraph(resumeState.paragraphIndex); }, 0);
-      return () => clearTimeout(timeout);
-    }
-  }, [isLoading, novel, startTtsFromParagraph, normalizedContent.length, safeNovelId, currentChapterIndex]);
-
-  useEffect(() => {
     if (isSettingsOpen || isChapterPanelOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -316,53 +216,9 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [currentChapterIndex, isChapterPanelOpen, isSettingsOpen, navigateToChapter, nextHref, previousHref]);
 
-  useEffect(() => {
-    if (ttsState === "playing" && currentParagraphIndex !== null) {
-      saveTtsResumeState({ novelId: safeNovelId, chapterIndex: currentChapterIndex, paragraphIndex: currentParagraphIndex, rate: settings.tts.rate, voiceURI: settings.tts.voiceURI });
-    } else if (ttsState === "stopped") {
-      clearTtsResumeState();
-    }
-  }, [ttsState, currentParagraphIndex, safeNovelId, settings.tts.rate, settings.tts.voiceURI]);
-
   if (isLoading) return <KrvtLoader />;
   if (!novel || error) return <p className="p-6 text-red-400">{error || "Novel not found."}</p>;
   if (!chapter) return <p className="p-6 text-red-400">Chapter not found.</p>;
-
-  const handleToggleTts = async () => {
-    const ready = await initializeTts();
-    if (!ready) {
-      setStatusMessage("Text-to-speech could not start.");
-      return;
-    }
-    if (isSpeaking()) {
-      if (isPaused()) {
-        resume();
-        ttsSessionRef.current.setPauseRequested(false);
-        setTtsState("playing");
-      } else {
-        ttsSessionRef.current.setPauseRequested(true);
-        pause();
-        setTtsState("paused");
-      }
-      return;
-    }
-    if (ttsState === "paused") {
-      resume();
-      ttsSessionRef.current.setPauseRequested(false);
-      setTtsState("playing");
-      return;
-    }
-    await startTtsFromParagraph(ttsState === "stopped" ? 0 : currentParagraphIndex ?? lastPlaybackParagraphIndexRef.current ?? 0);
-  };
-
-  const handleStopTts = () => {
-    ttsSessionRef.current.cancel();
-    stop();
-    lastPlaybackParagraphIndexRef.current = null;
-    setTtsState("stopped");
-    setCurrentParagraphIndex(null);
-    clearTtsResumeState();
-  };
 
   const handleBookmarkToggle = () => {
     if (isBookmarked(currentChapterIndex)) {
@@ -375,16 +231,7 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   };
 
   const handleParagraphPointerDown = (index: number) => (_event: ReactPointerEvent<HTMLParagraphElement>) => {
-    if (ttsState !== "playing" && ttsState !== "paused") return;
-    if (longPressTimeoutRef.current !== null) clearTimeout(longPressTimeoutRef.current);
-    longPressTimeoutRef.current = window.setTimeout(() => { void startTtsFromParagraph(index); }, 450);
-  };
-
-  const clearLongPress = () => {
-    if (longPressTimeoutRef.current !== null) {
-      clearTimeout(longPressTimeoutRef.current);
-      longPressTimeoutRef.current = null;
-    }
+    startLongPressTts(index);
   };
 
   const navButtonClass = "inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white/70 transition-all duration-150 hover:border-white/20 hover:bg-white/8 hover:text-white disabled:cursor-not-allowed disabled:opacity-30";

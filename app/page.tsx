@@ -8,42 +8,17 @@ import { useSearchParams } from "next/navigation";
 import { ContinueReadingCard } from "@/components/continue-reading-card";
 import { KrvtLoader } from "@/components/brand/krvt-loader";
 import { NovelCard } from "@/components/novel-card";
-import { useLibrary, useHistory, loadNovel, getBookmarksState } from "@/features/library";
-import { exportLibrary, importLibrary } from "@/features/backup";
-import { clearAllNovels } from "@/lib/storage/indexeddb"; // Legacy
-import { acquireNovelJobLock, releaseNovelJobLock } from "@/features/update"; // Legacy
-import type { Novel, NovelSummary } from "@/shared/types";
-import { getImportApiUrl } from "@/features/import"; // Legacy
-import { mergeNovelChapters, normalizeNovelRecord } from "@/lib/novels"; // Legacy
-import { addNovel } from "@/lib/storage/indexeddb"; // Legacy
-import { getReadingState } from "@/features/reader"; // Restored for legacy helper
-
-// This component still has legacy dependencies and logic that will be removed in subsequent sprints.
-// The focus of this refactor is to replace the library state management with the useLibrary hook.
+import { useLibrary, useHistory, clearLibrary, getBookmarksState } from "@/features/library";
+import { useBackup } from "@/features/backup";
+import { useUpdate } from "@/features/update";
+import type { NovelSummary } from "@/shared/types";
+import { getReadingState } from "@/features/reader";
 
 function formatRelativeDate(value?: string) {
   if (!value) return "Not available";
   const timestamp = Date.parse(value);
   if (Number.isNaN(timestamp)) return "Not available";
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(timestamp));
-}
-
-function pickDescription(...values: Array<string | undefined>) {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return "No description available";
-}
-
-function getNetworkInformation() {
-  if (typeof navigator === "undefined") return null;
-  return (navigator as any).connection ?? (navigator as any).mozConnection ?? (navigator as any).webkitConnection ?? null;
-}
-
-function shouldWarnForMeteredConnection(network: any) {
-  const type = network.type?.toLowerCase() ?? "";
-  const effectiveType = network.effectiveType?.toLowerCase() ?? "";
-  return network.saveData === true || type === "cellular" || effectiveType === "2g" || effectiveType === "3g";
 }
 
 export default function HomePage() {
@@ -75,12 +50,14 @@ function HomePageClient() {
     setLibrarySort,
     refresh: refreshLibrary,
   } = useLibrary();
+  const { exportBackup, importBackup } = useBackup();
+  const { busyNovelId: updatingNovelId, updateNovel } = useUpdate();
 
   const { continueReadingItems: legacyContinueReading } = useHistory(allNovels);
 
   const [backupMessage, setBackupMessage] = useState("");
   const [backupExportProgress, setBackupExportProgress] = useState<{ processedNovels: number; totalNovels: number; writtenBytes: number } | null>(null);
-  const [busyNovelId, setBusyNovelId] = useState<string | null>(null);
+  const [deletingNovelId, setDeletingNovelId] = useState<string | null>(null);
   const [isClearingLibrary, setIsClearingLibrary] = useState(false);
   const [libraryPage, setLibraryPage] = useState(1);
   const [backupImportProgress, setBackupImportProgress] = useState<{ processedNovels: number; processedBytes: number; totalBytes: number; failedNovels: string[] } | null>(null);
@@ -118,7 +95,7 @@ function HomePageClient() {
     try {
       setBackupExportProgress({ processedNovels: 0, totalNovels: allNovels.length, writtenBytes: 0 });
       setBackupMessage("Preparing export...");
-      const result = await exportLibrary({ onProgress: (progress) => setBackupExportProgress(progress) });
+      const result = await exportBackup({ onProgress: (progress) => setBackupExportProgress(progress) });
       setBackupMessage(result.platform === "android" ? `Export saved to Documents: ${result.fileName}` : `Backup exported: ${result.fileName}`);
     } catch (error) {
       setBackupMessage(error instanceof Error ? error.message : "Export failed");
@@ -134,7 +111,7 @@ function HomePageClient() {
       setBackupImportFailures([]);
       setBackupImportProgress({ processedNovels: 0, processedBytes: 0, totalBytes: file.size, failedNovels: [] });
       setBackupMessage("Importing backup...");
-      const result = await importLibrary(file, { onProgress: (progress) => setBackupImportProgress(progress) });
+      const result = await importBackup(file, { onProgress: (progress) => setBackupImportProgress(progress) });
       setBackupImportFailures(result.failedNovels);
       setBackupMessage(result.failedNovels.length > 0 ? `Imported ${result.importedCount} novels. ${result.failedNovels.length} failed.` : `Imported ${result.importedCount} novels`);
       refreshLibrary();
@@ -149,13 +126,13 @@ function HomePageClient() {
   const handleDeleteNovel = async (novel: NovelSummary) => {
     if (!window.confirm("Delete this novel?")) return;
     try {
-      setBusyNovelId(novel.id);
+      setDeletingNovelId(novel.id);
       await deleteNovel(novel.id);
       setBackupMessage(`Deleted "${novel.title}"`);
     } catch {
       setBackupMessage("Delete failed");
     } finally {
-      setBusyNovelId(null);
+      setDeletingNovelId(null);
     }
   };
 
@@ -163,7 +140,7 @@ function HomePageClient() {
     if (!window.confirm("Clear Library?")) return;
     try {
       setIsClearingLibrary(true);
-      await clearAllNovels();
+      await clearLibrary();
       refreshLibrary();
       setBackupMessage("Library cleared");
     } catch {
@@ -173,83 +150,12 @@ function HomePageClient() {
     }
   };
 
-  // LEGACY UPDATE LOGIC - To be moved in A8
-  const handleUpdateNovel = async (summary: NovelSummary) => {
-    const requestId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-    console.info("krvt.debug.update.start", { requestId, novelId: summary.id, title: summary.title, caller: "LibraryManagementGrid" });
-
-    const novel = await loadNovel(summary.id); // Using new service
-    if (!novel) {
-      setBackupMessage("Update failed: novel content missing");
-      return;
-    }
-    if (!/^https?:/i.test(novel.sourceUrl)) {
-      setBackupMessage("Update failed: source URL missing");
-      return;
-    }
-    const lockKey = novel.sourceUrl || novel.id;
-    if (!acquireNovelJobLock(lockKey)) return;
-
-    const network = getNetworkInformation();
-    try {
-      if (network && shouldWarnForMeteredConnection(network)) {
-        if (!window.confirm("This update may use mobile data. Connect to Wi-Fi for large downloads, or continue anyway.")) {
-          setBackupMessage("Update cancelled. Connect to Wi-Fi and try again.");
-          return;
-        }
-      }
-      setBusyNovelId(novel.id);
-      const apiUrl = getImportApiUrl();
-      if (!apiUrl) {
-        setBackupMessage("Import not supported in this environment");
-        return;
-      }
-      const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: novel.sourceUrl, existingNovel: { title: novel.title, novelUrl: novel.sourceUrl, lastChapterIndex: summary.chapterCount > 0 ? summary.chapterCount - 1 : -1, chapterCount: summary.chapterCount } }),
-      });
-      const data: any = await response.json();
-      if (!response.ok && response.status !== 409) throw new Error(data.error || "Update failed");
-      
-      const incoming = (data.chapters ?? []).map((chapter: any) => ({
-        id: chapter.id ?? String(summary.chapterCount + (data.chapters ?? []).length + 1),
-        order: summary.chapterCount + (data.chapters ?? []).length + 1,
-        title: chapter.title,
-        content: Array.isArray(chapter.content) ? chapter.content : String(chapter.content ?? "").split(/\n+/).map((line) => line.trim()).filter(Boolean),
-      }));
-      
-      const merged = mergeNovelChapters(novel.id, novel.chapters, incoming);
-      const addedCount = merged.length - novel.chapters.length;
-      const nextNovel: Novel = normalizeNovelRecord({
-        ...novel,
-        title: data?.title || novel.title,
-        author: data?.author || novel.author,
-        image: data?.image || novel.image,
-        alternative: data?.alternative || novel.alternative,
-        genres: Array.isArray(data?.genres) ? data.genres : novel.genres,
-        tags: Array.isArray(data?.tags) ? data.tags : novel.tags,
-        status: data?.status || novel.status,
-        rating: typeof data?.rating === "number" ? data.rating : novel.rating,
-        description: pickDescription(data?.description, novel.description),
-        isCompleted: novel.isCompleted || /\b(completed|complete|full)\b/i.test(data?.status ?? ""),
-        lastUpdated: new Date().toISOString(),
-        chapters: merged,
-      });
-      await addNovel(nextNovel);
-      refreshLibrary();
-      setBackupMessage(addedCount > 0 ? `Updated "${novel.title}" with ${addedCount} new chapters` : `No new chapters for "${novel.title}"`);
-    } catch (e: any) {
-      setBackupMessage(e?.message || `Update failed for "${novel.title}"`);
-    } finally {
-      releaseNovelJobLock(lockKey);
-      setBusyNovelId(null);
-    }
+  const handleUpdateNovel = (summary: NovelSummary) => {
+    void updateNovel(summary, {
+      onMessage: setBackupMessage,
+      onUpdated: refreshLibrary,
+    });
   };
-
-  // ... The rest of the component remains the same, using the new state ...
-  // The JSX part of the component does not need to change significantly as it
-  // was already consuming variables that have now been provided by the useLibrary hook.
 
   if (view === "novels") {
     return (
@@ -370,7 +276,7 @@ function HomePageClient() {
 
         <LibraryManagementGrid
           novels={managedLibraryNovels}
-          busyNovelId={busyNovelId}
+          busyNovelId={updatingNovelId ?? deletingNovelId}
           onDelete={handleDeleteNovel}
           onUpdate={handleUpdateNovel}
           page={libraryPage}
@@ -624,7 +530,6 @@ function LibraryManagementGrid({ novels, busyNovelId, onDelete, onUpdate, page, 
     </div>
   );
 }
-// Helper function to get last read at from legacy reading state
 function getLastReadAt(novelId: string) {
   const readingState = getReadingState();
   return readingState.progressByNovel[novelId]?.updatedAt ?? "";

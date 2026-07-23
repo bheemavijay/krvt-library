@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 
 import { KrvtLoader } from "@/components/brand/krvt-loader";
 import { Button } from "@/components/ui/button";
-import { useImport } from "@/features/import/hooks/useImport";
+import { useImport } from "@/features/import";
 import {
   isSupportedImportUrl,
   normalizeImportUrl,

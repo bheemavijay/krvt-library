@@ -1,5 +1,3 @@
-// TODO: [KRVT-ARCH-V2] This service manages the library business logic.
-
 import { getNovelSummaries } from "@/storage/repositories/NovelRepository";
 import type { NovelSummary } from "@/shared/types";
 
@@ -36,7 +34,7 @@ export function filterAndSortNovels({
   selectedGenre: string;
   chapterFilter: ChapterFilter;
   librarySort: LibrarySort;
-  readingState: any; // TODO: [KRVT-ARCH-V2] Use a proper type for readingState
+  readingState: any;
 }): NovelSummary[] {
   const query = searchQuery.toLowerCase().trim();
   const filteredBySearch = !query

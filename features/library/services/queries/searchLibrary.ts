@@ -1,5 +1,3 @@
-// TODO: [KRVT-ARCH-V2] This service is responsible for searching the library.
-
 import type { NovelSummary } from "@/shared/types";
 
 export function searchLibrary(novels: NovelSummary[], searchQuery: string): NovelSummary[] {

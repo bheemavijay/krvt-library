@@ -1,5 +1,3 @@
-// TODO: [KRVT-ARCH-V2] This service is responsible for filtering the library.
-
 import type { NovelSummary } from "@/shared/types";
 
 type ChapterFilter = "all" | "short" | "medium" | "long";

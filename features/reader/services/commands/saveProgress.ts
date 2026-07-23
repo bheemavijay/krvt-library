@@ -1,6 +1,6 @@
 // This service is responsible for saving the user's reading progress.
 
-import { getReadingState } from "@/lib/reader-storage"; // Legacy dependency
+import { getReadingState } from "@/lib/reader-storage";
 import { isBrowser } from "@/shared/utils";
 import type { LibraryReadingState, NovelReadingProgress } from "@/shared/types";
 
@@ -32,7 +32,6 @@ export function saveProgress(
 
   let hasChanged = false;
 
-  // Logic from saveNovelReadingProgress
   if (options.fontSize && (
     currentState.fontSize !== options.fontSize ||
     currentState.lastOpenedNovelId !== novelId ||
@@ -42,7 +41,6 @@ export function saveProgress(
     hasChanged = true;
   }
 
-  // Logic from saveChapterScrollPosition
   const chapterKey = String(chapterIndex);
   const normalizedScrollTop = options.scrollTop ? Math.max(0, Math.round(options.scrollTop)) : undefined;
   const currentScrollTop = currentProgress?.chapterScrollPositions?.[chapterKey];

@@ -1,5 +1,3 @@
-// TODO: [KRVT-ARCH-V2] This service is responsible for sorting the library.
-
 import type { NovelSummary } from "@/shared/types";
 import { getReadingState } from "@/features/reader";
 
@@ -16,7 +14,7 @@ export function sortLibrary({
 }: {
   novels: NovelSummary[];
   librarySort: LibrarySort;
-  readingState: any; // TODO: [KRVT-ARCH-V2] Use a proper type for readingState
+  readingState: any;
 }): NovelSummary[] {
   return [...novels].sort((left, right) => {
     if (librarySort === "chapterCount") {

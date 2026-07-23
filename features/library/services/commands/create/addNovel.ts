@@ -1,5 +1,3 @@
-// TODO: [KRVT-ARCH-V2] This service is responsible for adding a novel.
-
 import { addNovel as addNovelToDb } from "@/storage/repositories/NovelRepository";
 import type { Novel } from "@/shared/types";
 

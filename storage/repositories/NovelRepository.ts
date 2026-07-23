@@ -1,12 +1,9 @@
-// TODO: [KRVT-ARCH-V2] This repository manages novel data.
-
 import type { Chapter, Novel, NovelSummary } from "@/shared/types";
 import { normalizeChapter, normalizeNovelRecord } from "@/lib/novels";
 import { CANONICAL_GENRES } from "@/core/domain/genres";
 import { openDB, NOVELS_STORE, CHAPTERS_STORE } from "@/storage/db/indexeddb";
 import { getChapter, getNovelChapters } from "./ChapterRepository";
 
-// TODO: [KRVT-ARCH-V2] Move to a shared types file
 type StoredNovelRecord = Partial<Novel> & {
   genre?: string | string[];
   rating?: number | string;

@@ -1,13 +1,3 @@
-/*
- * LEGACY FILE
- * Migrated to:
- * storage/db/indexeddb.ts
- * storage/repositories/*
- *
- * Temporary compatibility wrapper.
- * Remove after Sprint Z cleanup.
- */
-
 export {
   addNovel,
   saveNovelsBatch,
@@ -33,5 +23,4 @@ export {
   getBookmarks,
 } from "@/storage/repositories/BookmarkRepository";
 
-// This constant was originally defined in this file.
 export const SUMMARY_PAGE_SIZE = 60;

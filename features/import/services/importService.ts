@@ -1,5 +1,4 @@
 // This service contains the implementation for importing novels.
-// It was moved from the legacy `lib/importer.ts` file.
 
 import { getImportApiUrl } from "@/core/config/import-api";
 import {

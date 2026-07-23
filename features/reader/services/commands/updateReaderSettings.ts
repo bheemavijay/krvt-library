@@ -7,7 +7,6 @@ import type { ReaderSettings, ReplacementRule } from "@/features/reader/types/Re
 const STORAGE_KEY = "krvt-reader-settings";
 const STORAGE_EVENT = "krvt-reader-settings-change";
 
-// Copied from legacy lib/settings.ts
 const FONT_ALIASES: Record<string, string> = {
   Palatino: "Lora", "Palatino Linotype": "Lora", Garamond: "Crimson Text",
   "Book Antiqua": "Lora", Baskerville: "Playfair Display", Cambria: "Source Serif",
@@ -15,7 +14,6 @@ const FONT_ALIASES: Record<string, string> = {
   Arial: "Inter", Verdana: "Nunito",
 };
 
-// These are also duplicated for now to make the service self-contained.
 let cachedSettings: ReaderSettings | null = null;
 let cachedStorageValue: string | null = null;
 
@@ -53,8 +51,6 @@ export function updateReaderSettings(nextSettings: Partial<ReaderSettings>) {
   };
 
   const serialized = JSON.stringify(merged);
-  // The original file used a module-level cache. We replicate that here.
-  // A better solution might involve a dedicated caching service in the future.
   if (serialized === cachedStorageValue) {
     return;
   }

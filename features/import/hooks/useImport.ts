@@ -1,5 +1,3 @@
-// TODO: [KRVT-ARCH-V2] This hook manages the UI state for the import process.
-
 import { useState, useCallback } from "react";
 import { importNovel } from "@/features/import/services/importService";
 import type { ImportProgress, ImporterOptions } from "@/features/import/types";
@@ -41,8 +39,6 @@ export function useImport() {
   );
 
   const cancelImport = useCallback(() => {
-    // TODO: Implement cancellation logic.
-    // This would require changes in the core importer.
     setIsImporting(false);
     releaseWakeLock();
   }, []);

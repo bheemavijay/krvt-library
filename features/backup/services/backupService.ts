@@ -1,7 +1,11 @@
 "use client";
 
-import { Capacitor, registerPlugin } from "@capacitor/core";
-import { addNovel, getNovel, getNovelSummaries } from "@/lib/storage/indexeddb";
+import {
+  addBackupNovel,
+  getBackupNovel,
+  getBackupNovelSummaries,
+  writeBackupFile,
+} from "@/features/backup/repositories/backupRepository";
 import type { Novel } from "@/shared/types";
 
 type LibraryBackupPayload = {
@@ -10,7 +14,7 @@ type LibraryBackupPayload = {
   novels: Novel[];
 };
 
-type ImportLibraryOptions = {
+export type ImportLibraryOptions = {
   onProgress?: (progress: {
     processedNovels: number;
     processedBytes: number;
@@ -19,12 +23,12 @@ type ImportLibraryOptions = {
   }) => void;
 };
 
-type ImportLibraryResult = {
+export type ImportLibraryResult = {
   importedCount: number;
   failedNovels: string[];
 };
 
-type ExportLibraryOptions = {
+export type ExportLibraryOptions = {
   onProgress?: (progress: {
     processedNovels: number;
     totalNovels: number;
@@ -32,20 +36,10 @@ type ExportLibraryOptions = {
   }) => void;
 };
 
-type FilesystemPlugin = {
-  writeFile(options: {
-    path: string;
-    data: string;
-    directory?: string;
-    recursive?: boolean;
-  }): Promise<{ uri: string }>;
-};
-
-const Filesystem = registerPlugin<FilesystemPlugin>("Filesystem");
-const DIRECTORY_DOCUMENTS = "DOCUMENTS";
+export type ExportLibraryResult = Awaited<ReturnType<typeof exportLibrary>>;
 
 export async function exportLibrary(options: ExportLibraryOptions = {}) {
-  const summaries = await getNovelSummaries();
+  const summaries = await getBackupNovelSummaries();
   const parts: BlobPart[] = [
     `{\n  "version": 1,\n  "exportedAt": ${JSON.stringify(new Date().toISOString())},\n  "novels": [\n`,
   ];
@@ -53,7 +47,7 @@ export async function exportLibrary(options: ExportLibraryOptions = {}) {
   let writtenBytes = String(parts[0]).length;
 
   for (let index = 0; index < summaries.length; index += 1) {
-    const novel = await getNovel(summaries[index].id);
+    const novel = await getBackupNovel(summaries[index].id);
     if (!novel) {
       continue;
     }
@@ -76,36 +70,15 @@ export async function exportLibrary(options: ExportLibraryOptions = {}) {
   const blob = new Blob(parts, { type: "application/json" });
   const fileName = `krvt-library-backup-${new Date().toISOString().slice(0, 10)}.json`;
 
-  if (typeof window !== "undefined" && Capacitor.isNativePlatform()) {
-    const data = await blobToBase64(blob);
-    const result = await Filesystem.writeFile({
-      path: fileName,
-      data,
-      directory: DIRECTORY_DOCUMENTS,
-      recursive: true,
-    });
-
+  const fileResult = await writeBackupFile(blob, fileName);
+  if (fileResult.platform === "android") {
     return {
       fileName,
       platform: "android" as const,
-      uri: result.uri,
+      uri: fileResult.uri,
       novelCount: writtenNovels,
     };
   }
-
-  const url = window.URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-
-  anchor.href = url;
-  anchor.download = fileName;
-  anchor.rel = "noopener";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-
-  window.setTimeout(() => {
-    window.URL.revokeObjectURL(url);
-  }, 1000);
 
   return {
     fileName,
@@ -321,7 +294,7 @@ async function yieldToUi() {
 
 async function importNovelWithRetry(novel: Novel, remainingAttempts = 2): Promise<boolean> {
   try {
-    await addNovel(novel);
+    await addBackupNovel(novel);
     return true;
   } catch (error) {
     if (remainingAttempts <= 0) {
@@ -341,16 +314,4 @@ function getNovelLabel(novel: Partial<Novel> | undefined, fallbackIndex: number)
 
 function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-function blobToBase64(blob: Blob) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result ?? "");
-      resolve(result.includes(",") ? result.split(",")[1] : result);
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
 }

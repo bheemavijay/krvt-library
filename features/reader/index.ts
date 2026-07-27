@@ -3,6 +3,12 @@ export { useReaderSettings } from "./hooks/useReaderSettings";
 export { useBookmarks } from "./hooks/useBookmarks";
 export { useProgress } from "./hooks/useProgress";
 export { useReaderNavigation } from "./hooks/useReaderNavigation";
+export { useReaderChapter, formatChapterIndexTitle } from "./hooks/useReaderChapter";
+export { useReaderKeyboard } from "./hooks/useReaderKeyboard";
+export { useReaderProgress } from "./hooks/useReaderProgress";
+export { useReaderScroll } from "./hooks/useReaderScroll";
+export { useReaderSelection } from "./hooks/useReaderSelection";
+export { useReaderUI } from "./hooks/useReaderUI";
 
 export {
   DEFAULT_FONT_FAMILY,
@@ -14,7 +20,7 @@ export {
   saveChapterScrollPosition,
   saveNovelReadingProgress,
   subscribeToReadingState,
-} from "@/features/reader/repositories/readingStateRepository";
+} from "@/features/reader/services/readingStateService";
 
 export {
   getBookmarksState,
@@ -31,7 +37,7 @@ export {
   READER_FONT_OPTIONS,
   saveSettings,
   subscribeToSettings,
-} from "@/features/reader/repositories/readerSettingsRepository";
+} from "@/features/reader/services/readerSettingsService";
 
 export type {
   ReaderSettings,

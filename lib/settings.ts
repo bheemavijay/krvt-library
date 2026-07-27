@@ -10,7 +10,7 @@ export {
   READER_FONT_OPTIONS,
   saveSettings,
   subscribeToSettings,
-} from "@/features/reader/repositories/readerSettingsRepository";
+} from "@/features/reader/services/readerSettingsService";
 
 export type {
   ReaderSettings,
@@ -21,7 +21,7 @@ import {
   getDefaultReaderSettings,
   getSettings,
   subscribeToSettings,
-} from "@/features/reader/repositories/readerSettingsRepository";
+} from "@/features/reader/services/readerSettingsService";
 
 export function useReaderSettings() {
   return useSyncExternalStore(subscribeToSettings, getSettings, getDefaultReaderSettings);

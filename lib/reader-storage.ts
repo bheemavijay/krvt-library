@@ -10,4 +10,4 @@ export {
   saveNovelReadingProgress,
   saveReaderReadingSettings as saveReaderSettings,
   subscribeToReadingState,
-} from "@/features/reader/repositories/readingStateRepository";
+} from "@/features/reader/services/readingStateService";

@@ -3,7 +3,7 @@
 import {
   getReadingState,
   saveReadingState,
-} from "@/features/reader/repositories/readingStateRepository";
+} from "@/features/reader/services/readingStateService";
 import type { LibraryReadingState, NovelReadingProgress } from "@/shared/types";
 
 export function saveProgress(

@@ -10,6 +10,7 @@ export type TtsResumeState = {
 };
 
 const TTS_RESUME_KEY = "krvt-tts-resume-state";
+const AUTOPLAY_STORAGE_KEY = "krvt-reader-autoplay-tts";
 
 export function saveTtsResumeState(state: Omit<TtsResumeState, "updatedAt">) {
   try {
@@ -65,4 +66,22 @@ export function clearTtsResumeState() {
   } catch (error) {
     console.warn("Failed to clear TTS resume state", error);
   }
+}
+
+export function saveTtsAutoplayRequest() {
+  try {
+    window.sessionStorage.setItem(AUTOPLAY_STORAGE_KEY, "1");
+  } catch {}
+}
+
+export function consumeTtsAutoplayRequest() {
+  try {
+    const shouldAutoPlay = window.sessionStorage.getItem(AUTOPLAY_STORAGE_KEY) ?? "";
+    if (shouldAutoPlay === "1") {
+      window.sessionStorage.removeItem(AUTOPLAY_STORAGE_KEY);
+      return true;
+    }
+  } catch {}
+
+  return false;
 }

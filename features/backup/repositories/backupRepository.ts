@@ -1,5 +1,5 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
-import { addNovel, getNovel, getNovelSummaries } from "@/lib/storage/indexeddb";
+import { addNovel, getNovel, getNovelSummaries } from "@/storage/repositories/NovelRepository";
 import type { Novel } from "@/shared/types";
 
 type FilesystemPlugin = {

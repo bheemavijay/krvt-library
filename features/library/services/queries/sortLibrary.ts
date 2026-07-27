@@ -1,5 +1,4 @@
 import type { NovelSummary } from "@/shared/types";
-import { getReadingState } from "@/features/reader";
 
 type LibrarySort = "lastImported" | "lastRead" | "chapterCount";
 

@@ -18,7 +18,9 @@ export {
 
 export {
   clearTtsResumeState,
+  consumeTtsAutoplayRequest,
   getTtsResumeState,
+  saveTtsAutoplayRequest,
   saveTtsResumeState,
   type TtsResumeState,
 } from "@/features/tts/repositories/ttsResumeRepository";

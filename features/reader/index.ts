@@ -2,6 +2,7 @@ export { useReader } from "./hooks/useReader";
 export { useReaderSettings } from "./hooks/useReaderSettings";
 export { useBookmarks } from "./hooks/useBookmarks";
 export { useProgress } from "./hooks/useProgress";
+export { useReaderNavigation } from "./hooks/useReaderNavigation";
 
 export {
   DEFAULT_FONT_FAMILY,
@@ -13,7 +14,7 @@ export {
   saveChapterScrollPosition,
   saveNovelReadingProgress,
   subscribeToReadingState,
-} from "@/lib/reader-storage";
+} from "@/features/reader/repositories/readingStateRepository";
 
 export {
   getBookmarksState,
@@ -30,9 +31,12 @@ export {
   READER_FONT_OPTIONS,
   saveSettings,
   subscribeToSettings,
-  type ReaderSettings,
-  type ReplacementRule,
-} from "@/lib/settings";
+} from "@/features/reader/repositories/readerSettingsRepository";
+
+export type {
+  ReaderSettings,
+  ReplacementRule,
+} from "@/features/reader/types/ReaderSettings";
 
 export {
   getBookmarksState as getReaderBookmarksState,

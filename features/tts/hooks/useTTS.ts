@@ -5,7 +5,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createTtsSessionManager } from "@/core/tts/session";
 import {
   clearTtsResumeState,
+  consumeTtsAutoplayRequest,
   getTtsResumeState,
+  saveTtsAutoplayRequest,
   saveTtsResumeState,
 } from "@/features/tts/repositories/ttsResumeRepository";
 import {
@@ -43,8 +45,6 @@ type UseTtsOptions = {
   onAutoNext: (href: string, chapterIndex: number, shouldAutoPlay: boolean) => void;
   onStatusMessage?: (message: string) => void;
 };
-
-const AUTOPLAY_STORAGE_KEY = "krvt-reader-autoplay-tts";
 
 export function useTTS({
   novelId,
@@ -143,6 +143,9 @@ export function useTTS({
           const latestSettings = settingsRef.current;
           const latestNextHref = nextHrefRef.current;
           if (latestSettings.autoNext && latestNextHref) {
+            if (latestSettings.autoPlayTts) {
+              saveTtsAutoplayRequest();
+            }
             autoNextRef.current(latestNextHref, chapterIndex + 1, latestSettings.autoPlayTts);
           }
         },
@@ -180,15 +183,7 @@ export function useTTS({
   useEffect(() => {
     if (isLoading || !hasNovel || content.length === 0) return;
 
-    let shouldAutoPlay = "";
-    try {
-      shouldAutoPlay = window.sessionStorage.getItem(AUTOPLAY_STORAGE_KEY) ?? "";
-    } catch {
-      return;
-    }
-
-    if (shouldAutoPlay === "1") {
-      window.sessionStorage.removeItem(AUTOPLAY_STORAGE_KEY);
+    if (consumeTtsAutoplayRequest()) {
       const timeout = window.setTimeout(() => {
         void startFromParagraph(0);
       }, 0);
@@ -227,9 +222,7 @@ export function useTTS({
 
   const requestAutoplayOnNavigation = useCallback(() => {
     if (ttsState === "playing" || ttsState === "paused") {
-      try {
-        window.sessionStorage.setItem(AUTOPLAY_STORAGE_KEY, "1");
-      } catch {}
+      saveTtsAutoplayRequest();
     }
   }, [ttsState]);
 

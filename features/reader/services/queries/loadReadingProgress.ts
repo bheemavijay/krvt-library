@@ -1,6 +1,6 @@
 // This service is responsible for loading reading progress for a novel.
 
-import { getReadingState } from "@/lib/reader-storage";
+import { getReadingState } from "@/features/reader/repositories/readingStateRepository";
 import type { NovelReadingProgress } from "@/shared/types";
 
 export function loadReadingProgress(

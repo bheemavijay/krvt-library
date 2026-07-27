@@ -14,6 +14,7 @@ import {
   useReaderSettings,
   useBookmarks,
   useReader,
+  useReaderNavigation,
   useProgress,
   type ReplacementRule,
 } from "@/features/reader";
@@ -39,13 +40,17 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   const parsedChapterIndex = Number(chapterParam) - 1;
   const requestedChapterIndex =
     Number.isNaN(parsedChapterIndex) || parsedChapterIndex < 0 ? 0 : parsedChapterIndex;
-  const topNavigationKey = "krvt-reader-open-chapter-at-top";
-
   // Hooks from the new architecture
   const { settings, updateSettings } = useReaderSettings();
   const { novel, activeChapter: chapter, currentChapterIndex, isLoading, error, selectChapter } = useReader(safeNovelId, requestedChapterIndex);
   const { isBookmarked, addBookmark, removeBookmark } = useBookmarks(safeNovelId);
   const { saveScrollPosition, saveChapterChange } = useProgress(safeNovelId, currentChapterIndex);
+  const {
+    markTopNavigation,
+    readTopNavigationRequest,
+    clearTopNavigationRequest,
+    getLegacyScrollPosition,
+  } = useReaderNavigation();
   const totalChapters = novel?.chapters.length ?? 0;
   const nextHref =
     novel && currentChapterIndex < novel.chapters.length - 1
@@ -56,27 +61,28 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   useEffect(() => {
     if (isLoading) return;
     window.setTimeout(() => {
-      const topRequest = readTopNavigationRequest(topNavigationKey);
+      const topRequest = readTopNavigationRequest();
       const shouldOpenAtTop =
         topRequest?.novelId === safeNovelId && topRequest.chapterIndex === requestedChapterIndex;
 
       window.scrollTo({ top: 0, behavior: "auto" });
       if (shouldOpenAtTop) {
-        clearTopNavigationRequest(topNavigationKey);
+        clearTopNavigationRequest();
         return;
       }
-      // This legacy scroll restoration will be moved next
-      try {
-        const progressKey = `progress_${safeNovelId}`;
-        const saved = window.localStorage.getItem(progressKey);
-        if (!saved) return;
-        const parsed = JSON.parse(saved) as { chapterIndex?: number; scrollY?: number };
-        if (parsed.chapterIndex === requestedChapterIndex && parsed.scrollY) {
-          window.scrollTo({ top: parsed.scrollY, behavior: "auto" });
-        }
-      } catch {}
+      const legacyScrollPosition = getLegacyScrollPosition(safeNovelId, requestedChapterIndex);
+      if (legacyScrollPosition) {
+        window.scrollTo({ top: legacyScrollPosition, behavior: "auto" });
+      }
     }, 80);
-  }, [isLoading, requestedChapterIndex, safeNovelId]);
+  }, [
+    clearTopNavigationRequest,
+    getLegacyScrollPosition,
+    isLoading,
+    readTopNavigationRequest,
+    requestedChapterIndex,
+    safeNovelId,
+  ]);
 
   useEffect(() => {
     let timeout: number | null = null;
@@ -121,16 +127,11 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
   }, [chapter, settings.replacements]);
 
   const handleAutoNextTts = useCallback(
-    (href: string, targetChapterIndex: number, shouldAutoPlay: boolean) => {
-      if (shouldAutoPlay) {
-        try {
-          window.sessionStorage.setItem("krvt-reader-autoplay-tts", "1");
-        } catch {}
-      }
-      markTopNavigation(topNavigationKey, safeNovelId, targetChapterIndex);
+    (href: string, targetChapterIndex: number, _shouldAutoPlay: boolean) => {
+      markTopNavigation(safeNovelId, targetChapterIndex);
       router.push(href);
     },
-    [router, safeNovelId],
+    [markTopNavigation, router, safeNovelId],
   );
 
   const {
@@ -159,8 +160,8 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
 
   const prepareForNavigation = useCallback((targetChapterIndex: number) => {
     requestAutoplayOnNavigation();
-    markTopNavigation(topNavigationKey, safeNovelId, targetChapterIndex);
-  }, [requestAutoplayOnNavigation, safeNovelId]);
+    markTopNavigation(safeNovelId, targetChapterIndex);
+  }, [markTopNavigation, requestAutoplayOnNavigation, safeNovelId]);
 
   const navigateToChapter = useCallback((href: string, targetChapterIndex: number) => {
     prepareForNavigation(targetChapterIndex);
@@ -290,30 +291,6 @@ export function ReaderPageClient({ novelId, chapterParam }: Props) {
       <SettingsModal isOpen={isSettingsOpen} settings={settings} onClose={() => setIsSettingsOpen(false)} onChange={(next) => updateSettings(next)} />
     </>
   );
-}
-
-function markTopNavigation(storageKey: string, novelId: string, chapterIndex: number) {
-  try {
-    window.sessionStorage.setItem(storageKey, JSON.stringify({ novelId, chapterIndex }));
-  } catch {}
-}
-
-function readTopNavigationRequest(storageKey: string) {
-  try {
-    const storedValue = window.sessionStorage.getItem(storageKey);
-    if (!storedValue) return null;
-    const parsed = JSON.parse(storedValue) as { novelId?: unknown; chapterIndex?: unknown };
-    if (typeof parsed.novelId !== "string" || typeof parsed.chapterIndex !== "number") return null;
-    return { novelId: parsed.novelId, chapterIndex: parsed.chapterIndex };
-  } catch {
-    return null;
-  }
-}
-
-function clearTopNavigationRequest(storageKey: string) {
-  try {
-    window.sessionStorage.removeItem(storageKey);
-  } catch {}
 }
 
 function applyTermReplacements(content: string[], replacements: ReplacementRule[]) {

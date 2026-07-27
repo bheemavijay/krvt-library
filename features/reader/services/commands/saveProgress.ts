@@ -1,21 +1,10 @@
 // This service is responsible for saving the user's reading progress.
 
-import { getReadingState } from "@/lib/reader-storage";
-import { isBrowser } from "@/shared/utils";
+import {
+  getReadingState,
+  saveReadingState,
+} from "@/features/reader/repositories/readingStateRepository";
 import type { LibraryReadingState, NovelReadingProgress } from "@/shared/types";
-
-const STORAGE_KEY = "krvt-library-reading-state";
-const STORAGE_EVENT = "krvt-library-reading-state-change";
-
-let cachedState: LibraryReadingState | null = null;
-let cachedStorageValue: string | null = null;
-
-function persistReadingState(nextState: LibraryReadingState) {
-  cachedState = nextState;
-  cachedStorageValue = JSON.stringify(nextState);
-  window.localStorage.setItem(STORAGE_KEY, cachedStorageValue);
-  window.dispatchEvent(new Event(STORAGE_EVENT));
-}
 
 export function saveProgress(
   novelId: string,
@@ -25,8 +14,6 @@ export function saveProgress(
     scrollTop?: number;
   }
 ) {
-  if (!isBrowser()) return;
-
   const currentState = getReadingState();
   const currentProgress = currentState.progressByNovel[novelId];
 
@@ -76,5 +63,5 @@ export function saveProgress(
     },
   };
 
-  persistReadingState(nextState);
+  saveReadingState(nextState);
 }

@@ -10,5 +10,6 @@ export {
   getSettings as getReaderSettings,
   saveSettings as saveReaderSettings,
   subscribeToSettings as subscribeToReaderSettings,
-  useReaderSettings,
-} from "@/lib/settings";
+} from "@/features/reader/services/readerSettingsService";
+
+export { useReaderSettings } from "@/features/reader";

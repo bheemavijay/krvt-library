@@ -1,4 +1,4 @@
-import { getImportApiUrl } from "@/features/import";
+import { getImportApiUrl } from "@/core/config/import-api";
 import { acquireNovelJobLock, releaseNovelJobLock } from "@/core/concurrency/novelJobLock";
 import { mergeNovelChapters, normalizeNovelRecord } from "@/lib/novels";
 import { addNovel, getNovel } from "@/storage/repositories/NovelRepository";

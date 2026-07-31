@@ -43,13 +43,3 @@ export type {
   ReaderSettings,
   ReplacementRule,
 } from "@/features/reader/types/ReaderSettings";
-
-export {
-  getBookmarksState as getReaderBookmarksState,
-  isChapterBookmarked,
-  removeNovelBookmark,
-  saveNovelBookmark as saveStoredNovelBookmark,
-  subscribeToBookmarks as subscribeToStoredBookmarks,
-} from "@/lib/storage/bookmarks";
-
-export { getChapter, getNovelChapterList, getNovelSummary } from "@/lib/storage/indexeddb";

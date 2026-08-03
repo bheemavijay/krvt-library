@@ -5,23 +5,29 @@ from bs4 import BeautifulSoup
 from src.retriever.config.settings import Settings
 from src.retriever.core.context import BrowserContext
 from src.retriever.profiles.manager import ProfileManager
-from src.retriever.providers.readnovelmtl.provider import ReadNovelMTLProvider
+from src.retriever.providers.manager import ProviderManager
 from src.retriever.models.provider import Novel
 
 def main():
     start_time = time.time()
 
+    # --- Resolve Provider ---
+    novel_url = "https://readnovelmtl.com/novel/refused-sss-rank-profession-i-became-the-strongest-bug-k0qqe"
+    try:
+        provider = ProviderManager.resolve(novel_url)
+        print(f"--- Resolved Provider: {provider.name} ---")
+    except ValueError as e:
+        print(e)
+        return
+
     # --- Retrieval Phase ---
     profile_manager = ProfileManager(root_dir="profiles")
     profile_path = profile_manager.get_profile_path("default/main")
-    settings = Settings(profile_path=profile_path, headless=False) # Headless must be False for manual Cloudflare
+    settings = Settings(profile_path=profile_path, headless=False)
     context = BrowserContext(settings)
 
-    novel_page_html = ""
-    novel_url = "https://readnovelmtl.com/novel/refused-sss-rank-profession-i-became-the-strongest-bug-k0qqe"
-
     try:
-        print("--- Phase 1: Retrieving Novel Page ---")
+        print("\n--- Phase 1: Retrieving Novel Page ---")
         context.start()
         raw_response = context.get(novel_url)
         novel_page_html = raw_response.html
@@ -30,7 +36,6 @@ def main():
         # --- Parsing Phase 1: Metadata and Chapter List ---
         print("\n--- Phase 2: Parsing Novel Metadata & Chapter List ---")
         soup = BeautifulSoup(novel_page_html, 'html.parser')
-        provider = ReadNovelMTLProvider()
 
         metadata = provider.parse_metadata(soup)
         chapters = provider.parse_chapter_list(soup, novel_url)
@@ -57,24 +62,11 @@ def main():
         # --- Parsing Phase 2: Chapter Content ---
         print("\n--- Phase 4: Parsing Chapter Content ---")
         chapter_soup = BeautifulSoup(chapter_page_html, 'html.parser')
-
-        # *** SANITY CHECK ADDED HERE ***
-        content_div = chapter_soup.select_one("#content")
-        if content_div:
-            raw_p_count = len(content_div.find_all("p", recursive=False))
-            print(f"  - Sanity Check: Found {raw_p_count} raw <p> tags in #content.")
-
         chapter_content = provider.parse_chapter(chapter_soup, first_chapter_url)
 
         print(f"  - Chapter Title: {chapter_content.title}")
         paragraphs = chapter_content.content_text.split('\n\n')
         print(f"  - Paragraphs Parsed: {len(paragraphs)}")
-        print(f"  - Word Count: {chapter_content.word_count}")
-        print(f"  - Est. Reading Time: {chapter_content.reading_minutes} min")
-        print(f"  - Previous URL: {chapter_content.previous_url}")
-        print(f"  - Next URL: {chapter_content.next_url}")
-        print(f"  - First Paragraph: '{paragraphs[0]}'")
-        print(f"  - Last Paragraph: '{paragraphs[-1]}'")
 
         # --- Save Results ---
         provider_output_path = "provider_result.json"

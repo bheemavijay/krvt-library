@@ -8,22 +8,22 @@ from src.retriever.models.raw_chapter import RawChapter
 from src.retriever.models.provider import ChapterSummary
 from src.retriever.models.enums import NavigationMode
 
-class ReadNovelMTLProvider(BaseProvider):
+class FanMTLProvider(BaseProvider):
     @property
     def id(self) -> str:
-        return "readnovelmtl"
+        return "fanmtl"
 
     @property
     def name(self) -> str:
-        return "ReadNovelMTL"
+        return "FanMTL"
 
     @property
     def domains(self) -> list[str]:
-        return ["readnovelmtl.com"]
+        return ["fanmtl.com"]
 
     @property
     def navigation_mode(self) -> NavigationMode:
-        return NavigationMode.CLOUDFLARE
+        return NavigationMode.DOM_READY
 
     def parse_metadata(self, soup: BeautifulSoup, source_url: str = "") -> RawNovelMetadata:
         parser = MetadataParser(soup, source_url)

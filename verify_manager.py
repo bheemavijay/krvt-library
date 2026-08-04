@@ -6,7 +6,10 @@ def main():
     # 1. Verify ProviderManager.list()
     print("\n[1] Verifying ProviderManager.list()...")
     provider_list = ProviderManager.list()
-    expected_list = [{'id': 'readnovelmtl', 'name': 'ReadNovelMTL'}]
+    expected_list = [
+        {'id': 'readnovelmtl', 'name': 'ReadNovelMTL'},
+        {'id': 'fanmtl', 'name': 'FanMTL'},
+    ]
     print(f"  - Expected: {expected_list}")
     print(f"  - Actual:   {provider_list}")
     assert provider_list == expected_list

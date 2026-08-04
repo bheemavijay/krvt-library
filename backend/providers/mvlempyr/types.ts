@@ -5,16 +5,27 @@ export type ParsedChapter = {
   paragraphs: string[];
 };
 
-export type NovelMetadata = {
+export type RawNovelMetadata = {
+  provider: "mvlempyr";
+  sourceUrl: string;
   title: string;
-  author: string;
-  coverImage: string;
-  description: string;
-  genres: string[];
-  tags: string[];
-  status: "ongoing" | "completed" | "unknown";
-  rating: number;
   alternativeTitles: string[];
+  author: string;
+  description: string;
+  coverUrl: string;
+  status: string;
+  labels: string[];
+  rating: number;
+  // Not available on this provider, but part of the standard
+  artist?: string;
+  ratingCount?: number;
+  views?: number;
+  bookmarks?: number;
+  chapterCount?: number;
+  firstChapterUrl?: string;
+  lastChapterUrl?: string;
+  language?: string;
+  raw?: Record<string, any>;
 };
 
 export type Chapter = {

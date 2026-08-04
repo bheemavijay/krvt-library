@@ -24,3 +24,8 @@ class Confidence(Enum):
     MEDIUM = auto()
     LOW = auto()
     NOT_FOUND = auto()
+
+class NavigationMode(Enum):
+    """Defines the waiting strategy for page navigation."""
+    CLOUDFLARE = auto()  # Poll until real content is detected (for sites with heavy anti-bot)
+    DOM_READY = auto()   # Wait only for the DOM to be ready (for simple sites)

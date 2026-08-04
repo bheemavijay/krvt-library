@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-@dataclass(frozen=True)
+@dataclass
 class NovelMetadata:
     title: Optional[str] = None
     alternative_title: Optional[str] = None
@@ -9,18 +9,24 @@ class NovelMetadata:
     description: Optional[str] = None
     cover_url: Optional[str] = None
     genres: List[str] = field(default_factory=list)
+    tags: List[str] = field(default_factory=list)
     status: Optional[str] = None
     rating: Optional[float] = None
     chapter_count: Optional[int] = None
+    source: Optional[str] = None
+    last_updated: Optional[str] = None
 
-@dataclass(frozen=True)
+@dataclass
 class ChapterSummary:
     title: str
     url: str
+    chapter_number: Optional[int] = None
+    release_date: Optional[str] = None
 
-@dataclass(frozen=True)
+@dataclass
 class ChapterContent:
     title: Optional[str]
+    url: str
     content_html: str
     content_text: str
     word_count: int
@@ -30,8 +36,8 @@ class ChapterContent:
     images: List[str] = field(default_factory=list)
     notes: List[str] = field(default_factory=list)
 
-@dataclass(frozen=True)
+@dataclass
 class Novel:
-    """The unified result of a provider's parsing operation."""
+    """The final, normalized novel object."""
     metadata: NovelMetadata
-    chapters: List[ChapterSummary]
+    chapters: List[ChapterContent] = field(default_factory=list)

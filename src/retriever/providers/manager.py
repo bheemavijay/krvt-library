@@ -2,18 +2,15 @@ from typing import List, Dict, Type, Optional
 from .registry import ProviderRegistry
 from .base import BaseProvider
 from .readnovelmtl.provider import ReadNovelMTLProvider
+from .fanmtl.provider import FanMTLProvider
 from src.retriever.exceptions.exceptions import ProviderNotFoundException
-# Import future providers here
-# from .mvlempyr.provider import MVLEMPYRProvider
-# from .novelfull.provider import NovelFullProvider
 
 class ProviderManager:
     _registry = ProviderRegistry()
 
     # --- Auto-register all known provider classes ---
     _registry.register(ReadNovelMTLProvider)
-    # _registry.register(MVLEMPYRProvider)
-    # _registry.register(NovelFullProvider)
+    _registry.register(FanMTLProvider)
 
     @staticmethod
     def resolve(url: str) -> BaseProvider:

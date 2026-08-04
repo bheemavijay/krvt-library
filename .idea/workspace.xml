@@ -5,19 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b17fc1dc-ac9a-491d-abb8-def7b5b914a1" name="Changes" comment="stopped readmtlnovel.com provider for now.">
-      <change afterPath="$PROJECT_DIR$/analyze_fanmtl_chapter_dom.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/analyze_fanmtl_dom.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/debug_fanmtl.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/fanmtl_analysis.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/fanmtl_chapter_analysis.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/retriever/providers/fanmtl/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/retriever/providers/fanmtl/chapter_list_parser.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/retriever/providers/fanmtl/chapter_parser.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/retriever/providers/fanmtl/metadata_parser.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/retriever/providers/fanmtl/provider.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/retriever/providers/fanmtl/selectors.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/retriever/providers/base.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/providers/base.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/retriever/providers/fanmtl/chapter_parser.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/providers/fanmtl/chapter_parser.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/retriever/providers/fanmtl/metadata_parser.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/providers/fanmtl/metadata_parser.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/retriever/providers/fanmtl/provider.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/providers/fanmtl/provider.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/retriever/providers/manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/providers/manager.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/retriever/providers/readnovelmtl/chapter_parser.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/providers/readnovelmtl/chapter_parser.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/retriever/providers/readnovelmtl/metadata_parser.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/providers/readnovelmtl/metadata_parser.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/retriever/providers/readnovelmtl/provider.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/providers/readnovelmtl/provider.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/verify_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/verify_manager.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

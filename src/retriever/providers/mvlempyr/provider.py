@@ -1,25 +1,28 @@
 from bs4 import BeautifulSoup
-from ..base import BaseProvider
-from .metadata_parser import MetadataParser
+
+from src.retriever.models.enums import NavigationMode
+from src.retriever.models.provider import ChapterSummary
+from src.retriever.models.raw_chapter import RawChapter
+from src.retriever.models.raw_metadata import RawNovelMetadata
+from src.retriever.providers.base import BaseProvider
+
 from .chapter_list_parser import ChapterListParser
 from .chapter_parser import ChapterParser
-from src.retriever.models.raw_metadata import RawNovelMetadata
-from src.retriever.models.raw_chapter import RawChapter
-from src.retriever.models.provider import ChapterSummary
-from src.retriever.models.enums import NavigationMode
+from .metadata_parser import MetadataParser
 
-class FanMTLProvider(BaseProvider):
+
+class MvlempyrProvider(BaseProvider):
     @property
     def id(self) -> str:
-        return "fanmtl"
+        return "mvlempyr"
 
     @property
     def name(self) -> str:
-        return "FanMTL"
+        return "MVLEMPYR"
 
     @property
     def domains(self) -> list[str]:
-        return ["fanmtl.com"]
+        return ["mvlempyr.io", "www.mvlempyr.io"]
 
     @property
     def navigation_mode(self) -> NavigationMode:

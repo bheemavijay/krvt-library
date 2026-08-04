@@ -19,10 +19,6 @@ class ChapterParser:
         if not content_tag:
             return RawChapter(title=title, url=self.base_url, content_html="")
 
-        # Remove ads
-        for ad in content_tag.select('div.TPuhiHlg'):
-            ad.decompose()
-
         content_html = str(content_tag)
 
         prev_url_path = self.extractor.extract('prev_chapter_url').value

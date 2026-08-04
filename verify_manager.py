@@ -9,6 +9,7 @@ def main():
     expected_list = [
         {'id': 'readnovelmtl', 'name': 'ReadNovelMTL'},
         {'id': 'fanmtl', 'name': 'FanMTL'},
+        {'id': 'mvlempyr', 'name': 'MVLEMPYR'},
     ]
     print(f"  - Expected: {expected_list}")
     print(f"  - Actual:   {provider_list}")
@@ -28,7 +29,7 @@ def main():
     print("\n[3] Verifying ProviderManager.supports()...")
 
     supported_url = "https://readnovelmtl.com/novel/some-novel"
-    unsupported_url_1 = "https://www.mvlempyr.io/novel/some-novel"
+    supported_url_2 = "https://www.mvlempyr.io/novel/some-novel"
     unsupported_url_2 = "https://novelfull.net/some-novel"
 
     print(f"  - Testing '{supported_url}':")
@@ -38,11 +39,11 @@ def main():
     assert supported_result is True
     print("    - PASSED")
 
-    print(f"  - Testing '{unsupported_url_1}':")
-    unsupported_result_1 = ProviderManager.supports(unsupported_url_1)
-    print(f"    - Expected: False")
-    print(f"    - Actual:   {unsupported_result_1}")
-    assert unsupported_result_1 is False
+    print(f"  - Testing '{supported_url_2}':")
+    supported_result_2 = ProviderManager.supports(supported_url_2)
+    print(f"    - Expected: True")
+    print(f"    - Actual:   {supported_result_2}")
+    assert supported_result_2 is True
     print("    - PASSED")
 
     print(f"  - Testing '{unsupported_url_2}':")

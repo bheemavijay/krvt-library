@@ -16,15 +16,6 @@ class ChapterParser:
         if not content_tag:
             return RawChapter(title=title, url=self.base_url, content_html="")
 
-        for unwanted in content_tag.select('script, style, .ads, .hidden, .nav, .share, .comments'):
-            unwanted.decompose()
-
-        paragraphs = []
-        for p in content_tag.find_all("p", recursive=False):
-            text = p.get_text(" ", strip=True)
-            if text and "continue read on readnovelmtl.com" not in text.lower():
-                paragraphs.append(text)
-
         content_html = str(content_tag)
 
         prev_tag = self.soup.select_one("#prev:not(.disabled) a")

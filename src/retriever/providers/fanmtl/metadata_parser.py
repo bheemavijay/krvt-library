@@ -19,8 +19,15 @@ class MetadataParser:
         cover_url = self.extractor.extract('cover').value
         status = self.extractor.extract('status').value
 
-        # Extract all labels without classification
-        labels = [tag.text for tag in self.extractor.extract_tags('genres')]
+        # Extract all labels without classification.
+        labels = []
+        seen = set()
+        for field in ("genres", "tags"):
+            for tag in self.extractor.extract_tags(field):
+                text = tag.get_text(" ", strip=True)
+                if text and text not in seen:
+                    labels.append(text)
+                    seen.add(text)
 
         chapter_count_str = self.extractor.extract('chapter_count').value
         chapter_count = int(re.search(r'\d+', chapter_count_str).group()) if chapter_count_str else None

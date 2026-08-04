@@ -20,7 +20,13 @@ class MetadataParser:
         description = self.extractor.extract('description').value
         cover_url = self.extractor.extract('cover').value
         status_raw = self.extractor.extract('status').value
-        labels = [tag.text for tag in self.extractor.extract_tags('genres')]
+        labels = []
+        seen = set()
+        for tag in self.extractor.extract_tags('genres'):
+            text = tag.get_text(" ", strip=True)
+            if text and text not in seen:
+                labels.append(text)
+                seen.add(text)
         rating_str = self.extractor.extract('rating').value
         rating = float(rating_str) if rating_str else None
         views_str = self.extractor.extract('views').value

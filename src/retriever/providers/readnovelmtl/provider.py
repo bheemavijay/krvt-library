@@ -29,10 +29,10 @@ class ReadNovelMTLProvider(BaseProvider):
         parser = MetadataParser(soup, source_url)
         return parser.parse()
 
-    def parse_chapter_list(self, soup: BeautifulSoup, url: str) -> list[ChapterSummary]:
+    def parse_chapter_list(self, soup: BeautifulSoup, url: str = "") -> list[ChapterSummary]:
         parser = ChapterListParser(soup, url)
         return parser.parse()
 
-    def parse_chapter(self, soup: BeautifulSoup, url: str) -> RawChapter:
+    def parse_chapter(self, soup: BeautifulSoup, url: str = "") -> RawChapter:
         parser = ChapterParser(soup, url)
         return parser.parse()

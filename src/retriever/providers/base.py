@@ -49,16 +49,16 @@ class BaseProvider(ABC):
         return any(host == domain or host.endswith(f".{domain}") for domain in self.domains)
 
     @abstractmethod
-    def parse_metadata(self, soup: BeautifulSoup, source_url: str) -> RawNovelMetadata:
+    def parse_metadata(self, soup: BeautifulSoup, source_url: str = "") -> RawNovelMetadata:
         """Parses the novel's main page into a raw metadata object."""
         pass
 
     @abstractmethod
-    def parse_chapter_list(self, soup: BeautifulSoup, novel_url: str) -> List[ChapterSummary]:
+    def parse_chapter_list(self, soup: BeautifulSoup, novel_url: str = "") -> List[ChapterSummary]:
         """Parses the novel's main page to get a list of all chapter URLs and titles."""
         pass
 
     @abstractmethod
-    def parse_chapter(self, soup: BeautifulSoup, chapter_url: str) -> RawChapter:
+    def parse_chapter(self, soup: BeautifulSoup, chapter_url: str = "") -> RawChapter:
         """Parses a chapter page into a raw chapter object."""
         pass

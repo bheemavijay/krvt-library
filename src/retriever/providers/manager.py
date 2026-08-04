@@ -3,6 +3,7 @@ from .registry import ProviderRegistry
 from .base import BaseProvider
 from .readnovelmtl.provider import ReadNovelMTLProvider
 from .fanmtl.provider import FanMTLProvider
+from .mvlempyr.provider import MvlempyrProvider
 from src.retriever.exceptions.exceptions import ProviderNotFoundException
 
 class ProviderManager:
@@ -11,6 +12,7 @@ class ProviderManager:
     # --- Auto-register all known provider classes ---
     _registry.register(ReadNovelMTLProvider)
     _registry.register(FanMTLProvider)
+    _registry.register(MvlempyrProvider)
 
     @staticmethod
     def resolve(url: str) -> BaseProvider:

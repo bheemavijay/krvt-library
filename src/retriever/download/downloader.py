@@ -34,12 +34,14 @@ class DownloadEngine:
         start_time = time.time()
         errors = []
         downloaded_count = 0
+        skipped_count = 0
         failed_count = 0
         last_successful_order = 0
         novel_id = "unknown"
         provider_id = "unknown"
         total_chapters = 0
         storage_started = False
+        final_status = DownloadStatus.FAILED # Default to failed
 
         try:
             # 1. Resolve Provider
@@ -52,35 +54,47 @@ class DownloadEngine:
             raw_metadata = provider.parse_metadata(document, request.url)
             metadata = self.metadata_normalizer.normalize(raw_metadata)
 
-            # 3. Generate ID and Begin Storage
+            # 3. Generate ID
             novel_id = create_novel_id(provider.id, metadata.title)
 
-            # TODO: Phase 3D.1 - Add resume logic from checkpoint
+            # 3.1 Resume Logic
+            start_from_order = 0
+            if request.resume and self.storage.exists(novel_id):
+                manifest = self.storage.load_manifest(novel_id)
+                if manifest and manifest.get("status") == "COMPLETED" and not request.overwrite:
+                    self._emit(f"Novel '{novel_id}' is already marked as COMPLETED. Skipping.")
+                    return DownloadResult(novel_id=novel_id, status=DownloadStatus.SKIPPED, provider=provider_id, downloaded=0, total=manifest.get("total", 0), skipped=manifest.get("total", 0), failed=0, duration_ms=0, errors=[])
 
-            source = Source(
-                provider_id=provider.id,
-                provider_name=provider.name,
-                source_url=request.url,
-                language=provider.language,
-                version=provider.version
-            )
-            self.storage.begin(novel_id, request, metadata, source)
-            storage_started = True
+                checkpoint = self.storage.load_checkpoint(novel_id)
+                if checkpoint and 'last_successful_order' in checkpoint:
+                    start_from_order = checkpoint['last_successful_order']
+                    skipped_count = start_from_order
+                    self._emit(f"Resuming download from chapter {start_from_order + 1}")
+
+            # Begin storage if not resuming or if overwriting
+            if start_from_order == 0 or request.overwrite:
+                if self.storage.exists(novel_id) and request.overwrite:
+                    self._emit(f"Overwriting existing novel: {novel_id}")
+                    self.storage.delete(novel_id)
+
+                source = Source(provider_id=provider.id, provider_name=provider.name, source_url=request.url, language=provider.language, version=provider.version)
+                self.storage.begin(novel_id, request, metadata, source)
+                storage_started = True
+
             self._emit(f"Novel ID: {novel_id}")
 
             # 4. Get Chapter List
             chapter_summaries = provider.parse_chapter_list(document, request.url)
-            if request.chapter_limit:
-                chapter_summaries = chapter_summaries[:request.chapter_limit]
-
+            chapters_to_download = [s for s in chapter_summaries if s.order > start_from_order]
             total_chapters = len(chapter_summaries)
-            self._emit(f"Found {total_chapters} chapters to download for '{metadata.title}'.")
+
+            self._emit(f"Found {total_chapters} total chapters. Downloading {len(chapters_to_download)} new chapters.")
 
             # 5. Download Chapters in Batches
             self._emit("\n[Phase 2] Downloading chapter content...")
             batch_builder = BatchBuilder(request.batch_size)
 
-            for summary in chapter_summaries:
+            for summary in chapters_to_download:
                 self._emit(f"[{summary.order}/{total_chapters}] Downloading: {summary.title}")
                 try:
                     chapter_doc = self.browser_context.get(summary.url, provider.navigation_mode)
@@ -93,7 +107,7 @@ class DownloadEngine:
                     if batch_builder.is_full():
                         self._emit(f"  -> Writing batch of {batch_builder.count} chapters...")
                         self.storage.append_batch(novel_id, batch_builder.flush())
-                        self.storage.save_checkpoint(novel_id, last_successful_order, total_chapters)
+                        self.storage.save_checkpoint(novel_id, last_successful_order, downloaded_count, skipped_count, failed_count, total_chapters)
 
                 except Exception as e:
                     failed_count += 1
@@ -108,20 +122,19 @@ class DownloadEngine:
                 self.storage.append_batch(novel_id, batch_builder.flush())
 
             # 7. Finalize
-            self.storage.finish(novel_id)
+            if not errors and (downloaded_count + skipped_count) >= total_chapters:
+                final_status = DownloadStatus.COMPLETED
+            else:
+                final_status = DownloadStatus.PARTIAL
+
+            self.storage.finish(novel_id, final_status)
             end_time = time.time()
 
             self._emit("\n--- Download Complete ---")
             return DownloadResult(
-                novel_id=novel_id,
-                status=DownloadStatus.COMPLETED if not errors else DownloadStatus.PARTIAL,
-                provider=provider_id,
-                downloaded=downloaded_count,
-                total=total_chapters,
-                skipped=0, # TODO: Phase 3D.1
-                failed=failed_count,
-                duration_ms=int((end_time - start_time) * 1000),
-                errors=errors
+                novel_id=novel_id, status=final_status, provider=provider_id, downloaded=downloaded_count,
+                total=total_chapters, skipped=skipped_count, failed=failed_count,
+                duration_ms=int((end_time - start_time) * 1000), errors=errors
             )
 
         except Exception as e:
@@ -133,13 +146,7 @@ class DownloadEngine:
                 self.storage.abort(novel_id)
 
             return DownloadResult(
-                novel_id=novel_id,
-                status=DownloadStatus.FAILED,
-                provider=provider_id,
-                downloaded=downloaded_count,
-                total=total_chapters,
-                skipped=0,
-                failed=failed_count, # Use the explicit counter
-                duration_ms=int((end_time - start_time) * 1000),
-                errors=errors
+                novel_id=novel_id, status=DownloadStatus.FAILED, provider=provider_id, downloaded=downloaded_count,
+                total=total_chapters, skipped=skipped_count, failed=failed_count,
+                duration_ms=int((end_time - start_time) * 1000), errors=errors
             )

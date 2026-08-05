@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from src.retriever.models.novel_metadata import NovelMetadata
 from src.retriever.models.chapter import Chapter
 from src.retriever.models.source import Source
 from src.retriever.download.request import DownloadRequest
+from src.retriever.download.result import DownloadStatus
 
 class StorageWriter(ABC):
     """
@@ -29,37 +30,44 @@ class StorageWriter(ABC):
         pass
 
     @abstractmethod
-    def save_checkpoint(self, novel_id: str, last_successful_order: int, total: int) -> None:
+    def save_checkpoint(self, novel_id: str, last_successful_order: int, downloaded_count: int, skipped_count: int, failed_count: int, total_chapters: int) -> None:
         """
-        Saves the download progress.
+        Saves the download progress to a checkpoint and updates the manifest.
         """
         pass
 
     @abstractmethod
-    def load_checkpoint(self, novel_id: str) -> Optional[dict]:
+    def load_checkpoint(self, novel_id: str) -> Optional[Dict[str, Any]]:
         """
         Loads the download progress from the last checkpoint.
         """
         pass
 
     @abstractmethod
-    def finish(self, novel_id: str) -> None:
+    def load_manifest(self, novel_id: str) -> Optional[Dict[str, Any]]:
         """
-        Finalizes the storage process.
+        Loads the manifest data from a file.
+        """
+        pass
+
+    @abstractmethod
+    def finish(self, novel_id: str, status: DownloadStatus) -> None:
+        """
+        Finalizes the storage process, writing the final manifest status.
         """
         pass
 
     @abstractmethod
     def abort(self, novel_id: str) -> None:
         """
-        Aborts the download and cleans up any partial data.
+        Aborts the download and marks it as CANCELLED in the manifest.
         """
         pass
 
     @abstractmethod
     def exists(self, novel_id: str) -> bool:
         """
-        Checks if a novel already exists in the storage.
+        Checks if a novel already exists in the storage by looking for the manifest.
         """
         pass
 

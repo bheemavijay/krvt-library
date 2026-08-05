@@ -5,12 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b17fc1dc-ac9a-491d-abb8-def7b5b914a1" name="Changes" comment="stopped readmtlnovel.com provider for now.">
-      <change afterPath="$PROJECT_DIR$/src/retriever/core/document.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/retriever/browser/driver.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/browser/driver.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/retriever/browser/undetected_chrome.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/browser/undetected_chrome.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/retriever/core/context.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/core/context.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/retriever/download/downloader.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/download/downloader.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/retriever/storage/filesystem_storage.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/storage/filesystem_storage.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/retriever/storage/storage_writer.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/storage/storage_writer.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />

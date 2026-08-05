@@ -8,6 +8,7 @@ class DownloadStatus(Enum):
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
     PARTIAL = "PARTIAL"
+    SKIPPED = "SKIPPED"
 
 @dataclass
 class DownloadResult:
@@ -23,6 +24,4 @@ class DownloadResult:
     skipped: int
     failed: int
     duration_ms: int
-    output_path: str
-    checkpoint_path: str
     errors: List[str] = field(default_factory=list)

@@ -1,0 +1,57 @@
+from abc import ABC, abstractmethod
+from typing import List
+from src.retriever.download.result import DownloadStatus
+
+class DownloadObserver(ABC):
+    """
+    Abstract interface for observing download lifecycle events.
+    Implementations of this class can be used for logging, UI updates, metrics, etc.
+    """
+
+    @abstractmethod
+    def download_started(self, url: str):
+        pass
+
+    @abstractmethod
+    def metadata_loaded(self, title: str, provider: str):
+        pass
+
+    @abstractmethod
+    def chapters_found(self, total_chapters: int, chapters_to_download: int):
+        pass
+
+    @abstractmethod
+    def resumed(self, skipped_count: int, remaining_count: int):
+        pass
+
+    @abstractmethod
+    def chapter_started(self, order: int, total: int, title: str):
+        pass
+
+    @abstractmethod
+    def chapter_completed(self, order: int, title: str):
+        pass
+
+    @abstractmethod
+    def chapter_failed(self, order: int, title: str, error_message: str):
+        pass
+
+    @abstractmethod
+    def batch_written(self, batch_size: int):
+        pass
+
+    @abstractmethod
+    def checkpoint_saved(self, last_successful_order: int):
+        pass
+
+    @abstractmethod
+    def asset_started(self, asset_name: str):
+        pass
+
+    @abstractmethod
+    def asset_completed(self, asset_name: str):
+        pass
+
+    @abstractmethod
+    def download_finished(self, status: DownloadStatus, downloaded: int, skipped: int, failed: int, duration_ms: int, errors: List[str]):
+        pass

@@ -5,10 +5,16 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b17fc1dc-ac9a-491d-abb8-def7b5b914a1" name="Changes" comment="stopped readmtlnovel.com provider for now.">
+      <change afterPath="$PROJECT_DIR$/src/retriever/observers/.gitkeep" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/observers/console_observer.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/observers/null_observer.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/observers/observer.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/progress/.gitkeep" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/progress/console_reporter.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/progress/null_reporter.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/progress/reporter.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/retriever/download/downloader.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/download/downloader.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/retriever/storage/filesystem_storage.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/storage/filesystem_storage.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/retriever/storage/storage_writer.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/storage/storage_writer.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

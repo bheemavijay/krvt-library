@@ -2,7 +2,7 @@ import time
 import undetected_chromedriver as uc
 from .driver import BrowserDriver
 from .detector import PageDetector
-from ..models.page import RawBrowserResponse
+from ..core.document import Document
 from ..models.enums import PageType, NavigationMode
 from ..exceptions.exceptions import NavigationException
 
@@ -19,7 +19,7 @@ class UndetectedChromeDriver(BrowserDriver):
         self.driver = uc.Chrome(options=options, user_data_dir=self.settings.profile_path)
         self.driver.set_page_load_timeout(self.settings.cloudflare_timeout_seconds)
 
-    def get(self, url: str, navigation_mode: NavigationMode) -> RawBrowserResponse:
+    def get(self, url: str, navigation_mode: NavigationMode) -> Document:
         if not self.driver:
             raise NavigationException("Driver not launched. Call launch() first.")
 
@@ -29,17 +29,7 @@ class UndetectedChromeDriver(BrowserDriver):
         if navigation_mode == NavigationMode.CLOUDFLARE:
             self._handle_cloudflare_challenge()
 
-        # For DOM_READY, we just assume the page is ready after the get() call.
-        # A more robust implementation could wait for document.readyState === 'complete'.
-
-        return RawBrowserResponse(
-            url=self.driver.current_url,
-            html=self.driver.page_source,
-            title=self.driver.title,
-            headers={},
-            cookies={},
-            metadata={}
-        )
+        return Document(self.driver.page_source)
 
     def _handle_cloudflare_challenge(self):
         start_time = time.time()

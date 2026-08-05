@@ -1,7 +1,7 @@
+from .document import Document
 from ..browser.driver import BrowserDriver
 from ..browser.undetected_chrome import UndetectedChromeDriver
 from ..config.settings import Settings
-from ..models.page import RawBrowserResponse
 from ..models.enums import NavigationMode
 
 class BrowserContext:
@@ -12,7 +12,11 @@ class BrowserContext:
     def start(self):
         self.driver.launch()
 
-    def get(self, url: str, navigation_mode: NavigationMode) -> RawBrowserResponse:
+    def get(self, url: str, navigation_mode: NavigationMode) -> Document:
+        """
+        Navigates to a URL and returns a Document object.
+        The driver is responsible for creating the Document.
+        """
         return self.driver.get(url, navigation_mode)
 
     def close(self):

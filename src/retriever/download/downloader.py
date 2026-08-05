@@ -1,84 +1,145 @@
 import time
-from bs4 import BeautifulSoup
+from datetime import datetime
+
 from src.retriever.core.context import BrowserContext
-from src.retriever.providers.base import BaseProvider
-from src.retriever.models.provider import Novel
-from src.retriever.builder.novel_builder import NovelBuilder
+from src.retriever.providers.manager import ProviderManager
 from src.retriever.storage.storage_writer import StorageWriter
-from src.retriever.exceptions.exceptions import NavigationException
 from src.retriever.normalizers.metadata_normalizer import MetadataNormalizer
 from src.retriever.normalizers.chapter_normalizer import ChapterNormalizer
+from src.retriever.utils.novel_id import create_novel_id
+from src.retriever.models.source import Source
 
-class Downloader:
-    def __init__(self, browser_context: BrowserContext, storage: StorageWriter, retry_count: int = 3, batch_size: int = 100):
+from .request import DownloadRequest
+from .result import DownloadResult, DownloadStatus
+from .batch_builder import BatchBuilder
+
+class DownloadEngine:
+    def __init__(
+        self,
+        browser_context: BrowserContext,
+        storage: StorageWriter,
+        metadata_normalizer: MetadataNormalizer = None,
+        chapter_normalizer: ChapterNormalizer = None
+    ):
         self.browser_context = browser_context
         self.storage = storage
-        self.retry_count = retry_count
-        self.batch_size = batch_size
-        self.normalizer = MetadataNormalizer()
-        self.chapter_normalizer = ChapterNormalizer()
+        self.metadata_normalizer = metadata_normalizer or MetadataNormalizer()
+        self.chapter_normalizer = chapter_normalizer or ChapterNormalizer()
 
-    def download(self, provider: BaseProvider, novel_url: str, chapter_limit: int = None) -> Novel:
-        print(f"--- Starting Download: {provider.name} ---")
+    def _emit(self, message: str):
+        # TODO: Phase 4 - Replace with a proper ProgressReporter/EventEmitter
+        print(message)
 
-        print("\n[Phase 1] Fetching metadata and chapter list...")
-        novel_page_html = self._get_page_with_retries(provider, novel_url)
-        soup = BeautifulSoup(novel_page_html, 'html.parser')
-
-        raw_metadata = provider.parse_metadata(soup, novel_url)
-        metadata = self.normalizer.normalize(raw_metadata)
-
-        chapter_summaries = provider.parse_chapter_list(soup, novel_url)
-
-        if chapter_limit:
-            chapter_summaries = chapter_summaries[:chapter_limit]
-
-        print(f"Found {len(chapter_summaries)} chapters to download for '{metadata.title}'.")
-
-        builder = NovelBuilder().set_metadata(metadata)
-        self.storage.begin(provider.id + "_" + metadata.slug)
-
-        print("\n[Phase 2] Downloading all chapter content...")
-        total_chapters = len(chapter_summaries)
+    def download(self, request: DownloadRequest) -> DownloadResult:
         start_time = time.time()
+        errors = []
+        downloaded_count = 0
+        failed_count = 0
+        last_successful_order = 0
+        novel_id = "unknown"
+        provider_id = "unknown"
+        total_chapters = 0
+        storage_started = False
 
-        for i, summary in enumerate(chapter_summaries):
-            progress = f"[{i+1}/{total_chapters}]"
-            print(f"{progress} Downloading: {summary.title}")
+        try:
+            # 1. Resolve Provider
+            provider = ProviderManager.resolve(request.url)
+            provider_id = provider.id
 
-            try:
-                chapter_html = self._get_page_with_retries(provider, summary.url)
-                chapter_soup = BeautifulSoup(chapter_html, 'html.parser')
-                raw_chapter = provider.parse_chapter(chapter_soup, summary.url)
-                chapter_content = self.chapter_normalizer.normalize(raw_chapter, i)
-                builder.add_chapter(chapter_content)
-            except Exception as e:
-                print(f"  - FAILED to download chapter {i+1}: {e}")
-                continue
+            # 2. Fetch and Parse Metadata
+            self._emit("[Phase 1] Fetching metadata...")
+            document = self.browser_context.get(request.url, provider.navigation_mode)
+            raw_metadata = provider.parse_metadata(document, request.url)
+            metadata = self.metadata_normalizer.normalize(raw_metadata)
 
-            if (i + 1) % self.batch_size == 0 and i + 1 < total_chapters:
-                print(f"\n--- Saving batch { (i + 1) // self.batch_size } ---")
-                self.storage.save_batch(builder.build())
+            # 3. Generate ID and Begin Storage
+            novel_id = create_novel_id(provider.id, metadata.title)
 
-        novel = builder.build()
-        self.storage.finish(novel)
+            # TODO: Phase 3D.1 - Add resume logic from checkpoint
 
-        end_time = time.time()
-        print("\n--- Download Complete ---")
-        if total_chapters > 0:
-            avg_time = (end_time - start_time) / total_chapters
-            print(f"Total time: {end_time - start_time:.2f} seconds")
-            print(f"Average time per chapter: {avg_time:.2f} seconds")
+            source = Source(
+                provider_id=provider.id,
+                provider_name=provider.name,
+                source_url=request.url,
+                language=provider.language,
+                version=provider.version
+            )
+            self.storage.begin(novel_id, request, metadata, source)
+            storage_started = True
+            self._emit(f"Novel ID: {novel_id}")
 
-        return novel
+            # 4. Get Chapter List
+            chapter_summaries = provider.parse_chapter_list(document, request.url)
+            if request.chapter_limit:
+                chapter_summaries = chapter_summaries[:request.chapter_limit]
 
-    def _get_page_with_retries(self, provider: BaseProvider, url: str) -> str:
-        for i in range(self.retry_count):
-            try:
-                return self.browser_context.get(url, provider.navigation_mode).html
-            except NavigationException as e:
-                print(f"  - Attempt {i+1}/{self.retry_count} failed for {url}: {e}")
-                if i == self.retry_count - 1:
-                    raise
-                time.sleep(5)
-        raise NavigationException(f"Failed to get page {url} after {self.retry_count} retries.")
+            total_chapters = len(chapter_summaries)
+            self._emit(f"Found {total_chapters} chapters to download for '{metadata.title}'.")
+
+            # 5. Download Chapters in Batches
+            self._emit("\n[Phase 2] Downloading chapter content...")
+            batch_builder = BatchBuilder(request.batch_size)
+
+            for summary in chapter_summaries:
+                self._emit(f"[{summary.order}/{total_chapters}] Downloading: {summary.title}")
+                try:
+                    chapter_doc = self.browser_context.get(summary.url, provider.navigation_mode)
+                    raw_chapter = provider.parse_chapter(chapter_doc, summary.url)
+                    chapter = self.chapter_normalizer.normalize(raw_chapter, summary.order)
+                    batch_builder.add(chapter)
+                    downloaded_count += 1
+                    last_successful_order = summary.order
+
+                    if batch_builder.is_full():
+                        self._emit(f"  -> Writing batch of {batch_builder.count} chapters...")
+                        self.storage.append_batch(novel_id, batch_builder.flush())
+                        self.storage.save_checkpoint(novel_id, last_successful_order, total_chapters)
+
+                except Exception as e:
+                    failed_count += 1
+                    error_msg = f"Failed to download chapter {summary.order} ({summary.title}): {e}"
+                    self._emit(f"  - {error_msg}")
+                    errors.append(error_msg)
+                    continue
+
+            # 6. Flush remaining chapters
+            if batch_builder.count > 0:
+                self._emit(f"  -> Writing final batch of {batch_builder.count} chapters...")
+                self.storage.append_batch(novel_id, batch_builder.flush())
+
+            # 7. Finalize
+            self.storage.finish(novel_id)
+            end_time = time.time()
+
+            self._emit("\n--- Download Complete ---")
+            return DownloadResult(
+                novel_id=novel_id,
+                status=DownloadStatus.COMPLETED if not errors else DownloadStatus.PARTIAL,
+                provider=provider_id,
+                downloaded=downloaded_count,
+                total=total_chapters,
+                skipped=0, # TODO: Phase 3D.1
+                failed=failed_count,
+                duration_ms=int((end_time - start_time) * 1000),
+                errors=errors
+            )
+
+        except Exception as e:
+            end_time = time.time()
+            self._emit(f"\n--- Download Failed ---")
+            self._emit(f"An unrecoverable error occurred: {e}")
+            errors.append(str(e))
+            if storage_started:
+                self.storage.abort(novel_id)
+
+            return DownloadResult(
+                novel_id=novel_id,
+                status=DownloadStatus.FAILED,
+                provider=provider_id,
+                downloaded=downloaded_count,
+                total=total_chapters,
+                skipped=0,
+                failed=failed_count, # Use the explicit counter
+                duration_ms=int((end_time - start_time) * 1000),
+                errors=errors
+            )

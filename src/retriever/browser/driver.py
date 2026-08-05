@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from ..models.page import RawBrowserResponse
+from ..core.document import Document
+from ..models.enums import NavigationMode
 
 class BrowserDriver(ABC):
     @abstractmethod
@@ -7,7 +8,7 @@ class BrowserDriver(ABC):
         pass
 
     @abstractmethod
-    def get(self, url: str) -> RawBrowserResponse:
+    def get(self, url: str, navigation_mode: NavigationMode) -> Document:
         pass
 
     @abstractmethod

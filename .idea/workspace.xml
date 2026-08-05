@@ -5,13 +5,19 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b17fc1dc-ac9a-491d-abb8-def7b5b914a1" name="Changes" comment="stopped readmtlnovel.com provider for now.">
-      <change afterPath="$PROJECT_DIR$/backend/retriever/models/chapter.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/retriever/models/source.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/storage/checkpoint.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/storage/filesystem/.gitkeep" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/storage/filesystem/writer.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/storage/filesystem_storage.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/storage/storage_writer.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/retriever/batch_builder.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/retriever/download/.gitkeep" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/retriever/download/batch_builder.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/retriever/download/engine.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/retriever/download/request.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/retriever/download/result.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/retriever/download_options.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/retriever/downloader.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/retriever/engine/.gitkeep" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/retriever/engine/batch_builder.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/retriever/engine/engine.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/retriever/engine/request.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/retriever/engine/result.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />

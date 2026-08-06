@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import List
 from src.retriever.download.result import DownloadStatus
+from src.retriever.assets.asset_type import AssetType
 
 class DownloadObserver(ABC):
     """
     Abstract interface for observing download lifecycle events.
-    Implementations of this class can be used for logging, UI updates, metrics, etc.
     """
 
     @abstractmethod
@@ -45,15 +45,15 @@ class DownloadObserver(ABC):
         pass
 
     @abstractmethod
-    def asset_started(self, asset_name: str):
+    def asset_started(self, asset_type: AssetType):
         pass
 
     @abstractmethod
-    def asset_completed(self, asset_name: str):
+    def asset_completed(self, asset_type: AssetType, filename: str):
         pass
 
     @abstractmethod
-    def asset_failed(self, asset_name: str, error_message: str):
+    def asset_failed(self, asset_type: AssetType, error_message: str):
         pass
 
     @abstractmethod

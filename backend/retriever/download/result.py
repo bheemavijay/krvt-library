@@ -19,9 +19,16 @@ class DownloadResult:
     novel_id: str
     status: DownloadStatus
     provider: str
+
+    # Chapter counts
     downloaded: int
     total: int
     skipped: int
     failed: int
+
+    # Asset counts
+    asset_downloaded: int = 0
+    asset_failed: int = 0
+
     duration_ms: int
     errors: List[str] = field(default_factory=list)

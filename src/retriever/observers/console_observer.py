@@ -1,6 +1,7 @@
 from typing import List
 from .observer import DownloadObserver
 from src.retriever.download.result import DownloadStatus
+from src.retriever.assets.asset_type import AssetType
 
 class ConsoleDownloadObserver(DownloadObserver):
     """
@@ -34,14 +35,14 @@ class ConsoleDownloadObserver(DownloadObserver):
     def checkpoint_saved(self, last_successful_order: int):
         print(f"  -> Checkpoint saved at chapter {last_successful_order}.")
 
-    def asset_started(self, asset_name: str):
-        print(f"Downloading asset: {asset_name}...")
+    def asset_started(self, asset_type: AssetType):
+        print(f"Downloading asset: {asset_type.value}...")
 
-    def asset_completed(self, asset_name: str):
-        print(f"Asset '{asset_name}' downloaded.")
+    def asset_completed(self, asset_type: AssetType, filename: str):
+        print(f"Asset '{asset_type.value}' downloaded as '{filename}'.")
 
-    def asset_failed(self, asset_name: str, error_message: str):
-        print(f"  - FAILED to download asset '{asset_name}': {error_message}")
+    def asset_failed(self, asset_type: AssetType, error_message: str):
+        print(f"  - FAILED to download asset '{asset_type.value}': {error_message}")
 
     def download_finished(self, status: DownloadStatus, downloaded: int, skipped: int, failed: int, duration_ms: int, errors: List[str]):
         print("\n--- Download Finished ---")

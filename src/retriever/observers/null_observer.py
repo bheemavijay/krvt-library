@@ -1,6 +1,7 @@
 from typing import List
 from .observer import DownloadObserver
 from src.retriever.download.result import DownloadStatus
+from src.retriever.assets.asset_type import AssetType
 
 class NullDownloadObserver(DownloadObserver):
     """
@@ -34,13 +35,13 @@ class NullDownloadObserver(DownloadObserver):
     def checkpoint_saved(self, last_successful_order: int):
         pass
 
-    def asset_started(self, asset_name: str):
+    def asset_started(self, asset_type: AssetType):
         pass
 
-    def asset_completed(self, asset_name: str):
+    def asset_completed(self, asset_type: AssetType, filename: str):
         pass
 
-    def asset_failed(self, asset_name: str, error_message: str):
+    def asset_failed(self, asset_type: AssetType, error_message: str):
         pass
 
     def download_finished(self, status: DownloadStatus, downloaded: int, skipped: int, failed: int, duration_ms: int, errors: List[str]):

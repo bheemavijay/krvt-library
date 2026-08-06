@@ -1,16 +1,13 @@
 import httpx
-from typing import List, Optional
+from typing import List
 
-from src.retriever.providers.base import BaseProvider
-from src.retriever.models.novel_metadata import NovelMetadata
-from src.retriever.download.request import DownloadRequest
 from src.retriever.storage.storage_writer import StorageWriter
 from src.retriever.observers.observer import DownloadObserver
 from src.retriever.core.context import BrowserContext
-from src.retriever.exceptions.exceptions import NavigationException
 from .asset import Asset
 from .result import AssetDownloadResult
 from .asset_type import AssetType
+from .options import AssetDownloadOptions
 
 class AssetDownloader:
     """
@@ -29,34 +26,25 @@ class AssetDownloader:
     async def download(
         self,
         novel_id: str,
-        provider: BaseProvider,
-        metadata: NovelMetadata,
-        request: DownloadRequest
+        assets: List[Asset],
+        options: AssetDownloadOptions
     ) -> AssetDownloadResult:
+
+        if not options.enabled:
+            return AssetDownloadResult(downloaded=0, skipped=len(assets), failed=0, assets=assets)
 
         downloaded_count = 0
         skipped_count = 0
         failed_count = 0
 
-        assets_to_process: List[Asset] = provider.get_assets(metadata)
+        assets_to_download = self._filter_assets(assets, options)
+        skipped_count = len(assets) - len(assets_to_download)
 
-        for asset in assets_to_process:
-            self.observer.asset_started(asset.original_filename or asset.url)
+        for asset in assets_to_download:
+            self.observer.asset_started(asset.type)
             try:
                 # TODO: Add resume/skip logic for assets based on manifest
 
-                # Reuse BrowserContext for downloading assets
-                # Assuming asset URLs don't require specific navigation modes for now
-                response_doc = self.browser_context.get(asset.url, provider.navigation_mode)
-
-                # The actual content is in response_doc.html (string) or response_doc.soup
-                # For binary assets, we need the raw bytes. This implies BrowserContext.get
-                # might need to return raw bytes for certain content types, or we use httpx directly here.
-                # For now, let's assume BrowserContext can give us raw bytes for assets.
-                # This is a simplification for the current phase.
-
-                # For now, we'll use httpx directly for binary content, as BrowserContext returns Document (HTML)
-                # This is a temporary deviation until BrowserContext is enhanced for binary assets.
                 async with httpx.AsyncClient() as client:
                     response = await client.get(asset.url)
                     response.raise_for_status()
@@ -72,22 +60,29 @@ class AssetDownloader:
                     mime_type
                 )
                 downloaded_count += 1
-                self.observer.asset_completed(asset.original_filename or asset.url)
+                self.observer.asset_completed(asset.type, relative_path)
 
-            except NavigationException as e:
-                failed_count += 1
-                self.observer.asset_failed(asset.original_filename or asset.url, str(e))
             except httpx.HTTPStatusError as e:
                 failed_count += 1
-                self.observer.asset_failed(asset.original_filename or asset.url, str(e))
+                self.observer.asset_failed(asset.type, str(e))
             except Exception as e:
                 failed_count += 1
-                self.observer.asset_failed(asset.original_filename or asset.url, str(e))
+                self.observer.asset_failed(asset.type, str(e))
                 continue
 
         return AssetDownloadResult(
             downloaded=downloaded_count,
             skipped=skipped_count,
             failed=failed_count,
-            assets=assets_to_process # This list should eventually contain the saved relative paths
+            assets=assets_to_download
         )
+
+    def _filter_assets(self, assets: List[Asset], options: AssetDownloadOptions) -> List[Asset]:
+        filtered_assets = []
+        for asset in assets:
+            if asset.type == AssetType.COVER and options.download_cover:
+                filtered_assets.append(asset)
+            elif asset.type == AssetType.BANNER and options.download_banner:
+                filtered_assets.append(asset)
+            # Add other asset types here
+        return filtered_assets

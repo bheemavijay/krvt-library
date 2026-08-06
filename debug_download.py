@@ -1,20 +1,32 @@
+import asyncio
 from src.retriever.config.settings import Settings
 from src.retriever.core.context import BrowserContext
 from src.retriever.profiles.manager import ProfileManager
 from src.retriever.providers.manager import ProviderManager
-from src.retriever.download.downloader import Downloader
+from src.retriever.download.downloader import DownloadEngine
 from src.retriever.storage.filesystem_storage import FilesystemStorage
+from src.retriever.assets.downloader import AssetDownloader
+from src.retriever.download.request import DownloadRequest
 import json
 from dataclasses import asdict
 
-def main():
+async def main():
     # --- Configuration ---
     novel_url = "https://www.fanmtl.com/novel/sign-in-the-man-is-on-an-isolated-island-and-he-has-just-built-a-luxury-villa-by-himself.html"
-    CHAPTER_LIMIT = 10 # Set to None to download all chapters
+
+    request = DownloadRequest(
+        url=novel_url,
+        chapter_limit=10,
+        download_assets=True,
+        download_cover=True,
+        download_banner=False, # Example
+        overwrite=False,
+        resume=True
+    )
 
     # --- Resolve Provider ---
     try:
-        provider = ProviderManager.resolve(novel_url)
+        provider = ProviderManager.resolve(request.url)
     except ValueError as e:
         print(e)
         return
@@ -26,26 +38,23 @@ def main():
     settings = Settings(profile_path=profile_path, headless=is_headless)
 
     context = BrowserContext(settings)
-    storage = FilesystemStorage(output_dir="novels")
-    downloader = Downloader(context, storage)
+    storage = FilesystemStorage(base_dir="novels")
+
+    # The AssetDownloader needs a BrowserContext, but we can't pass it directly
+    # as it's not started yet. For now, we'll create a temporary client.
+    # In a real app, the DI container would manage this.
+    asset_downloader = AssetDownloader(storage, None, context) # Observer is optional
+
+    engine = DownloadEngine(context, storage, asset_downloader)
 
     # --- Execution ---
     try:
         context.start()
-        novel = downloader.download(provider, novel_url, chapter_limit=CHAPTER_LIMIT)
+        result = await engine.download(request)
 
         # --- Summary ---
-        print("\n--- Final Summary ---")
-        print(f"Title: {novel.metadata.title}")
-        print(f"Author: {novel.metadata.author}")
-        print(f"Total Chapters in Metadata: {novel.metadata.chapter_count}")
-        print(f"Downloaded Chapters: {len(novel.chapters)}")
-
-        # --- Save Result ---
-        output_path = "full_novel_result.json"
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(asdict(novel), f, ensure_ascii=False, indent=2)
-        print(f"\nFull novel data saved to: {output_path}")
+        print("\n--- Final Result ---")
+        print(json.dumps(asdict(result), indent=2))
 
     finally:
         print("\nClosing browser context...")
@@ -53,4 +62,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

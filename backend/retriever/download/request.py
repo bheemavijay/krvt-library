@@ -19,6 +19,8 @@ class DownloadRequest:
 
     # Asset Downloading
     download_assets: bool = True
+    download_cover: bool = True
+    download_banner: bool = True
 
     # Future-proofing
     priority: int = 0

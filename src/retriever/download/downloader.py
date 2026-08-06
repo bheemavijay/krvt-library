@@ -1,6 +1,7 @@
 import time
 from datetime import datetime
 from typing import Optional
+import asyncio
 
 from src.retriever.core.context import BrowserContext
 from src.retriever.providers.manager import ProviderManager
@@ -11,6 +12,8 @@ from src.retriever.utils.novel_id import create_novel_id
 from src.retriever.models.source import Source
 from src.retriever.observers.observer import DownloadObserver
 from src.retriever.observers.console_observer import ConsoleDownloadObserver
+from src.retriever.assets.downloader import AssetDownloader
+from src.retriever.assets.options import AssetDownloadOptions
 
 from .request import DownloadRequest
 from .result import DownloadResult, DownloadStatus
@@ -21,22 +24,26 @@ class DownloadEngine:
         self,
         browser_context: BrowserContext,
         storage: StorageWriter,
+        asset_downloader: AssetDownloader,
         observer: Optional[DownloadObserver] = None,
         metadata_normalizer: Optional[MetadataNormalizer] = None,
         chapter_normalizer: Optional[ChapterNormalizer] = None
     ):
         self.browser_context = browser_context
         self.storage = storage
+        self.asset_downloader = asset_downloader
         self.observer = observer or ConsoleDownloadObserver()
         self.metadata_normalizer = metadata_normalizer or MetadataNormalizer()
         self.chapter_normalizer = chapter_normalizer or ChapterNormalizer()
 
-    def download(self, request: DownloadRequest) -> DownloadResult:
+    async def download(self, request: DownloadRequest) -> DownloadResult:
         start_time = time.time()
         errors = []
         downloaded_count = 0
         skipped_count = 0
         failed_count = 0
+        asset_downloaded_count = 0
+        asset_failed_count = 0
         last_successful_order = 0
         novel_id = "unknown"
         provider_id = "unknown"
@@ -63,8 +70,9 @@ class DownloadEngine:
                 if manifest and manifest.get("status") == "COMPLETED" and not request.overwrite:
                     final_status = DownloadStatus.SKIPPED
                     total_chapters = manifest.get("total", 0)
+                    result = DownloadResult(novel_id=novel_id, status=final_status, provider=provider_id, downloaded=0, total=total_chapters, skipped=total_chapters, failed=0, duration_ms=0, errors=[])
                     self.observer.download_finished(final_status, 0, total_chapters, 0, 0, [])
-                    return DownloadResult(novel_id=novel_id, status=final_status, provider=provider_id, downloaded=0, total=total_chapters, skipped=total_chapters, failed=0, duration_ms=0, errors=[])
+                    return result
 
                 checkpoint = self.storage.load_checkpoint(novel_id)
                 if checkpoint and 'last_successful_order' in checkpoint:
@@ -78,6 +86,19 @@ class DownloadEngine:
                 source = Source(provider_id=provider.id, provider_name=provider.name, source_url=request.url, language=provider.language, version=provider.version)
                 self.storage.begin(novel_id, request, metadata, source)
                 storage_started = True
+
+            # Asset Download
+            asset_options = AssetDownloadOptions(
+                enabled=request.download_assets,
+                download_cover=request.download_cover,
+                download_banner=request.download_banner
+            )
+            assets_to_download = provider.get_assets(metadata)
+            asset_result = await self.asset_downloader.download(novel_id, assets_to_download, asset_options)
+            asset_downloaded_count = asset_result.downloaded
+            asset_failed_count = asset_result.failed
+            if asset_failed_count > 0:
+                errors.append(f"{asset_failed_count} assets failed to download.")
 
             chapter_summaries = provider.parse_chapter_list(document, request.url)
             chapters_to_download = [s for s in chapter_summaries if s.order > start_from_order]
@@ -132,6 +153,7 @@ class DownloadEngine:
             return DownloadResult(
                 novel_id=novel_id, status=final_status, provider=provider_id, downloaded=downloaded_count,
                 total=total_chapters, skipped=skipped_count, failed=failed_count,
+                asset_downloaded=asset_downloaded_count, asset_failed=asset_failed_count,
                 duration_ms=duration_ms, errors=errors
             )
 
@@ -147,5 +169,6 @@ class DownloadEngine:
             return DownloadResult(
                 novel_id=novel_id, status=final_status, provider=provider_id, downloaded=downloaded_count,
                 total=total_chapters, skipped=skipped_count, failed=failed_count,
+                asset_downloaded=asset_downloaded_count, asset_failed=asset_failed_count,
                 duration_ms=duration_ms, errors=errors
             )

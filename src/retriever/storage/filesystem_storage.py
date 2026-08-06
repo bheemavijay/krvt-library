@@ -4,12 +4,14 @@ import shutil
 from typing import List, Optional, Dict, Any
 from dataclasses import asdict
 from datetime import datetime
+from urllib.parse import urlparse
 
 from src.retriever.models.novel_metadata import NovelMetadata
 from src.retriever.models.chapter import Chapter
 from src.retriever.models.source import Source
 from src.retriever.download.request import DownloadRequest
 from src.retriever.download.result import DownloadStatus
+from src.retriever.assets.asset_type import AssetType
 from .storage_writer import StorageWriter
 
 class FilesystemStorage(StorageWriter):
@@ -121,6 +123,47 @@ class FilesystemStorage(StorageWriter):
                 return json.load(f)
         return None
 
+    def save_asset(self, novel_id: str, asset_type: AssetType, original_url: str, original_filename: Optional[str], content: bytes, mime_type: Optional[str]) -> str:
+        paths = self._get_novel_paths(novel_id)
+        asset_dir = paths["assets_dir"]
+        os.makedirs(asset_dir, exist_ok=True)
+
+        # Generate a safe filename for storage
+        if original_filename:
+            _, ext = os.path.splitext(original_filename)
+            filename = f"{asset_type.value}{ext}"
+        else:
+            # Try to infer extension from mime_type or URL
+            ext = ""
+            if mime_type and '/' in mime_type:
+                ext = "." + mime_type.split('/')[-1]
+            elif '.' in original_url:
+                ext = "." + original_url.split('.')[-1]
+            filename = f"{asset_type.value}{ext}"
+
+        asset_path = os.path.join(asset_dir, filename)
+
+        with open(asset_path, 'wb') as f:
+            f.write(content)
+
+        # Update manifest with relative path and asset details
+        relative_path = os.path.join("assets", filename)
+
+        manifest_data = self.load_manifest(novel_id) or {}
+        assets_in_manifest = manifest_data.get("assets", {})
+
+        assets_in_manifest[asset_type.value] = {
+            "path": relative_path,
+            "size": len(content),
+            "mime": mime_type,
+            "originalUrl": original_url,
+            "originalFilename": original_filename
+        }
+
+        self._update_manifest(novel_id, DownloadStatus.RUNNING, assets=assets_in_manifest)
+
+        return relative_path
+
     def finish(self, novel_id: str, status: DownloadStatus) -> None:
         checkpoint = self.load_checkpoint(novel_id)
         manifest_updates = self._novel_info_cache.get(novel_id, {})
@@ -130,7 +173,6 @@ class FilesystemStorage(StorageWriter):
                 "total": checkpoint.get("total", 0)
             })
         self._update_manifest(novel_id, status, **manifest_updates)
-        # We keep the checkpoint file for history/debugging
 
     def abort(self, novel_id: str) -> None:
         self._update_manifest(novel_id, DownloadStatus.CANCELLED)

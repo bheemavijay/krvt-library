@@ -53,5 +53,9 @@ class DownloadObserver(ABC):
         pass
 
     @abstractmethod
+    def asset_failed(self, asset_name: str, error_message: str):
+        pass
+
+    @abstractmethod
     def download_finished(self, status: DownloadStatus, downloaded: int, skipped: int, failed: int, duration_ms: int, errors: List[str]):
         pass

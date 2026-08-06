@@ -6,6 +6,7 @@ from src.retriever.models.chapter import Chapter
 from src.retriever.models.source import Source
 from src.retriever.download.request import DownloadRequest
 from src.retriever.download.result import DownloadStatus
+from src.retriever.assets.asset_type import AssetType # For save_asset
 
 class StorageWriter(ABC):
     """
@@ -47,6 +48,14 @@ class StorageWriter(ABC):
     def load_manifest(self, novel_id: str) -> Optional[Dict[str, Any]]:
         """
         Loads the manifest data from a file.
+        """
+        pass
+
+    @abstractmethod
+    def save_asset(self, novel_id: str, asset_type: AssetType, original_url: str, original_filename: Optional[str], content: bytes, mime_type: Optional[str]) -> str:
+        """
+        Saves an asset to the novel's asset directory and updates the manifest.
+        Returns the relative path to the saved asset.
         """
         pass
 

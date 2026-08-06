@@ -40,6 +40,9 @@ class ConsoleDownloadObserver(DownloadObserver):
     def asset_completed(self, asset_name: str):
         print(f"Asset '{asset_name}' downloaded.")
 
+    def asset_failed(self, asset_name: str, error_message: str):
+        print(f"  - FAILED to download asset '{asset_name}': {error_message}")
+
     def download_finished(self, status: DownloadStatus, downloaded: int, skipped: int, failed: int, duration_ms: int, errors: List[str]):
         print("\n--- Download Finished ---")
         print(f"Status: {status.value}")

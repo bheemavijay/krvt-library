@@ -40,5 +40,8 @@ class NullDownloadObserver(DownloadObserver):
     def asset_completed(self, asset_name: str):
         pass
 
+    def asset_failed(self, asset_name: str, error_message: str):
+        pass
+
     def download_finished(self, status: DownloadStatus, downloaded: int, skipped: int, failed: int, duration_ms: int, errors: List[str]):
         pass

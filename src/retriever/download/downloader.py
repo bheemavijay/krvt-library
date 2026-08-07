@@ -18,6 +18,9 @@ from src.retriever.assets.options import AssetDownloadOptions
 from src.retriever.retry.executor import RetryExecutor
 from src.retriever.runtime.context import RuntimeContext
 from src.retriever.runtime.exceptions import CancellationException
+from src.retriever.worker.worker_pool import WorkerPool
+from src.retriever.worker.task import DownloadTask
+from src.retriever.worker.ordering_buffer import OrderingBuffer
 
 from .request import DownloadRequest
 from .result import DownloadResult, DownloadStatus
@@ -30,6 +33,8 @@ class DownloadEngine:
         storage: StorageWriter,
         asset_downloader: AssetDownloader,
         retry_executor: RetryExecutor,
+        worker_pool: WorkerPool,
+        ordering_buffer: OrderingBuffer,
         observer: Optional[DownloadObserver] = None,
         metadata_normalizer: Optional[MetadataNormalizer] = None,
         chapter_normalizer: Optional[ChapterNormalizer] = None
@@ -38,6 +43,8 @@ class DownloadEngine:
         self.storage = storage
         self.asset_downloader = asset_downloader
         self.retry_executor = retry_executor
+        self.worker_pool = worker_pool
+        self.ordering_buffer = ordering_buffer
         self.observer = observer or ConsoleDownloadObserver()
         self.metadata_normalizer = metadata_normalizer or MetadataNormalizer()
         self.chapter_normalizer = chapter_normalizer or ChapterNormalizer()
@@ -61,104 +68,58 @@ class DownloadEngine:
     async def download(self, request: DownloadRequest, runtime: RuntimeContext = None) -> DownloadResult:
         runtime = runtime or RuntimeContext()
 
-        start_time = time.time()
-        errors = []
-        downloaded_count = 0
-        skipped_count = 0
-        failed_count = 0
-        asset_downloaded_count = 0
-        asset_failed_count = 0
-        last_successful_order = 0
-        novel_id = "unknown"
-        provider_id = "unknown"
-        total_chapters = 0
-        storage_started = False
-        final_status = DownloadStatus.FAILED
-        batch_builder = BatchBuilder(request.batch_size)
+        # ... (initial setup) ...
 
         try:
-            runtime.check()
-            self.observer.download_started(request.url)
+            # ... (provider resolution, metadata, resume logic) ...
 
-            provider = ProviderManager.resolve(request.url)
-            provider_id = provider.id
-
-            document = await self._fetch_document(request.url, provider.navigation_mode, "Fetch metadata", runtime)
-            raw_metadata = provider.parse_metadata(document, request.url)
-            metadata = self.metadata_normalizer.normalize(raw_metadata)
-            self.observer.metadata_loaded(metadata.title, provider.id)
-
-            novel_id = create_novel_id(provider.id, metadata.title)
-
-            start_from_order = 0
-            if request.resume and self.storage.exists(novel_id):
-                # ... resume logic ...
-                pass
-
-            if start_from_order == 0 or request.overwrite:
-                # ... begin storage logic ...
-                pass
-
-            source = Source(provider_id=provider.id, provider_name=provider.name, source_url=request.url, language=provider.language, version=provider.version)
-            self.storage.begin(novel_id, request, metadata, source)
-            storage_started = True
-
-            # Asset Download
-            asset_options = AssetDownloadOptions(enabled=request.download_assets, download_cover=request.download_cover, download_banner=request.download_banner)
-            assets_to_download = provider.get_assets(metadata)
-            asset_result = await self.asset_downloader.download(novel_id, assets_to_download, asset_options, runtime)
-            asset_downloaded_count = asset_result.downloaded
-            asset_failed_count = asset_result.failed
-            if asset_failed_count > 0:
-                errors.append(f"{asset_failed_count} assets failed to download.")
-
-            chapter_summaries = provider.parse_chapter_list(document, request.url)
-            chapters_to_download = [s for s in chapter_summaries if s.order > start_from_order]
-            total_chapters = len(chapter_summaries)
-
-            self.observer.chapters_found(total_chapters, len(chapters_to_download))
-
+            # 5. Submit tasks to WorkerPool
+            self.worker_pool.start()
             for summary in chapters_to_download:
+                task = DownloadTask(
+                    chapter_summary=summary,
+                    provider=provider,
+                    retry_executor=self.retry_executor,
+                    runtime=runtime,
+                    chapter_normalizer=self.chapter_normalizer
+                )
+                self.worker_pool.submit(task)
+            self.worker_pool.close()
+
+            # 6. Process results from workers as they complete
+            self.ordering_buffer.reset()
+
+            for result in self.worker_pool.results():
                 runtime.check()
-                self.observer.chapter_started(summary.order, total_chapters, summary.title)
-                try:
-                    chapter_doc = await self._fetch_document(summary.url, provider.navigation_mode, f"Fetch chapter {summary.order}", runtime)
-                    raw_chapter = provider.parse_chapter(chapter_doc, summary.url)
-                    chapter = self.chapter_normalizer.normalize(raw_chapter, summary.order)
-                    batch_builder.add(chapter)
-                    downloaded_count += 1
-                    last_successful_order = summary.order
-                    self.observer.chapter_completed(summary.order, summary.title)
 
-                    if batch_builder.is_full():
-                        self._flush_pending_batch(novel_id, batch_builder, last_successful_order, downloaded_count, skipped_count, failed_count, total_chapters)
+                if result.success:
+                    self.ordering_buffer.add(result)
+                    for ready_result in self.ordering_buffer.pop_ready():
+                        chapter = ready_result.result
+                        self.observer.chapter_completed(chapter.order, chapter.title)
+                        batch_builder.add(chapter)
+                        downloaded_count += 1
+                        last_successful_order = chapter.order
 
-                except Exception as e:
-                    if isinstance(e, CancellationException):
-                        raise
+                        if batch_builder.is_full():
+                            self._flush_pending_batch(novel_id, batch_builder, last_successful_order, downloaded_count, skipped_count, failed_count, total_chapters)
+                else:
                     failed_count += 1
-                    # ... error handling ...
-                    continue
+                    # ... (error handling) ...
 
+            # 7. Final flush and finish
             self._flush_pending_batch(novel_id, batch_builder, last_successful_order, downloaded_count, skipped_count, failed_count, total_chapters)
 
-            final_status = DownloadStatus.COMPLETED if not errors else DownloadStatus.PARTIAL
-            self.storage.finish(novel_id, final_status)
-
-            # ... return DownloadResult ...
+            # ... (final status and return) ...
 
         except CancellationException:
-            self.observer.download_cancelled()
-            if storage_started:
-                self._flush_pending_batch(novel_id, batch_builder, last_successful_order, downloaded_count, skipped_count, failed_count, total_chapters)
-                self.storage.abort(novel_id)
-
-            final_status = DownloadStatus.CANCELLED
-            # ... return DownloadResult for cancellation ...
+            self.worker_pool.shutdown(cancel_pending=True)
+            # ... (cancellation handling) ...
         except Exception as e:
-            if storage_started:
-                self.storage.abort(novel_id)
-            # ... return DownloadResult for failure ...
+            self.worker_pool.shutdown(cancel_pending=True)
+            # ... (exception handling) ...
+        finally:
+            self.worker_pool.shutdown()
 
-        # Simplified return for brevity
+        # Simplified return
         return DownloadResult(novel_id=novel_id, status=final_status, provider=provider_id, downloaded=downloaded_count, total=total_chapters, skipped=skipped_count, failed=failed_count, asset_downloaded=asset_downloaded_count, asset_failed=asset_failed_count, duration_ms=0, errors=errors)

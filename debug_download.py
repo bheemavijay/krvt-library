@@ -9,6 +9,8 @@ from src.retriever.assets.downloader import AssetDownloader
 from src.retriever.download.request import DownloadRequest
 from src.retriever.retry.executor import RetryExecutor
 from src.retriever.observers.console_observer import ConsoleDownloadObserver
+from src.retriever.worker.worker_pool import WorkerPool
+from src.retriever.worker.ordered_buffer import OrderedBuffer
 import json
 from dataclasses import asdict
 
@@ -21,7 +23,7 @@ async def main():
         chapter_limit=10,
         download_assets=True,
         download_cover=True,
-        download_banner=False, # Example
+        download_banner=False,
         overwrite=False,
         resume=True
     )
@@ -46,7 +48,10 @@ async def main():
 
     asset_downloader = AssetDownloader(storage, observer, retry_executor)
 
-    engine = DownloadEngine(context, storage, asset_downloader, retry_executor, observer)
+    worker_pool = WorkerPool(max_workers=4, browser_context=context)
+    ordering_buffer = OrderedBuffer()
+
+    engine = DownloadEngine(context, storage, asset_downloader, retry_executor, worker_pool, ordering_buffer, observer)
 
     # --- Execution ---
     try:

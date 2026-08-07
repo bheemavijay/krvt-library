@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List
 from src.retriever.download.result import DownloadStatus
 from src.retriever.assets.asset_type import AssetType
+from src.retriever.retry.context import RetryContext
 
 class DownloadObserver(ABC):
     """
@@ -10,6 +11,18 @@ class DownloadObserver(ABC):
 
     @abstractmethod
     def download_started(self, url: str):
+        pass
+
+    @abstractmethod
+    def download_paused(self):
+        pass
+
+    @abstractmethod
+    def download_resumed(self):
+        pass
+
+    @abstractmethod
+    def download_cancelled(self):
         pass
 
     @abstractmethod
@@ -54,6 +67,26 @@ class DownloadObserver(ABC):
 
     @abstractmethod
     def asset_failed(self, asset_type: AssetType, error_message: str):
+        pass
+
+    @abstractmethod
+    def retry_started(self, context: RetryContext):
+        pass
+
+    @abstractmethod
+    def retry_attempt(self, context: RetryContext):
+        pass
+
+    @abstractmethod
+    def retry_waiting(self, context: RetryContext, delay_seconds: float):
+        pass
+
+    @abstractmethod
+    def retry_succeeded(self, context: RetryContext):
+        pass
+
+    @abstractmethod
+    def retry_exhausted(self, context: RetryContext):
         pass
 
     @abstractmethod

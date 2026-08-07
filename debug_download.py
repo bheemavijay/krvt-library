@@ -7,6 +7,8 @@ from src.retriever.download.downloader import DownloadEngine
 from src.retriever.storage.filesystem_storage import FilesystemStorage
 from src.retriever.assets.downloader import AssetDownloader
 from src.retriever.download.request import DownloadRequest
+from src.retriever.retry.executor import RetryExecutor
+from src.retriever.observers.console_observer import ConsoleDownloadObserver
 import json
 from dataclasses import asdict
 
@@ -39,13 +41,12 @@ async def main():
 
     context = BrowserContext(settings)
     storage = FilesystemStorage(base_dir="novels")
+    observer = ConsoleDownloadObserver()
+    retry_executor = RetryExecutor(observer=observer)
 
-    # The AssetDownloader needs a BrowserContext, but we can't pass it directly
-    # as it's not started yet. For now, we'll create a temporary client.
-    # In a real app, the DI container would manage this.
-    asset_downloader = AssetDownloader(storage, None, context) # Observer is optional
+    asset_downloader = AssetDownloader(storage, observer, retry_executor)
 
-    engine = DownloadEngine(context, storage, asset_downloader)
+    engine = DownloadEngine(context, storage, asset_downloader, retry_executor, observer)
 
     # --- Execution ---
     try:

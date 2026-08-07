@@ -5,16 +5,27 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b17fc1dc-ac9a-491d-abb8-def7b5b914a1" name="Changes" comment="stopped readmtlnovel.com provider for now.">
-      <change afterPath="$PROJECT_DIR$/src/retriever/assets/options.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/retry/.gitkeep" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/retry/classifier.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/retry/context.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/retry/executor.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/retry/failure_type.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/retry/observer.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/retry/policy.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/retry/result.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/retry/strategy.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/runtime/.gitkeep" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/runtime/context.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/runtime/exceptions.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/runtime/token.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/retriever/download/request.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/retriever/download/request.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/retriever/download/result.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/retriever/download/result.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/debug_download.py" beforeDir="false" afterPath="$PROJECT_DIR$/debug_download.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/retriever/assets/downloader.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/assets/downloader.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/retriever/download/downloader.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/download/downloader.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/retriever/observers/console_observer.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/observers/console_observer.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/retriever/observers/null_observer.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/observers/null_observer.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/retriever/observers/observer.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/observers/observer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/retriever/storage/filesystem_storage.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/storage/filesystem_storage.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

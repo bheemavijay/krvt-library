@@ -72,11 +72,10 @@ class FilesystemStorage(StorageWriter):
         with open(paths["source"], 'w', encoding='utf-8') as f:
             json.dump(asdict(source), f, indent=2)
 
-        # Cache info for later manifest updates
         self._novel_info_cache[novel_id] = {
             "provider": source.provider_id,
             "providerVersion": source.version,
-            "navigationMode": "CLOUDFLARE", # Placeholder, should come from provider
+            "navigationMode": "CLOUDFLARE", # Placeholder
             "title": metadata.title
         }
 
@@ -128,25 +127,21 @@ class FilesystemStorage(StorageWriter):
         asset_dir = paths["assets_dir"]
         os.makedirs(asset_dir, exist_ok=True)
 
-        # Generate a safe filename for storage
-        if original_filename:
-            _, ext = os.path.splitext(original_filename)
-            filename = f"{asset_type.value}{ext}"
-        else:
-            # Try to infer extension from mime_type or URL
-            ext = ""
-            if mime_type and '/' in mime_type:
-                ext = "." + mime_type.split('/')[-1]
-            elif '.' in original_url:
-                ext = "." + original_url.split('.')[-1]
-            filename = f"{asset_type.value}{ext}"
+        ext = ""
+        if original_filename and '.' in original_filename:
+            ext = "." + original_filename.split('.')[-1]
+        elif mime_type and '/' in mime_type:
+            ext = "." + mime_type.split('/')[-1]
 
-        asset_path = os.path.join(asset_dir, filename)
+        filename = f"{asset_type.value}{ext}"
+        final_path = os.path.join(asset_dir, filename)
+        temp_path = final_path + ".tmp"
 
-        with open(asset_path, 'wb') as f:
+        with open(temp_path, 'wb') as f:
             f.write(content)
 
-        # Update manifest with relative path and asset details
+        os.rename(temp_path, final_path)
+
         relative_path = os.path.join("assets", filename)
 
         manifest_data = self.load_manifest(novel_id) or {}

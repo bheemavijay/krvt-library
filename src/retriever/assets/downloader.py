@@ -1,33 +1,32 @@
 import httpx
-from typing import List
+from typing import List, Optional
 
 from src.retriever.storage.storage_writer import StorageWriter
 from src.retriever.observers.observer import DownloadObserver
-from src.retriever.core.context import BrowserContext
+from src.retriever.retry.executor import RetryExecutor
+from src.retriever.runtime.context import RuntimeContext
 from .asset import Asset
 from .result import AssetDownloadResult
 from .asset_type import AssetType
 from .options import AssetDownloadOptions
 
 class AssetDownloader:
-    """
-    Responsible for downloading assets associated with a novel.
-    """
     def __init__(
         self,
         storage: StorageWriter,
         observer: DownloadObserver,
-        browser_context: BrowserContext,
+        retry_executor: RetryExecutor,
     ):
         self.storage = storage
         self.observer = observer
-        self.browser_context = browser_context
+        self.retry_executor = retry_executor
 
     async def download(
         self,
         novel_id: str,
         assets: List[Asset],
-        options: AssetDownloadOptions
+        options: AssetDownloadOptions,
+        runtime: RuntimeContext,
     ) -> AssetDownloadResult:
 
         if not options.enabled:
@@ -41,15 +40,26 @@ class AssetDownloader:
         skipped_count = len(assets) - len(assets_to_download)
 
         for asset in assets_to_download:
+            runtime.cancellation.throw_if_cancelled()
+            await runtime.pause.wait_if_paused()
+
             self.observer.asset_started(asset.type)
             try:
-                # TODO: Add resume/skip logic for assets based on manifest
+                async def download_action():
+                    async with httpx.AsyncClient() as client:
+                        # TODO: Add timeout to client request
+                        response = await client.get(asset.url)
+                        response.raise_for_status()
+                        return response
 
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(asset.url)
-                    response.raise_for_status()
-                    content = response.content
-                    mime_type = response.headers.get("content-type")
+                response = await self.retry_executor.execute(
+                    func=download_action,
+                    operation_name=f"Download asset {asset.type.value}",
+                    runtime=runtime
+                )
+
+                content = response.content
+                mime_type = response.headers.get("content-type")
 
                 relative_path = self.storage.save_asset(
                     novel_id,
@@ -62,9 +72,6 @@ class AssetDownloader:
                 downloaded_count += 1
                 self.observer.asset_completed(asset.type, relative_path)
 
-            except httpx.HTTPStatusError as e:
-                failed_count += 1
-                self.observer.asset_failed(asset.type, str(e))
             except Exception as e:
                 failed_count += 1
                 self.observer.asset_failed(asset.type, str(e))
@@ -84,5 +91,4 @@ class AssetDownloader:
                 filtered_assets.append(asset)
             elif asset.type == AssetType.BANNER and options.download_banner:
                 filtered_assets.append(asset)
-            # Add other asset types here
         return filtered_assets

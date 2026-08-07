@@ -2,6 +2,7 @@ from typing import List
 from .observer import DownloadObserver
 from src.retriever.download.result import DownloadStatus
 from src.retriever.assets.asset_type import AssetType
+from src.retriever.retry.context import RetryContext
 
 class ConsoleDownloadObserver(DownloadObserver):
     """
@@ -10,6 +11,15 @@ class ConsoleDownloadObserver(DownloadObserver):
 
     def download_started(self, url: str):
         print(f"--- Starting Download for: {url} ---")
+
+    def download_paused(self):
+        print("--- Download Paused ---")
+
+    def download_resumed(self):
+        print("--- Download Resumed ---")
+
+    def download_cancelled(self):
+        print("--- Download Cancelled by user ---")
 
     def metadata_loaded(self, title: str, provider: str):
         print(f"[Phase 1] Fetched metadata for '{title}' from provider '{provider}'.")
@@ -43,6 +53,21 @@ class ConsoleDownloadObserver(DownloadObserver):
 
     def asset_failed(self, asset_type: AssetType, error_message: str):
         print(f"  - FAILED to download asset '{asset_type.value}': {error_message}")
+
+    def retry_started(self, context: RetryContext):
+        print(f"Starting retriable operation: {context.operation_name}")
+
+    def retry_attempt(self, context: RetryContext):
+        print(f"  - Attempt {context.attempt} for '{context.operation_name}' failed: {context.last_exception}")
+
+    def retry_waiting(self, context: RetryContext, delay_seconds: float):
+        print(f"  - Waiting {delay_seconds:.2f} seconds before next attempt...")
+
+    def retry_succeeded(self, context: RetryContext):
+        print(f"  - Operation '{context.operation_name}' succeeded after {context.attempt} attempts.")
+
+    def retry_exhausted(self, context: RetryContext):
+        print(f"  - Retries exhausted for '{context.operation_name}'. Final error: {context.last_exception}")
 
     def download_finished(self, status: DownloadStatus, downloaded: int, skipped: int, failed: int, duration_ms: int, errors: List[str]):
         print("\n--- Download Finished ---")

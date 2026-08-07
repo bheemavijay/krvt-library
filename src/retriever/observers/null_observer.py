@@ -2,6 +2,7 @@ from typing import List
 from .observer import DownloadObserver
 from src.retriever.download.result import DownloadStatus
 from src.retriever.assets.asset_type import AssetType
+from src.retriever.retry.context import RetryContext
 
 class NullDownloadObserver(DownloadObserver):
     """
@@ -9,6 +10,15 @@ class NullDownloadObserver(DownloadObserver):
     """
 
     def download_started(self, url: str):
+        pass
+
+    def download_paused(self):
+        pass
+
+    def download_resumed(self):
+        pass
+
+    def download_cancelled(self):
         pass
 
     def metadata_loaded(self, title: str, provider: str):
@@ -42,6 +52,21 @@ class NullDownloadObserver(DownloadObserver):
         pass
 
     def asset_failed(self, asset_type: AssetType, error_message: str):
+        pass
+
+    def retry_started(self, context: RetryContext):
+        pass
+
+    def retry_attempt(self, context: RetryContext):
+        pass
+
+    def retry_waiting(self, context: RetryContext, delay_seconds: float):
+        pass
+
+    def retry_succeeded(self, context: RetryContext):
+        pass
+
+    def retry_exhausted(self, context: RetryContext):
         pass
 
     def download_finished(self, status: DownloadStatus, downloaded: int, skipped: int, failed: int, duration_ms: int, errors: List[str]):

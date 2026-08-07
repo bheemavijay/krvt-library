@@ -1,38 +1,50 @@
-from bs4 import BeautifulSoup
+from typing import List
 from ..base import BaseProvider
-from .metadata_parser import MetadataParser
-from .chapter_list_parser import ChapterListParser
-from .chapter_parser import ChapterParser
+from ..manifest import ProviderManifest
+from ..capabilities import ProviderCapabilities
+from ..context import ProviderContext
+from src.retriever.models.enums import NavigationMode
+from src.retriever.core.document import Document
 from src.retriever.models.raw_metadata import RawNovelMetadata
 from src.retriever.models.raw_chapter import RawChapter
 from src.retriever.models.provider import ChapterSummary
-from src.retriever.models.enums import NavigationMode
+from .metadata_parser import FanMTLMetadataParser
+from .chapter_list_parser import FanMTLChapterListParser
+from .chapter_parser import FanMTLChapterParser
 
 class FanMTLProvider(BaseProvider):
-    @property
-    def id(self) -> str:
-        return "fanmtl"
+    """
+    Provider for FanMTL.
+    """
+    manifest = ProviderManifest(
+        id="fanmtl",
+        name="FanMTL",
+        version="1.0.1",
+        author="KRVT",
+        homepage="https://fanmtl.com",
+        url_patterns=[r"https?://(www\.)?fanmtl\.com/novel/.*"],
+        supported_languages=["en"],
+        capabilities=ProviderCapabilities(
+            max_parallel=4,
+            requests_per_second=2,
+            burst=3,
+            cloudflare=True,
+            navigation_mode=NavigationMode.CLOUDFLARE
+        ),
+        api_version=1
+    )
 
-    @property
-    def name(self) -> str:
-        return "FanMTL"
+    def __init__(self, context: ProviderContext):
+        super().__init__(context)
 
-    @property
-    def domains(self) -> list[str]:
-        return ["fanmtl.com"]
-
-    @property
-    def navigation_mode(self) -> NavigationMode:
-        return NavigationMode.DOM_READY
-
-    def parse_metadata(self, soup: BeautifulSoup, source_url: str = "") -> RawNovelMetadata:
-        parser = MetadataParser(soup, source_url)
+    def parse_metadata(self, document: Document, source_url: str = "") -> RawNovelMetadata:
+        parser = FanMTLMetadataParser(document.soup)
         return parser.parse()
 
-    def parse_chapter_list(self, soup: BeautifulSoup, url: str = "") -> list[ChapterSummary]:
-        parser = ChapterListParser(soup, url)
+    def parse_chapter_list(self, document: Document, novel_url: str = "") -> List[ChapterSummary]:
+        parser = FanMTLChapterListParser(document.soup, novel_url)
         return parser.parse()
 
-    def parse_chapter(self, soup: BeautifulSoup, url: str = "") -> RawChapter:
-        parser = ChapterParser(soup, url)
+    def parse_chapter(self, document: Document, chapter_url: str = "") -> RawChapter:
+        parser = FanMTLChapterParser(document.soup)
         return parser.parse()

@@ -9,47 +9,37 @@ from src.retriever.models.enums import NavigationMode
 from src.retriever.core.document import Document
 from src.retriever.assets.asset import Asset
 from .capabilities import ProviderCapabilities
+from .context import ProviderContext
+from .manifest import ProviderManifest
 
 class BaseProvider(ABC):
     """
     The frozen contract for all data source providers.
     """
-    @property
-    @abstractmethod
-    def id(self) -> str:
-        pass
+    manifest: ProviderManifest
+
+    def __init__(self, context: ProviderContext):
+        self.context = context
 
     @property
-    @abstractmethod
+    def id(self) -> str:
+        return self.manifest.id
+
+    @property
     def name(self) -> str:
-        pass
+        return self.manifest.name
 
     @property
     def version(self) -> str:
-        return "1.0.0"
-
-    @property
-    @abstractmethod
-    def domains(self) -> List[str]:
-        pass
-
-    @property
-    @abstractmethod
-    def navigation_mode(self) -> NavigationMode:
-        pass
+        return self.manifest.version
 
     @property
     def capabilities(self) -> ProviderCapabilities:
-        """
-        Returns the provider's capabilities.
-        Defaults to a conservative setting.
-        """
-        return ProviderCapabilities()
+        return self.manifest.capabilities
 
-    def supports(self, url: str) -> bool:
-        from urllib.parse import urlparse
-        host = urlparse(url).netloc.lower()
-        return any(host == domain or host.endswith(f".{domain}") for domain in self.domains)
+    @property
+    def navigation_mode(self) -> NavigationMode:
+        return self.manifest.capabilities.navigation_mode
 
     @abstractmethod
     def parse_metadata(self, document: Document, source_url: str = "") -> RawNovelMetadata:

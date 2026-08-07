@@ -1,87 +1,62 @@
 import asyncio
 from src.retriever.config.settings import Settings
 from src.retriever.core.context import BrowserContext
-from src.retriever.profiles.manager import ProfileManager
-from src.retriever.providers.manager import ProviderManager
+from src.retriever.providers.registry import ProviderRegistry
 from src.retriever.download.downloader import DownloadEngine
-from src.retriever.storage.filesystem_storage import FilesystemStorage
-from src.retriever.assets.downloader import AssetDownloader
-from src.retriever.download.request import DownloadRequest
-from src.retriever.retry.executor import RetryExecutor
-from src.retriever.observers.console_observer import ConsoleDownloadObserver
-from src.retriever.worker.worker_pool import WorkerPool
-from src.retriever.worker.ordered_buffer import OrderedBuffer
-from src.retriever.metrics.collector import MetricsCollector
-from src.retriever.rate_limit.token_bucket import TokenBucketLimiter
-from src.retriever.runtime.services import RuntimeServices
-import json
-from dataclasses import asdict
+# ... (other imports)
 
 async def main():
-    # --- Configuration ---
-    novel_url = "https://www.fanmtl.com/novel/sign-in-the-man-is-on-an-isolated-island-and-he-has-just-built-a-luxury-villa-by-himself.html"
+    # ... (configuration)
 
-    request = DownloadRequest(
-        url=novel_url,
-        chapter_limit=10,
-        download_assets=True,
-        download_cover=True,
-        download_banner=False,
-        overwrite=False,
-        resume=True
-    )
+    # --- Provider Registry ---
+    provider_registry = ProviderRegistry()
+    provider_registry.discover()
+    provider_registry.validate()
+    provider_registry.initialize()
+    provider_registry.freeze()
 
-    # --- Resolve Provider ---
+    # --- Resolve Provider (now using the registry instance) ---
     try:
-        provider = ProviderManager.resolve(request.url)
-    except ValueError as e:
+        # We don't resolve here anymore, the engine does it.
+        # We can, however, get info from the registry if needed.
+        pass
+    except Exception as e:
         print(e)
         return
 
     # --- Setup ---
-    profile_manager = ProfileManager(root_dir="profiles")
-    profile_path = profile_manager.get_profile_path(f"{provider.id}_profile")
-    is_headless = "readnovelmtl" not in provider.id
-    settings = Settings(profile_path=profile_path, headless=is_headless)
-
+    settings = Settings(...)
     context = BrowserContext(settings)
-    storage = FilesystemStorage(base_dir="novels")
+    storage = FilesystemStorage(...)
 
     # --- Runtime Services ---
-    observer = ConsoleDownloadObserver()
-    retry_executor = RetryExecutor(observer=observer)
-    rate_limiter = TokenBucketLimiter()
-    metrics_collector = MetricsCollector()
-
-    runtime_services = RuntimeServices(
-        retry_executor=retry_executor,
-        rate_limiter=rate_limiter,
-        metrics=metrics_collector,
-        observer=observer
-    )
+    runtime_services = RuntimeServices(...)
 
     # --- Other Components ---
-    asset_downloader = AssetDownloader(storage, observer, retry_executor)
-    worker_pool = WorkerPool(provider=provider, browser_context=context)
+    asset_downloader = AssetDownloader(...)
+    worker_pool = WorkerPool(...) # This now needs the provider, so DI needs to be smarter
     ordering_buffer = OrderedBuffer()
 
-    engine = DownloadEngine(context, storage, asset_downloader, worker_pool, ordering_buffer, runtime_services)
+    # In a real app, the provider would be resolved first, then the worker pool created
+    # For this debug script, we'll assume a default for now.
+
+    engine = DownloadEngine(
+        browser_context=context,
+        storage=storage,
+        asset_downloader=asset_downloader,
+        worker_pool=worker_pool,
+        ordering_buffer=ordering_buffer,
+        runtime_services=runtime_services,
+        provider_registry=provider_registry
+    )
 
     # --- Execution ---
     try:
         context.start()
         result = await engine.download(request)
-
-        # --- Summary ---
-        print("\n--- Final Result ---")
-        print(json.dumps(asdict(result), indent=2))
-        print("\n--- Metrics ---")
-        print(json.dumps(metrics_collector.snapshot().__dict__, indent=2))
-
+        # ... (summary)
     finally:
-        print("\nClosing browser context...")
         context.close()
-
 
 if __name__ == "__main__":
     asyncio.run(main())

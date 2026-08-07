@@ -11,6 +11,9 @@ from src.retriever.retry.executor import RetryExecutor
 from src.retriever.observers.console_observer import ConsoleDownloadObserver
 from src.retriever.worker.worker_pool import WorkerPool
 from src.retriever.worker.ordered_buffer import OrderedBuffer
+from src.retriever.metrics.collector import MetricsCollector
+from src.retriever.rate_limit.token_bucket import TokenBucketLimiter
+from src.retriever.runtime.services import RuntimeServices
 import json
 from dataclasses import asdict
 
@@ -43,15 +46,26 @@ async def main():
 
     context = BrowserContext(settings)
     storage = FilesystemStorage(base_dir="novels")
+
+    # --- Runtime Services ---
     observer = ConsoleDownloadObserver()
     retry_executor = RetryExecutor(observer=observer)
+    rate_limiter = TokenBucketLimiter()
+    metrics_collector = MetricsCollector()
 
+    runtime_services = RuntimeServices(
+        retry_executor=retry_executor,
+        rate_limiter=rate_limiter,
+        metrics=metrics_collector,
+        observer=observer
+    )
+
+    # --- Other Components ---
     asset_downloader = AssetDownloader(storage, observer, retry_executor)
-
-    worker_pool = WorkerPool(max_workers=4, browser_context=context)
+    worker_pool = WorkerPool(provider=provider, browser_context=context)
     ordering_buffer = OrderedBuffer()
 
-    engine = DownloadEngine(context, storage, asset_downloader, retry_executor, worker_pool, ordering_buffer, observer)
+    engine = DownloadEngine(context, storage, asset_downloader, worker_pool, ordering_buffer, runtime_services)
 
     # --- Execution ---
     try:
@@ -61,6 +75,8 @@ async def main():
         # --- Summary ---
         print("\n--- Final Result ---")
         print(json.dumps(asdict(result), indent=2))
+        print("\n--- Metrics ---")
+        print(json.dumps(metrics_collector.snapshot().__dict__, indent=2))
 
     finally:
         print("\nClosing browser context...")

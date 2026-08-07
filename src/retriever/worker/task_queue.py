@@ -6,11 +6,11 @@ class TaskQueue:
     """
     A simple wrapper around a queue to manage download tasks.
     """
-    def __init__(self):
-        self._queue = Queue()
+    def __init__(self, maxsize: int = 0):
+        self._queue = Queue(maxsize=maxsize)
 
-    def put(self, task: Optional[DownloadTask]):
-        self._queue.put(task)
+    def put(self, task: Optional[DownloadTask], block=True, timeout=None):
+        self._queue.put(task, block=block, timeout=timeout)
 
     def get(self, block=True, timeout=None) -> Optional[DownloadTask]:
         try:

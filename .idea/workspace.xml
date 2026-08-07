@@ -5,12 +5,19 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b17fc1dc-ac9a-491d-abb8-def7b5b914a1" name="Changes" comment="stopped readmtlnovel.com provider for now.">
-      <change afterPath="$PROJECT_DIR$/src/retriever/worker/ordered_buffer.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/retriever/worker/simple_ordering_buffer.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/metrics/.gitkeep" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/metrics/collector.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/metrics/snapshot.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/providers/capabilities.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/rate_limit/.gitkeep" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/rate_limit/limiter.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/retriever/rate_limit/token_bucket.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/storage/coverDownloader.js" beforeDir="false" afterPath="$PROJECT_DIR$/backend/storage/coverDownloader.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/debug_download.py" beforeDir="false" afterPath="$PROJECT_DIR$/debug_download.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/retriever/download/downloader.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/download/downloader.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/retriever/providers/base.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/providers/base.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/retriever/worker/ordering_buffer.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/worker/ordering_buffer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/retriever/worker/simple_ordering_buffer.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/worker/simple_ordering_buffer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/retriever/worker/task_queue.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/worker/task_queue.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/retriever/worker/worker_pool.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/retriever/worker/worker_pool.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />

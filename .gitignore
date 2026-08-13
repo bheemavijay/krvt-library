@@ -14,4 +14,20 @@ provider_result.json
 chapter_result.json
 analysis.md
 chapter_analysis.md
-.idea/workspace.xml
+
+# Dependencies
+/node_modules/
+/venv/
+
+# Build output
+/.next/
+/out/
+
+# KRVT Library - downloaded/runtime novel data
+/novels/
+
+# Temporary / generated files
+*.log
+/cloudflare_page.html
+/tsconfig.tsbuildinfo
+/src/retriever/net/
